@@ -13,7 +13,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
         with:
-          version: pre-release
+          version: '1.4.550'  # Use stable version instead of pre-release
 
       - name: Set up R
         uses: r-lib/actions/setup-r@v2
