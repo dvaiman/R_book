@@ -1,0 +1,132 @@
+---
+title: "Workflow"
+---
+
+# Data Analysis Workflow
+
+In a typical data analysis workflow, you should be able to follow the data from the moment it is read into RStudio until you save the plots, tables, and the clean data. The data analysis can be done in one or several scripts. Using several scripts often makes it easier to manage if it is a larger process. This usually means that at the end of one script, the data is saved (for example, after cleaning the data as a new file), and then at the start of the next script, it is read in.
+
+## End goal
+In the end of a data workflow it is expected to have raw data, clean data, analysis data, Tables and Figures:
+
+1. **Raw Data**:
+   - Unprocessed, original data.
+   - Contains all collected variables and observations.
+   - Example: Initial survey responses as a .csv or .xlsx.
+
+2. **Clean Data**:
+   - Data after basic cleaning.
+   - for example duplicates removed, errors corrected.
+
+3. **Analysis Data**:
+   - Data transformed for specific analyses.
+   - Subsetted, aggregated, and new features created as needed.
+
+4. **Tables**:
+   - Structured data summaries.
+   - Descriptive statistics, test results, tables for scientific articles.
+
+5. **Figures**:
+   - Visual data representations.
+   - Charts, graphs, and plots to highlight key insights.
+
+
+
+
+
+A figure from Hadley Wickham describes the a workflow process in a simplistic way:
+
+```{r}
+#| label: fig-workflow
+#| echo: false
+#| out.width: "70%"
+#| out.height: "auto"
+#| fig-cap: | 
+#|   A simplistic workflow.
+#| fig-alt: |
+#|   tidy your data.
+
+knitr::include_graphics("images/whole-game.png")
+```
+
+However, the process could also be defined in 9 steps. Typical steps in a finalized data analysis workflow are as follows. Keep in mind that from the beginning, it is an iterative work process, meaning that you often go back and forth between the different steps. In some cases the process can even be near simultaneous such as the one between data wrangling and data exploration. Further all steps are not allways nessessery. Even [experienced data analysts](https://arxiv.org/abs/1911.00568) might disagree exactly how these steps should be executed. 
+
+## Workflow Steps
+
+1. **Define Objectives**:
+   - Clearly define the goals and objectives of the analysis.
+     - Determine the questions to be answered. 
+     - Possible hypotheses to be tested.
+
+2. **Data Collection**:
+   - Gather data from relevant sources, e.g.: 
+     - Databases 
+     - APIs 
+     - Surveys 
+     - Experiments
+
+3. **Data Import**:
+   - Import data into the RStudio environment.
+     - Use functions like `readr::read_csv()` or `openxlsx::read.xlsx()` together with the `here::here()` function to import data.
+   
+4. **Data Wrangling**:
+   - Data integration
+     - Combine multiple datasets.
+     - Convert data structures (e.g., pivoting between long and wide formats).
+     - Merge or split variables/columns.
+   - Data cleaning
+     - Standardize formats (e.g., dates, categorical variables).
+     - Correct data types (e.g., character, numeric, dates).
+     - Set variables as factors. See more [here.](https://r4ds.hadley.nz/factors)
+     - Handle outliers, and duplicates.
+     - Handle erroneous values, such as missing data or invalid entries.
+     - Construct new variables, for example composite variables, score variables, aggregated groups, outcome variables.
+   - Data management and documentation
+     - After this step data can be saved as clean data with `write_csv()`.
+     - A possibility after this step is to create an data dictionary with meta data, for example with `datadictionary::create_dictionary(data)` or `skimr::skim(data)`.
+
+5. **Data Exploration**:
+   - Summary statistics
+     - Descriptive Statistics: Compute measures such as mean, median, standard deviation, quartiles, and range for numerical variables.
+     - Frequency Counts: Analyze frequency and distribution of categorical variables.
+   - Data Visualizations, for example:
+     - Histograms and Boxplots: Assess the distribution and identify potential outliers for numerical variables.
+     - Bar Charts: Visualize the distribution of categorical variables.
+     - Scatterplots: Explore relationships between pairs of numerical variables.
+     - Heatmaps: Visualize correlation matrices to understand relationships between multiple variables.
+     - Pair plot: A grid of scatterplots used to visualize the pairwise relationships between multiple variables in a dataset.
+     - Trend plots: Identify trends over time if the dataset includes temporal data.
+   - Correlation/Association
+     - Pearson: Measures the linear relationship between two continuous variables.
+     - Spearman: Measures the monotonic relationship between two continuous or ordinal variables.
+     - Cramers V: Measures the strength of association between two categorical variables.
+   - Cross-tabulations 
+     - Explore relationships between categorical variables.
+   - Dimensionality Reduction for high-dimensional data 
+     - Principal Component Analysis (PCA) to reduce the number of variables and identify underlying patterns.
+     - Multiple Correspondence Analysis (MCA) similar to PCA but adapted for categorical data.
+     - Factor Analysis of Mixed Data (FAMD), combines PCA and MCA.
+
+6. **Data selection**:
+   - Select data that will be used in your analyses 
+   - Exclude individuals/tests/variables/values as needed.
+   - Further transform data if needed.
+
+7. **Data Analysis and Modeling**:
+   - Apply summary statistics, statistical methods, machine learning algorithms, or other analytical techniques to the data.
+   - Use statistics such as mean, median, t-test, regression, clustering, cox, classification, time series analysis, etc.
+   - Extract data from models to rectangular data frames.
+
+8. **Results Visualization and Tables**:
+   - Create visualizations. Use plots like forrest plots, line graphs, scatter plots, heatmaps, etc. [For inspiration](https://r-graph-gallery.com/).
+   - Create tables. [For inspiration](https://r-graph-gallery.com/table.html).
+
+9. **Save and Export**:
+   - Save data, figures, tables, and models. Use desired formats (e.g., CSV, Excel, PDF, PNG).
+	
+	
+	
+#### More on data management not covered here:
+  - [icpsr.umich.edu](https://www.icpsr.umich.edu/files/deposit/dataprep.pdf )  
+  - [datamgmtinedresearch.com](https://datamgmtinedresearch.com/clean)  
+	

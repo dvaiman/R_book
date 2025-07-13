@@ -1,0 +1,95 @@
+# Tables and Figures
+
+Data visualization [Fundamentals of Data Visualization](https://clauswilke.com/dataviz/)\
+[Principles of Effective Data Visualization](https://www.sciencedirect.com/science/article/pii/S2666389920301896?s=09)
+
+
+# Rectangular Data and Table Packages in R
+
+Rectangular data refers to data organized in a tabular format, where rows represent observations and columns represent variables. This is a common structure for datasets in data analysis and statistics.
+
+## Example Dataset
+
+Let's create a simple rectangular dataset using the `data.frame` function in R.
+
+```
+# Creating a rectangular dataset
+data <- data.frame(
+  Name = c("Alice", "Bob", "Charlie", "David"),
+  Age = c(25, 30, 35, 40),
+  Score = c(90, 85, 88, 92)
+)
+
+# Display the dataset
+print(data)
+```
+
+## Table Packages in R
+
+R provides several packages to create and manipulate tables, each with its own advantages. Here, we'll look at four popular table packages: `tinytable`, `flextable`, `DT`, and `gt`.
+
+### 1. `tinytable`
+
+`tinytable` is a lightweight package for creating tables in R. It is simple and easy to use, making it a good choice for basic table needs.
+
+```
+# Using tinytable
+library(tinytable)
+tiny_table <- tinytable::tinytable(data)
+tiny_table
+```
+
+### 2. `flextable`
+
+`flextable` allows you to create complex tables with advanced formatting options. It is particularly useful for creating tables for Word or PowerPoint documents.
+
+```
+# Using flextable
+library(flextable)
+flex_table <- flextable::flextable(data)
+flex_table <- flextable::theme_vanilla(flex_table)
+flex_table
+```
+
+### 3. `DT`
+
+`DT` provides an interface to the JavaScript library DataTables, allowing you to create interactive tables with features like sorting, filtering, and pagination.
+
+```
+# Using DT
+library(DT)
+dt_table <- DT::datatable(data)
+dt_table
+```
+
+### 4. `gt`
+
+`gt` is designed for creating beautiful, publication-quality tables. It is highly customizable and integrates well with other tidyverse packages.
+
+```
+# Using gt
+library(gt)
+gt_table <- gt::gt(data)
+gt_table
+```
+
+::: note
+![Clear off the table](https://static1.squarespace.com/static/56713bf4dc5cb41142f28d1f/t/56fd4c83746fb9261146eed5/1459440776291/ClearOffTheTableMd.gif?s=09)
+:::
+
+## Why Use Table Packages?
+
+Table packages in R offer several benefits:
+
+- **Enhanced Presentation**: Improve the visual appeal of your tables with formatting options.
+- **Interactivity**: Enable sorting, filtering, and other interactive features.
+- **Customization**: Tailor the appearance of tables to fit the needs of your analysis or presentation.
+- **Integration**: Seamlessly integrate tables into reports, presentations, and dashboards.
+
+By using these packages, you can create tables that are not only functional but also visually appealing and easy to interpret.
+
+## Conclusion
+
+In this section, we explored the basics of rectangular data and introduced four popular table packages in R. Each package has unique features and advantages, allowing you to choose the best one for your specific needs. Whether you need simple tables or complex, interactive ones, R provides powerful tools to help you achieve your goals.
+
+

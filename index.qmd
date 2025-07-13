@@ -1,0 +1,23 @@
+# Preface {.unnumbered}
+
+## Welcome {#welcome}
+
+NavigatoR: Plotting Your Course Through R Fundamentals guides you on an explorative journey through the fundamentals of R programming. This book is designed for individuals who are eager to establish a reproducible workflow for their future data science endeavors. From the basics of R to advanced data manipulation and visualization techniques, this resource provides a structured pathway to mastering the essential skills.
+
+You will start by setting up your R environment and understanding the core concepts of R programming. As you progress, you will learn how to effectively manage projects, organize your data, and perform robust data analyses. Key topics include:
+
+-   **Introduction to R**: Understanding the R environment, data types, and basic operations.
+-   **Project Setup**: Setting up R projects, managing working directories, and using the `here` package.
+-   **Data Manipulation**: Using Tidyverse packages like `dplyr` and `tidyr` for data cleaning and transformation.
+-   **Data Visualization**: Creating insightful and aesthetically pleasing visualizations with `ggplot2`.
+-   **Troubleshooting**: Troubleshooting with generative AI.
+-   **Packages**: Using packages for effective data handling and presentation.
+
+The book is not designed to be an exhaustive manual on every facet of R programming, nor does it serve as a conventional statistics textbook. Instead, this book acts as a carefully curated guide, focusing on the essential concepts and techniques that are most vital for effective R programming. It delves into the ‘why’ and ‘how’ of setting up a robust workflow in R, addressing those critical insights and practical strategies that would have been invaluable when I first embarked on my programming journey.
+
+
+::: {.callout-important}
+## Tip
+
+If anything feels unclear in this book, then I would highly recommend using AI to explain or expand on the subject.
+:::

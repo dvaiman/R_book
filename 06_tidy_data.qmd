@@ -1,0 +1,564 @@
+# Tidy data and main functions for data wrangling
+
+
+## Tidy Data
+
+Tidy data is a way of organizing data that makes it easier to analyze and visualize. The concept of tidy data is central to the philosophy of the tidyverse.
+
+1. **Each variable forms a column**: Each column contains all values for a single variable.
+2. **Each observation forms a row**: Each row contains all values for a single observation.
+3. **Each value must have its own cell**: Each cell is a single value.
+
+```{r}
+#| label: fig-tidydata
+#| echo: false
+#| out.width: "70%"
+#| out.height: "auto"
+#| fig-cap: | 
+#|   Tidy data by Allison Hurst.
+#| fig-alt: |
+#|   tidy your data.
+
+knitr::include_graphics("images/tidy_data.jpeg")
+```
+
+### Why Tidy Data?
+
+Tidy data structures are beneficial because they:
+- **Simplify data manipulation**: Functions in the tidyverse are designed to work with tidy data. Transforming, filtering, and summarizing data becomes more intuitive.
+- **Enhance readability**: Tidy data is easier to understand and interpret, making it more accessible to others.
+- **Improve compatibility**: Tidy data works seamlessly with tidyverse functions and other analytical tools.
+
+
+```{r}
+#| label: fig-nontidy
+#| echo: false
+#| out.width: "70%"
+#| out.height: "auto"
+#| fig-cap: | 
+#|   Non-Tidy data by Allison Hurst.
+#| fig-alt: |
+#|   tidy your data.
+
+knitr::include_graphics("images/non_tidy_data.jpeg")
+```
+
+According to [Hadley Wickham](https://www.jstatsoft.org/article/view/v059i10/) there are five common data problems that you'll see when analyzing a dataset:
+
+1. Column headers are values, not variable names
+2. Multiple variables are stored in one column
+3. Variables are stored in both rows and columns
+4. Multiple types of observational units are stored in the same table
+5. A single observational unit is stored in multiple tables
+
+Most of these problems can be solved with pivoting (longer and wider) and separating. 
+
+### Example of Tidy vs. Untidy Data
+
+::: {.callout-note}
+More examples can be found here https://tidyr.tidyverse.org/articles/tidy-data.html
+:::
+
+
+In R there are over 50 built-in datasets, to see them use `library(help='datasets')`. We will use the `Palmer penguins` dataset. To use the package...
+
+```{r}
+# Install and load the palmerpenguins package
+#install.packages("palmerpenguins")
+library(palmerpenguins) 
+library(tidyverse)
+
+# Load the penguins dataset
+data("penguins")
+
+# Display the first few rows of the dataset
+head(penguins)
+```
+
+
+The essiential tidyverse data manipulating functions can be categorized into:
+
+1. Column Manipulation:
+    - Functions to create, modify, or select columns.
+    - Examples: `mutate()`, `select()`, `rename()`, `summarise()`, `relocate()`.
+
+2. Row Manipulation:
+    - Functions to filter, sort, or sample rows.
+    - Examples: `filter()`, `slice()`, `arrange()`, `distinct()`, `slice_sample()`.
+
+3. Grouping and Aggregation:
+    - Functions to group data and perform summary statistics.
+    - Examples: `group_by()`, `summarise()`, `ungroup()`.
+
+4. Joining and Merging Data:
+    - Functions to combine data from multiple sources.
+    - Examples: `inner_join()`, `left_join()`, `right_join()`, `full_join()`, `anti_join()`.
+
+5. Reshaping Data:
+    - Functions to change the structure of data.
+    - Examples: `pivot_longer()`, `pivot_wider()`.
+
+6. Handling Missing Data:
+    - Functions to deal with `NA` values.
+    - Examples: `drop_na()`, `replace_na()`, `is.na()`.
+
+7. Utility Functions:
+    - Functions that provide quick insights or perform general tasks.
+    - Examples: `glimpse()`, `count()`, `arrange()`.
+
+
+# Data Wrangling in practice
+
+## Data integration 
+
+### Combine multiple datasets
+
+### Convert data structures (e.g., pivoting between long and wide formats).
+
+### Merge or split variables/columns.
+
+
+## Data cleaning
+To understand if there is a pattern in the missingness you could use the `gg_miss_upset()`function from the package naniar.
+
+```{r}
+gg_miss_upset(penguins)
+```
+
+And to see if the data is missing at random
+```{r}
+misty::na.test(penguins, output=FALSE)
+```
+
+
+
+
+
+### Detailed
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(palmerpenguins)
+
+# Load the palmerpenguins dataset
+data("penguins")
+
+# 1. Column Manipulation
+
+# mutate()
+# Function: Adds new variables or transforms existing ones.
+# Example: Add a new column 'Bill_Ratio' which is the ratio of bill length to bill depth.
+penguins %>%
+  mutate(Bill_Ratio = bill_length_mm / bill_depth_mm) %>% 
+  head()
+
+# select()
+# Function: Selects columns by their names.
+# Example: Select only the columns 'species', 'island', 'bill_length_mm', and 'bill_depth_mm'.
+penguins %>%
+  select(species, island, bill_length_mm, bill_depth_mm) %>% 
+  head()
+
+# rename()
+# Function: Renames columns.
+# Example: Rename 'bill_length_mm' to 'BillLength' and 'bill_depth_mm' to 'BillDepth'.
+penguins %>%
+  rename(BillLength = bill_length_mm, BillDepth = bill_depth_mm) %>% 
+  head()
+
+# summarise()
+# Function: Summarizes multiple values to a single value per group.
+# Example: Calculate the mean of 'bill_length_mm'.
+penguins %>%
+  summarise(Mean_Bill_Length = mean(bill_length_mm, na.rm = TRUE))  %>% 
+  head()
+
+# relocate()
+# Function: Changes the position of columns.
+# Example: Move the 'species' column to be the first column in the dataset.
+penguins %>%
+  relocate(species, .before = bill_length_mm) %>% 
+  head()
+
+# 2. Row Manipulation
+
+# filter()
+# Function: Only retain specific rows of data that meet the specified requirement(s).
+# Example: Only display data where the species is "Adelie".
+penguins %>%
+  filter(species == "Adelie") %>% 
+  head()
+
+# Example: Only display data where the species is "Adelie" or "Gentoo" and the bill length is greater than 40.
+penguins %>%
+  filter(species %in% c("Adelie", "Gentoo"), bill_length_mm > 40) %>% 
+  head()
+
+# Example: Only display data where the species is not "Adelie".
+penguins %>%
+  filter(species != "Adelie") %>% 
+  head()
+
+# slice()
+# Function: Selects rows by position.
+# Example: Select the first 10 rows of the dataset.
+penguins %>%
+  slice(1:10)
+
+# arrange()
+# Function: Orders rows by the values of columns.
+# Example: Order rows by 'bill_length_mm' in ascending order.
+penguins %>%
+  arrange(bill_length_mm)  %>% 
+  head()
+
+# distinct()
+# Function: Returns unique rows based on selected columns.
+# Example: Return unique combinations of 'species' and 'island'.
+penguins %>%
+  distinct(species, island)  %>% 
+  head()
+
+# slice_sample()
+# Function: Randomly selects rows.
+# Example: Randomly select 10 rows from the dataset.
+penguins %>%
+  slice_sample(n = 10)
+
+# 3. Grouping and Aggregation
+
+# group_by()
+# Function: Groups data by one or more variables.
+# Example: Group by 'species' to perform operations within each species.
+penguins %>%
+  group_by(species)  %>% 
+  head()
+
+# summarise()
+# Function: Creates summary statistics within groups.
+# Example: Calculate the mean and standard deviation of 'flipper_length_mm' for each species.
+penguins %>%
+  group_by(species) %>%
+  summarise(Mean_Flipper_Length = mean(flipper_length_mm, na.rm = TRUE),
+            SD_Flipper_Length = sd(flipper_length_mm, na.rm = TRUE),
+            Count = n()) %>%
+  ungroup() %>% 
+  head()
+
+# ungroup()
+# Function: Removes grouping.
+# Example: Always use ungroup() after grouping to avoid errors in future calculations.
+penguins %>%
+  group_by(species) %>%
+  summarise(Mean_Flipper_Length = mean(flipper_length_mm, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  head()
+
+# Example of when ungroup() matters
+# Without ungroup()
+penguins %>%
+  group_by(species) %>%
+  mutate(mean_flipper_length = mean(flipper_length_mm, na.rm = TRUE)) %>%
+  mutate(mean_body_mass = mean(body_mass_g, na.rm = TRUE)) %>% 
+  head()
+
+# With ungroup() in the correct place
+penguins %>%
+  group_by(species) %>%
+  mutate(mean_flipper_length = mean(flipper_length_mm, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(mean_body_mass = mean(body_mass_g, na.rm = TRUE)) %>% 
+  head()
+
+# 4. Joining and Merging Data
+
+# Create a dummy dataset for joining examples
+island_info <- tibble(
+  island = unique(penguins$island),
+  region = c("Antarctica", "Antarctica", "Antarctica")
+)  %>% 
+  head()
+
+# inner_join()
+# Function: Joins two data frames by common columns.
+# Example: Join the penguins dataset with island_info on the 'island' column.
+penguins %>%
+  inner_join(island_info, by = "island") %>% 
+  head()
+
+# left_join()
+# Function: Keeps all rows from the left data frame and matches with the right.
+# Example: Left join the penguins dataset with island_info on the 'island' column.
+penguins %>%
+  left_join(island_info, by = "island")  %>% 
+  head()
+
+# right_join()
+# Function: Keeps all rows from the right data frame and matches with the left.
+# Example: Right join the penguins dataset with island_info on the 'island' column.
+penguins %>%
+  right_join(island_info, by = "island")  %>% 
+  head()
+
+# full_join()
+# Function: Keeps all rows from both data frames.
+# Example: Full join the penguins dataset with island_info on the 'island' column.
+penguins %>%
+  full_join(island_info, by = "island")  %>% 
+  head()
+
+# 5. Reshaping Data
+
+# pivot_longer()
+# Function: Converts wide data to long format.
+# Example: Convert the penguins dataset from wide to long format, focusing on bill measurements.
+penguins %>%
+  pivot_longer(cols = starts_with("bill"), names_to = "Measurement", values_to = "Value") %>% 
+  head()
+
+# pivot_wider()
+# Function: Converts long data to wide format.
+# Example: Convert the penguins dataset from long back to wide format.
+penguins_long <- penguins %>%
+  pivot_longer(cols = starts_with("bill"), names_to = "Measurement", values_to = "Value") %>% 
+  head()
+
+penguins_long %>%
+  pivot_wider(names_from = Measurement, values_from = Value)  %>% 
+  head()
+
+# 6. Handling Missing Data
+
+# drop_na()
+# Function: Removes rows with missing values.
+# Example: Remove any rows that have missing values.
+penguins %>%
+  drop_na()  %>% 
+  head()
+
+# replace_na()
+# Function: Replaces missing values with specified values.
+# Example: Replace missing values in 'bill_length_mm' with 0.
+penguins %>%
+  replace_na(list(bill_length_mm = 0))  %>% 
+  head()
+
+# is.na()
+# Function: Identifies missing values.
+# Example: Add a new column indicating whether the 'bill_length_mm' values are missing.
+penguins %>%
+  mutate(Missing_Bill_Length = is.na(bill_length_mm)) %>% 
+  head()
+
+# 7. Utility Functions
+
+# glimpse()
+# Function: Provides a compact view of the data.
+# Example: Get a brief overview of the penguins dataset.
+glimpse(penguins)  %>% 
+  data.frame() %>% 
+  head()
+
+# count()
+# Function: Counts the number of occurrences of unique values.
+# Example: Count the number of occurrences of each species.
+penguins %>%
+  count(species) %>% 
+  head()
+
+# arrange()
+# Function: Orders rows by the values of columns.
+# Example: Order rows by 'bill_length_mm' in ascending order.
+penguins %>%
+  arrange(bill_length_mm) %>% 
+  head()
+
+# Additional Functions: if_else() and case_when()
+
+# if_else()
+# Function: Vectorized conditional transformation.
+# Example: Add a new column 'Bill_Category' based on the length of the bill.
+penguins %>%
+  mutate(Bill_Category = if_else(bill_length_mm > 40, "Large", "Small")) %>% 
+  head()
+
+# case_when()
+# Function: Multiple conditional transformations.
+# Example: Add a new column 'Bill_Category' with multiple conditions.
+penguins %>%
+  mutate(Bill_Category = case_when(
+    bill_length_mm > 40 ~ "Large",
+    bill_length_mm <= 40 ~ "Small",
+    TRUE ~ "Unknown"
+  )) %>% 
+  head()
+```
+
+
+
+
+
+[tidy-notes](https://jessesadler.github.io/notes-tidyverse/)
+
+
+
+
+::: {.callout-note}
+## Coding best practices
+- Everything you do with your data needs to be documented  
+- You need to be able to retrace your steps  
+- Follow a consistent coding style, such as the [Tidyverse style guide](https://style.tidyverse.org/)  
+- Use version control systems like [Git](https://git-scm.com/) to track changes and collaborate with others.
+:::
+
+
+# **Reading in Packages**
+
+To begin any data analysis project in R, you need to load the necessary packages. These packages contain functions and datasets that facilitate data manipulation, visualization, and analysis. For example, the `tidyverse` package is a collection of R packages designed for data science.
+
+```{r}
+#| eval: false
+
+# Install necessary packages if not already installed
+install.packages(c("tidyverse", "here"))
+
+# Load the necessary packages
+library(tidyverse)
+library(here)
+
+```
+
+Sometimes, you may want to use a specific function from a package without loading the entire package. You can do this using the :: operator. For example, if you only need the here() function from the here package, you can use it directly as follows:  
+
+`here::here()`
+
+here is the package and using the `::` will call a function in that package in this case `here()`.  
+
+# **Reading in Rectangular Data**
+
+Importing data from various sources into R is a crucial step in any data analysis workflow. Rectangular data, typically stored in formats like CSV, Excel, or databases, can be easily imported using various R packages. 
+
+The `here` package is particularly useful for constructing file paths in a reproducible way, ensuring that your code works across different environments.
+
+### Importing Data with Common R Packages
+
+#### Using `readr` for CSV Files
+
+The `readr` package is part of the tidyverse and is used for reading delimited files such as CSV. In Sweden, it's common to use commas (`,`) or semicolons (`;`) as delimiters.
+
+```{r}
+#| eval: false
+
+library(readr)
+library(here)
+
+# Reading a CSV file with commas as delimiters
+data_comma <- read_csv(here::here("data", "data_comma.csv"))
+
+# Reading a CSV file with semicolons as delimiters
+data_semicolon <- read_csv2(here::here("data", "data_semicolon.csv"))
+```
+### Using haven for SPSS, Stata, and SAS Files
+
+The haven package is useful for reading data from statistical software formats such as SPSS, Stata, and SAS.
+
+```{r}
+#| eval: false
+
+library(haven)
+
+# Reading an SPSS file
+data_spss <- read_sav(here::here("data", "data_spss.sav"))
+
+# Reading a Stata file
+data_stata <- read_dta(here::here("data", "data_stata.dta"))
+
+# Reading a SAS file
+data_sas <- read_sas(here::here("data", "data_sas.sas"))
+```
+
+### Using openxlsx for Excel Files
+
+The openxlsx package provides a way to read Excel files, which are commonly used for data storage.
+
+```{r}
+#| eval: false
+
+library(openxlsx)
+
+# Reading an Excel file
+data_excel <- read.xlsx(here::here("data", "data_excel.xlsx"))
+```
+
+
+# **Data Cleaning**
+   - Handle missing values, correct data types, and clean up data to ensure it is ready for analysis.
+   - Save the cleaned data.
+
+# **Data Exploration**
+   - Perform initial exploration of the data to understand its structure and main characteristics (e.g., summary statistics, data visualization).
+   - Create initial visualizations and tables to summarize data.
+
+
+[na naniar](https://allisonhorst.shinyapps.io/missingexplorer/#section-introduction)
+
+# **Data Transformation**
+   - Manipulate and transform the data as needed for analysis (e.g., filtering, mutating, summarizing).
+  [data transformation](https://tidyr.tidyverse.org/articles/tidy-data.html)
+  
+  {{< video https://www.youtube.com/watch?v=x3KM5uxaFdI?start=164&end=482
+    title="pivoting"
+    aspect-ratio="21x9">}}
+    
+
+# **Data Analysis and Visualization**
+   - Apply statistical methods to analyze the data and test hypotheses (e.g., regression analysis, t-tests).
+   - Create detailed visualizations to explore data patterns and support analysis (e.g., scatter plots, histograms).
+   - Generate tables to summarize statistical findings.
+
+# **Reporting Results**
+   - Document the analysis and create comprehensive reports or presentations to communicate findings (e.g., using R Markdown or Quarto).
+   - Include visualizations and tables to illustrate key points and findings.
+
+# **Saving Data**
+   - Save the final transformed and analyzed data to a file or database for future use or sharing.
+   
+   
+   
+   
+## Coding best practices
+
+Coding best practices, involves following guidelines and principles that make your code more readable, maintainable, and reproducible. Here are some key aspects of good code conduct in the context of data analysis with R:
+
+### Readable and Descriptive Code
+- Use clear and descriptive variable and function names.
+- Write comments to explain complex logic and steps.
+- Structure code in a logical flow.
+
+### Consistent Style
+- Follow a consistent coding style, such as the [Tidyverse style guide](https://style.tidyverse.org/).
+- Use consistent indentation and spacing.
+- Follow naming conventions (e.g., snake_case for variables and functions).
+
+### Modular Code
+- Break your code into small, reusable functions.
+- Avoid long, monolithic scripts by organizing code into sections or functions.
+
+### Version Control
+- Use version control systems like [Git](https://git-scm.com/) to track changes and collaborate with others.
+- Commit changes with meaningful messages.
+
+### Documentation
+- Document your code and analysis process using [R Markdown](https://rmarkdown.rstudio.com/) or [Quarto](https://quarto.org/).
+- Include a README file in your project to explain its purpose and how to use it.
+
+### Reproducibility
+- Ensure your code can be run by others without modification.
+- Use relative file paths with the [here](https://cran.r-project.org/web/packages/here/index.html) package to manage file paths dynamically.
+- Set a seed for random number generation to ensure reproducible results.
+
+### Avoiding RData Files
+- **Pros**: RData files save multiple objects and preserve object attributes.
+- **Cons**: They are not human-readable, making it hard to understand what’s inside without loading them.
+- **Best Practice**: Use text-based formats (e.g., CSV, [RDS](https://stat.ethz.ch/R-manual/R-devel/library/base/html/readRDS.html)) for saving data. RDS files save single R objects and are more transparent than RData files.

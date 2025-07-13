@@ -1,0 +1,255 @@
+# Basics
+
+## Objects
+
+In R, the concept of objects is fundamental, as it is an object-oriented language. Everything in R is an object, from simple types like numbers and characters to more complex data structures such as vectors, lists, data frames, and functions.
+
+A data frame in R functions similarly to a spreadsheet in Excel, where each column represents a variable and each row represents an observation. Data frames are composed of vectors as columns. These vectors must all be the same length but can contain different types of data, allowing for a mix of numerical, categorical, and other types of data within the same data frame. These vectors, or columns, can also exist independently outside of a data frame.
+
+### Object types in R
+
+Vectors in R can belong to several classes, each suited to different data types and analysis needs:
+
+#### Numeric 
+- `num` or `numeric`: Used for general numeric values which include decimal numbers. This is the default type for numbers in R.
+- `int` or `integer`: Used specifically for integer values (e.g., 1, 2, 3 or 55). These are whole numbers without decimals.
+- `dbl` or `double`: Often used interchangeably with `numeric` to represent double precision numbers, providing a finer precision for large or complex calculations (e.g., 1.2, 3.4 or 22.66).
+
+#### Logical 
+- `logical`: This type is used for variables that contain Boolean values, which are either `TRUE` or `FALSE`. Logical vectors are fundamental in conditional testing and control structures in R.
+
+#### Character 
+- `character`: Suitable for text or string data. This type is used when dealing with names, labels, or any other kind of textual data.
+
+#### Factor 
+- `factor`: Factors are particularly useful for categorical data with a limited number of different values, known as levels. They are integral to statistical modeling in R, allowing categorical data to be efficiently handled and interpreted during analysis.
+
+#### Ordered Factors
+In addition to the standard factor, R also supports `ordered factors`, which are factors with a specified order among their levels. This is useful for categorical data that has an intrinsic order, such as ratings (low, medium, high) or stages (beginner, intermediate, advanced).
+
+#### List 
+- `list`: Lists are a special data type in R that can contain elements of different types and lengths. This makes lists extremely flexible and useful for storing complex or structured data, such as mixed datasets, models, or even other lists.
+
+#### Tibble
+A more modern version of a data frame is a tibble provided by the tibble package, part of the tidyverse. Tibbles are designed to be more user-friendly than traditional data frames, particularly for printing and subsetting operations.\
+
+### Assignment: Understanding Data Types in R
+
+Objective: Run the following R code in your RStudio to demonstrate how to create objects and determine the class of different vectors using the `class()` function. This exercise will help you understand the fundamental data types in R and how they are used in data analysis.
+
+
+[More reading on different types in R](https://r4ds.hadley.nz/transform)
+
+```{r type_1}
+#| eval: false
+t1 <- c(1, 2, 3, 4, 5)
+class(t1) 
+```
+
+
+`r webexercises::mcq(c(answer = "numeric", "character", "factor", "data frame", "list", "tibble", "ordered factor"))`
+
+
+
+```{r type_2}
+#| eval: false
+t2 <- c("male", "female", "female")
+class(t2) 
+```
+
+`r webexercises::mcq(c("numeric", answer = "character", "factor", "data frame", "list", "tibble", "ordered factor"))`
+
+```{r type_3}
+#| eval: false
+t3 <- data.frame(Name = c("Alice", "Bob"), Age = c(25, 30))
+class(t3)  
+```
+
+`r webexercises::mcq(c("numeric", "character", "factor", answer = "data frame", "list","tibble", "ordered factor"))`
+
+
+```{r type_4}
+#| eval: false
+complex_list <- list(Name = "Alice", Age = 25, Scores = numeric_vector)
+class(complex_list) 
+```
+
+`r webexercises::mcq(c("numeric", "character", "factor", "data frame", answer = "list", "tibble", "ordered factor"))`
+
+```{r type_5}
+#| eval: false
+t5 <- factor(c("male", "female", "female"))
+class(t5) 
+```
+`r webexercises::mcq(c("numeric", "character", answer = "factor", "data frame", "list", "tibble", "ordered factor"))`
+
+
+```{r type_6}
+#| eval: false
+t6 <- factor(c("low", "medium", "high", "medium", "low"), 
+                             levels = c("low", "medium", "high"), ordered = TRUE)
+class(t6)  
+```
+
+`r webexercises::mcq(c("numeric", "character", "factor", "data frame", "list", "tibble",  answer = "ordered factor"))`
+
+
+```{r type_7}
+#| eval: false
+library(tibble)
+t7 <- tibble(Name = c("Alice", "Bob"), Age = c(25, 30), Gender = gender_factor)
+class(t7) 
+```
+
+`r webexercises::mcq(c("numeric", "character", "factor", "data frame", "list", answer = "tibble",  "ordered factor"))`
+
+
+
+::: {.callout-tip}  
+
+## Useful Keyboard Shortcuts in RStudio
+
+### TAB
+- **TAB Key (above CAPS LOCK)**: Has multiple functions, such as completing object or function names while typing code, and filling in file paths when reading a file. Known as “TAB-completion”.
+
+### CTRL+ENTER / CMD+ENTER (Mac)
+- **CTRL + ENTER / CMD + ENTER**: Executes the code line where the cursor is located (and moves to the next line).
+- Executes the selected code if you have highlighted a portion of code.
+- If you have a block with multiple lines of tidy-code (held together with the pipe symbol %>%) or ggplot (held together with +), it executes the entire block regardless of where the cursor is within the block.
+
+### CTRL+SHIFT+ENTER / CMD+SHIFT+ENTER (Mac)
+- **CTRL + SHIFT + ENTER / CMD + SHIFT + ENTER**: Runs an entire code chunk in Quarto. It does not matter where the cursor is located within the chunk.
+
+### CTRL+SHIFT+M / CMD+SHIFT+M (Mac)
+- **CTRL + SHIFT + M / CMD + SHIFT + M**: Creates a pipe symbol (%>% or |> depending on your RStudio settings).
+
+### CTRL+ALT+I / OPTION+CMD+I (Mac)
+- **CTRL + ALT + I / OPTION + CMD + I**: Creates a new code chunk in Quarto.
+
+### CTRL/CMD+SHIFT+C
+- **CTRL/CMD + SHIFT + C**: Comments out or uncomments all selected lines.  
+
+:::
+
+### Functions in R
+
+Functions are one of the most utilized objects in R, designed to perform specific operations on data efficiently. They allow for encapsulating a sequence of statements to carry out a particular task. Functions can be called or invoked by their name followed by parentheses `()`, which may contain arguments needed for the function to execute. For instance, the `class()` function used in previous examples determines the class of an R object.
+
+#### Key Concepts:
+
+- **Syntax**: A function is always followed by parentheses, which can include parameters separated by commas. For example, `sum(1, 2, 3)` computes the sum of 1, 2, and 3.
+
+
+
+
+- **Built-in Functions**: R provides many built-in functions that are optimized to work efficiently with vectors and other data types:
+
+  - `str()`: Displays the structure of an R object, which is useful for quickly understanding the type and composition of the object.
+  
+```{r}
+a_data_frame <- data.frame(Name = c("Alice", "Bob", NA), Age = c(25, 30, NA), Gender = c("Female","Male", "Female"))
+
+str(a_data_frame)
+```
+  
+  
+  - `sum()`: Calculates the total sum of a numeric vector.
+  
+```{r}
+another_vector <- c(1, 5, 3)
+
+sum(another_vector)
+```
+  
+  - `range()`: Returns a vector containing the minimum and maximum of the given arguments. For instance, `range(1, 5, 3)` returns `c(1, 5)`.
+  
+```{r}
+
+
+range(another_vector)
+```
+  
+  
+  - `mean()`: Computes the average of numbers in a vector.
+  
+```{r}
+mean(another_vector)
+```
+  
+  
+  - `min()`: Finds the smallest value within a set of values or a vector.
+  
+  - `max()`: Identifies the largest value within a set of values or a vector.
+  
+  - `is.na()` Evaluates missing in a object
+
+  
+```{r}
+
+
+library(tibble)
+a_tibbe_with_na <- tibble(Name = c("Alice", "Bob", NA), Age = c(25, 30, NA), Gender = c("Female","Male", "Female"))
+
+is.na(a_tibbe_with_na)
+
+```
+  
+
+::: {.callout-tip}  
+# Accessing Help
+- To learn more about a function, you can access the help documentation by typing `?function_name` in the console. For example, `?sum` provides detailed information on the `sum()` function, including its parameters and usage examples.
+:::
+
+
+- **User-Defined Functions**: While not covered here, user-defined functions are created to perform repetitive tasks or complex operations that are not directly supported by built-in functions. It's common practice to define a new function when a particular piece of code needs to be executed multiple times.
+
+
+
+### Piping in R
+Piping is a powerful feature in R that allows you to forward the output of one function directly into another function, facilitating a more readable and intuitive syntax. This method streamlines code and enhances readability, especially in data analysis workflows.
+
+- **Magrittr Pipe (`%>%`)**: Introduced by the magrittr package, this pipe operator allows for clear and concise chaining of commands. It's commonly used in `dplyr` and other tidyverse packages. The pipe takes the output of one expression and passes it as the first argument to the next expression. Shortcut in RStudio: `Shift + Ctrl + M`.
+
+- **Base R Pipe (`|>`)**: As of R version 4.1.0, R includes a native pipe operator similar to the one in the magrittr package. While it functions similarly by forwarding values from the left-hand side to the right-hand side, it is slightly less flexible in some advanced cases than the magrittr pipe. However, it is a native feature, and its use is encouraged for new scripts when possible.
+
+#### Example of Using Pipes in R
+
+Let's consider a simple example where we want to summarize the `mtcars` dataset by calculating the average miles per gallon (mpg) for cars grouped by the number of cylinders.
+
+#### Using the Magrittr Pipe:
+
+Load the dplyr package (part of the Tidyverse):
+```{r }
+#| echo: true
+#| eval: true
+#| results: hide
+#| warning: false
+library(dplyr)
+```
+
+
+```{r magrittr_example}
+mtcars %>%
+  group_by(cyl) %>%
+  summarise(avg_mpg = mean(mpg, na.rm = TRUE))
+```
+
+This code groups the `mtcars` data by the `cyl` (cylinders) column, then calculates the average mpg for each group using the `summarise` function from the dplyr package. The `%>%` pipe passes the result of each function to the next function, making the code easy to read and follow.
+
+#### Using the Base R Pipe:
+
+```{r base_pipe_example}
+mtcars |> 
+  group_by(cyl) |> 
+  summarise(avg_mpg = mean(mpg, na.rm = TRUE))
+```
+
+In this version, we use the Base R pipe `|>` which similarly forwards the `mtcars` dataset through a sequence of operations. Here, anonymous functions (`\`) are used to accommodate the piping sequence, which is necessary due to the syntactic requirements of the base pipe in handling more complex expressions.
+
+Both examples achieve the same result, demonstrating how piping can simplify data manipulation tasks, making them more intuitive and easier to manage. The choice between the magrittr and base R pipe often comes down to personal or project-specific preferences, with the magrittr pipe providing some syntactic advantages in complex operations.
+
+
+::: {.callout-tip}  
+# Hashtag-comments in R
+- In R, comments are used to annotate code to make it easier to understand. Anything following a `#` symbol is treated as a comment and is not executed. Comments can explain what the code is doing, why certain decisions were made, and outline steps that need to be completed. They are essential for maintaining code especially in collaborative settings. You can see examples of comments in the above code. Not to be mixed with using # in markdown which creates a title.
+:::

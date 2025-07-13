@@ -1,0 +1,78 @@
+# Useful Packages in R
+
+R offers a diverse ecosystem of packages that extend its capabilities in various domains. Below is a curated list of packages categorized by their primary functions, along with brief descriptions and links for further exploration. Tidyverse packages are excluded from this list.
+
+### Data Import and Management
+
+- **`haven`**: Simplifies the import and export of data between R and statistical software packages like SPSS, Stata, and SAS, enabling easier data integration in mixed software environments. [Learn more](https://haven.tidyverse.org/).
+- **`openxlsx`** Reading and writing excel documents.  
+- **`here`**: Helps manage file paths in an R project, making it easier to work with files without worrying about the working directory. [Learn more](https://here.r-lib.org/).
+### Data summaries and missing values
+
+- **`skimr`**: Provides compact and flexible summaries of data which makes it easier to start the data analysis with a clear overview. [Learn more](https://docs.ropensci.org/skimr/).
+- **`mice`**: Provides methods for dealing with missing data, specifically through multiple imputation, enhancing the robustness of statistical inferences from incomplete data sets. [Learn more](https://amices.org/mice/).
+- **`naniar`** provides principled, tidy ways to summarise, visualise, and manipulate missing data with minimal deviations from the workflows in ggplot2 and tidy data [Learn more](https://naniar.njtierney.com/index.html).
+
+### Tables
+
+- **`flextable`**: Provides a flexible way to create beautiful tables for reporting and publication, with advanced functions for formatting and displaying tables in multiple document formats such as HTML, Word, and PDF. [Learn more](https://davidgohel.github.io/flextable/).
+- **`tinytable`**: Small but powerful R package to draw beautiful tables in a variety of formats: HTML, LaTeX, Word, PDF, PNG, Markdown, and Typst. The user interface is minimalist and easy to learn, while giving users access to powerful frameworks to create endlessly customizable tables. [Learn more](https://vincentarelbundock.github.io/tinytable/).
+- **`janitor`**: Offers simple functions for examining and cleaning dirty data, making it easier to reformat data and get quick summaries. [Learn more](https://sfirke.github.io/janitor/).
+- **`DT`** HTML-tables, provides filtering, pagination, sorting, and many other features [Learn more](https://rstudio.github.io/DT/).    
+- **`GT`** HTML, LaTeX, and RTF output formats [Learn more](https://gt.rstudio.com/).   
+
+
+### Model object summaries
+
+- **`Broom`**: Simplifies the process of turning statistical analysis objects from R into tidy format, making it easier to work with model outputs. [Learn more](https://broom.tidymodels.org/).
+- **`modelsummary`**: Allows for easy creation of beautiful, customizable tables summarizing statistical models using a wide array of model types. [Learn more](https://vincentarelbundock.github.io/modelsummary/).
+- **`parameters`**: Provides utilities for processing the parameters of various statistical models, aiding in model diagnostics and summaries. [Learn more](https://easystats.github.io/parameters/).
+- **`gtsummary`** The {gtsummary} package provides an elegant and flexible way to create publication-ready analytical and summary tables using the R programming language. [Learn more](https://www.danieldsjoberg.com/gtsummary/index.html).
+- **`sjPlot`** Collection of plotting and table output functions for data visualization. [Learn more](https://strengejacke.github.io/sjPlot/index.html)  
+- marginaleffects[Learn more](https://marginaleffects.com/)
+
+### Data Manipulation
+
+- **`dtracker`**: A package designed for tracking data changes and manipulations within an R workflow, enhancing data management and reproducibility, creates flow charts of your data manipulations. [Learn more](https://github.com/PredictiveEcology/dtracker).
+- **`Flowchart`** a package for drawing participant flow diagrams directly from a dataframe using tidyverse. [Learn more](https://bruigtp.github.io/flowchart/ )
+- **`data.table`**: Provides an alternative to R's data.frame with syntax and feature enhancements for ease of use, convenience and programming speed. [Learn more](https://rdatatable.gitlab.io/data.table/).
+- **`janitor`**: Facilitates data cleaning tasks, such as cleaning column names and examining data distributions, making it easier to prepare data for analysis.
+
+### Data Visualization
+
+- **`patchwork`**: A package designed to simplify the process of arranging ggplot2 plots into a composite plot, enhancing the presentation of complex data visualizations. [Learn more](https://patchwork.data-imaginist.com/).
+- **`scales`**: Provides tools for scaling data for visualization, such as creating custom scales and formatting numbers for human readability. [Learn more](https://scales.r-lib.org/).  
+- **`ggforce`**:  
+- **`ggtext`**:  
+
+### Colors
+
+[Learn more](https://r-graph-gallery.com/color-palette-finder?s=09  )
+[Learn more](https://x.com/nrennie35/status/1804233883023741374?t=7ndc-McgfyKLJAEfBC6s-Q&s=09)
+
+
+
+### Statistical Modeling and Analysis
+
+- **`tidymodels`**: A collection of packages for modeling and statistical analysis that share the underlying design philosophy, grammar, and data structures of the tidyverse. [Learn more](https://www.tidymodels.org/).
+- **`easystats`**: A suite of packages that aims to make statistical analysis in R easy, providing a consistent and easy-to-use framework. [Learn more](https://easystats.github.io/easystats/).
+
+### Miscellaneous
+
+### Learning
+
+- **`datasciencebox`**: Videos of tidyverse functions [Learn more](https://datasciencebox.org/02-exploring-data)
+https://r4ds.hadley.nz/
+https://psyteachr.github.io/AITutoR/
+https://github.com/Cghlewis/data-wrangling-functions/wiki/File-System?s=09
+https://github.com/pgmj/RstudioQuartoIntro?tab=readme-
+https://tidyr.tidyverse.org/index.html
+https://bookdown.org/daniel_dauber_io/r4np_book/
+https://jessesadler.github.io/notes-tidyverse/
+https://www.tidyverse.org/blog/
+https://support.posit.co/hc/en-us/articles/200549016-Customizing-the-RStudio-IDE
+https://docs.posit.co/ide/user/
+https://utdata.github.io/rwdir/
+https://allisonhorst.com/r-packages-functions
+
+tidychatmodels

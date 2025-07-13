@@ -1,0 +1,80 @@
+# Where does it all come from? {.unnumbered}
+
+## R
+
+R is a programming language and free software environment for statistical computing and graphics. It was created by Ross Ihaka and Robert Gentleman at the University of Auckland, New Zealand, and is currently developed by the R Development Core Team. Here is a brief history:
+
+-   **1991**: The project was conceived in the early 1990s. Ihaka and Gentleman wanted to develop a statistical language that was both powerful and extensible.
+-   **1993**: The first announcement of R was made to the public. It was inspired by the \[S programming language\]https://en.wikipedia.org/wiki/S\_%28programming_language%29) developed at Bell Laboratories.
+-   **1995**: R was made freely available under the terms of the GNU General Public License.
+-   **1997**: The [R Core Group](https://www.r-project.org/contributors.html) was formed to manage the continued development of R.
+-   **2000**: Version 1.0.0 of R was released, marking its status as a stable and reliable tool for statistical analysis.
+-   **2004**: [The Comprehensive R Archive Network (CRAN)](https://cran.r-project.org/mirrors.html) was established, providing a repository for R packages.
+-   **2009**: RStudio, an integrated development environment (IDE) for R, was founded, making it easier for users to write scripts, manage projects, and visualize data.
+-   **2013**: Revolution Analytics was acquired by Microsoft, which later integrated R into its suite of data analysis tools.
+
+**Base R** (R code that does not need any packages to run) provides a solid foundation for statistical analysis, data manipulation, and visualization. However, as the complexity and volume of data have increased, the need for more intuitive and efficient tools has grown. This gap was bridged by the introduction of the Tidyverse, a collection of R packages designed to make data science more accessible and powerful.
+
+::: {.callout-tip}  
+# Base R
+- Base R refers to the version of R that is installed without any additional packages. It includes all the functions and features that come with the standard R installation, which means it doesn’t rely on external packages like those available from CRAN or Bioconductor. Base R provides a wide range of tools for statistical analysis, graphics, and general programming.
+:::  
+
+## The Tidyverse
+
+The Tidyverse is a collection of R packages designed for data science. It was developed by Hadley Wickham and is maintained by [Posit](https://posit.co/) (formerly RStudio). The Tidyverse shares an underlying philosophy and grammar of data manipulation, providing a consistent and intuitive framework for data analysis. Here is a brief history:
+
+-   **2007**: Hadley Wickham released `ggplot2`, a powerful data visualization package based on the Grammar of Graphics. This package became the cornerstone of the Tidyverse.
+-   **2014**: `dplyr`, a package for data manipulation, was released, providing a user-friendly syntax for data wrangling.
+-   **2016**: The term "Tidyverse" was coined, and the Tidyverse package was introduced to make it easy to install and load core Tidyverse packages.
+-   **2017**: The Tidyverse package was officially launched, encompassing packages such as `ggplot2`, `dplyr`, `tidyr`, `readr`, `purrr`, and `tibble`.
+-   **2018**: The Tidyverse style guide was published, providing conventions for writing clean and readable R code.
+-   **2019**: The `vctrs` package was introduced, enhancing the performance and robustness of Tidyverse operations.
+-   **2020**: New packages like `tidymodels` for machine learning and `tidytext` for text mining further extended the capabilities of the Tidyverse.
+-   **2022**: RStudio was rebranded as Posit, reflecting its expanding focus on open-source data science tools beyond R.
+
+## Key Contributions
+
+### R
+
+-   **Statistical Analysis**: R provides a comprehensive environment for statistical computing and graphics, with extensive support for a wide range of statistical techniques.
+-   **Community and Packages**: The CRAN repository hosts thousands of packages, developed by a global community, covering diverse applications from bioinformatics to finance.
+-   **Extensibility**: Users can write their own functions and packages, extending R's capabilities.
+
+### Tidyverse
+
+-   **Data Manipulation**: The Tidyverse provides a coherent set of tools for data manipulation, making it easier to transform and clean data.
+-   **Data Visualization**: `ggplot2` offers a powerful and flexible system for creating high-quality visualizations.
+-   **Consistency**: The Tidyverse packages share a common philosophy and grammar, reducing the cognitive load on users and promoting best practices in data analysis.
+
+The evolution of R and the Tidyverse has transformed the landscape of data science, making advanced statistical analysis and data manipulation accessible to a broader audience. Their development continues to be driven by an active community, ensuring that they remain at the forefront of innovation in data science.
+
+### How the Tidyverse Changed the Landscape
+
+The Tidyverse revolutionized data analysis in R by introducing a consistent and user-friendly syntax for data manipulation and visualization. Here are some key contributions:
+
+-   **Consistency**: Tidyverse packages share a common philosophy and grammar, making it easier to learn and use multiple packages together.
+-   **Readability**: The syntax of Tidyverse functions is intuitive and often mimics natural language, which enhances code readability and maintainability.
+-   **Chaining Operations**: The pipe operator (`%>%`) introduced by the `magrittr` package allows for chaining multiple operations together in a readable and concise manner.
+-   **Data Manipulation**: Packages like `dplyr` and `tidyr` provide powerful functions for data manipulation, which are more efficient and user-friendly than their base R counterparts.
+-   **Data Visualization**: `ggplot2` offers a grammar of graphics, enabling users to create complex and aesthetically pleasing visualizations with ease.
+
+### What the Tidyverse Added
+
+-   **Data Cleaning and Transformation**: Tools for cleaning and transforming data efficiently (`dplyr`, `tidyr`).
+-   **Data Visualization**: Advanced and flexible plotting system (`ggplot2`).
+-   **Data Import**: Functions for reading data from various sources (`readr`, `readxl`).
+-   **Functional Programming**: Enhanced functional programming capabilities (`purrr`).
+-   **Data Wrangling**: Efficient handling of tibbles, which are modern re-imaginations of data frames (`tibble`).
+
+## More Than a Statistical Tool
+
+While R began as a statistical tool, the advent of the Tidyverse has expanded its applications far beyond traditional statistics. The Tidyverse has made R a versatile tool for:
+
+-   **Data Science**: Comprehensive tools for data cleaning, transformation, visualization, and modeling.
+-   **Machine Learning**: Packages like `tidymodels` facilitate machine learning workflows within the Tidyverse framework.
+-   **Text Mining**: The `tidytext` package enables text mining and natural language processing using Tidyverse principles.
+-   **Reproducible Research**: Integration with tools like Quarto and R Markdown allows for the creation of dynamic and reproducible research documents.
+-   **Presentation Slides**: Create slides with Quarto or R Markdown to produce visually appealing presentations directly from scripts.
+-   **Books**: Use quarto to author books and technical documents that integrate text, code, and results, allowing for dynamic content creation that’s easy to update and maintain.
+-   **webbsites**: Create and publish blogs, portfolios, and other web resources directly from R with the help of Quarto.

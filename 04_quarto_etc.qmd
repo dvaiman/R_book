@@ -1,0 +1,90 @@
+
+### Reproducible Research
+
+Using Quarto for your analyses ensures that your code, results, and documentation are integrated into a single document, enhancing reproducibility and transparency.
+
+Before starting to use quarto you can test where you want the output to appear when you print a data frame or a plot. as a standard it appears inline after each code chunk. But in the settings its possible to change it to appear in the console and the plot pane.
+
+
+{{< video https://youtu.be/hgpL-sppw7E start="10" >}}
+
+
+[Quarto.org](https://quarto.org) is the go-to place for full documentation and more tutorials! 
+[Quarto documentation](https://bookdown.org/pdr_higgins/rmrwr/quarto-is-a-next-generation-rmarkdown.html)
+
+## Example Quarto sites
+
+-   [Champions Lessons Series](https://openscapes.github.io/series)
+-   [Openscapes Approach Guide](https://openscapes.github.io/approach-guide/)
+-   [NASA Earthdata Cloud Cookbook](https://nasa-openscapes.github.io/earthdata-cloud-cookbook/)
+-   [2021 NASA Cloud Hackathon](https://nasa-openscapes.github.io/2021-Cloud-Hackathon/)
+-   [Faylab Lab Manual](https://thefaylab.github.io/lab-manual/)
+-   [A Quarto tip a day](https://mine-cetinkaya-rundel.github.io/quarto-tip-a-day/)
+
+
+# Quarto Document Basics
+
+Quarto is an open-source scientific and technical publishing system that allows you to create dynamic documents, presentations, websites, and more. It's similar to R Markdown but offers additional features and flexibility.
+
+## Structure of a Quarto Document
+
+A Quarto document typically consists of three main parts:
+
+1. **YAML Header**: Contains metadata about the document.
+2. **Markdown Content**: Text, code chunks, and other content written in Markdown.
+3. **Code Chunks**: Embedded code for dynamic content.
+
+### 1. YAML Header
+
+The YAML header is placed at the top of the document, enclosed by `---` lines. It includes metadata such as the title, author, date, and output format.
+
+```yaml
+---
+title: "Introduction to Quarto"
+author: "Dr. [Your Name]"
+date: "2024-06-12"
+format: html
+---
+```
+
+If wanting a self-contained Quarto document, i.e., a file that can be mailed to someone else for instance, then you should ensure all dependencies and resources (such as images, data files, etc.) are either embedded within the document or included in a way that they can be accessed by the recipient. Here’s how to achieve this:  
+```yaml
+---
+title: "Self-Contained Quarto Document"
+author: "Dr. [Your Name]"
+date: "2024-06-12"
+format: 
+  html:
+    self-contained: true
+---
+```
+Embedding Resources
+
+	1.	Embedding Images: Convert images to base64 encoding and embed them directly into the document.
+### 2. Markdown Content
+
+Markdown is a lightweight markup language for creating formatted text using a plain-text editor. In a Quarto document, you write your content in Markdown. For example:
+
+# Introduction
+
+This is an introduction to Quarto documents. You can include headings, paragraphs, lists, and other Markdown elements.
+
+## Example
+
+Here is an example of a list:
+
+- Item 1
+- Item 2
+- Item 3
+
+### 3. Code Chunks
+
+Code chunks allow you to embed R, Python, or other code within your document. They are enclosed by triple backticks and specify the language after the first set of backticks.
+
+R Code Chunk
+
+```{r}
+# R code example
+summary(cars)
+```
+
