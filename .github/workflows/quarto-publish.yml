@@ -51,6 +51,7 @@ jobs:
             any::skimr
             any::DataExplorer
             any::misty
+            any::mvnmle
 #            any::rcompanion
 
       - name: Render Quarto Project
