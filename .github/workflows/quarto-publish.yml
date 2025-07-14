@@ -46,6 +46,7 @@ jobs:
             any::plotly
             any::leaflet
             any::webexercises
+            any::palmerpenguins
 
       - name: Render Quarto Project
         run: |
