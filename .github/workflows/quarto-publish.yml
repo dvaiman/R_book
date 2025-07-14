@@ -50,6 +50,7 @@ jobs:
             any::naniar
             any::skimr
             any::DataExplorer
+            any::misty
 #            any::rcompanion
 
       - name: Render Quarto Project
