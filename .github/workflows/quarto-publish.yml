@@ -47,6 +47,10 @@ jobs:
             any::leaflet
             any::webexercises
             any::palmerpenguins
+            any::naniar
+            any::skimr
+            any::DataExplorer
+            any::rcompanion
 
       - name: Render Quarto Project
         run: |
