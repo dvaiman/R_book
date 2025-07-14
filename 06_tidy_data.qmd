@@ -14,11 +14,12 @@ Tidy data is a way of organizing data that makes it easier to analyze and visual
 #| echo: false
 #| out.width: "70%"
 #| out.height: "auto"
-#| fig-cap: | 
+#| fig-cap: |
 #|   Tidy data by Allison Hurst.
 #| fig-alt: |
 #|   tidy your data.
 
+library(naniar)
 knitr::include_graphics("images/tidy_data.jpeg")
 ```
 
@@ -35,7 +36,7 @@ Tidy data structures are beneficial because they:
 #| echo: false
 #| out.width: "70%"
 #| out.height: "auto"
-#| fig-cap: | 
+#| fig-cap: |
 #|   Non-Tidy data by Allison Hurst.
 #| fig-alt: |
 #|   tidy your data.
@@ -51,7 +52,7 @@ According to [Hadley Wickham](https://www.jstatsoft.org/article/view/v059i10/) t
 4. Multiple types of observational units are stored in the same table
 5. A single observational unit is stored in multiple tables
 
-Most of these problems can be solved with pivoting (longer and wider) and separating. 
+Most of these problems can be solved with pivoting (longer and wider) and separating.
 
 ### Example of Tidy vs. Untidy Data
 
@@ -65,7 +66,7 @@ In R there are over 50 built-in datasets, to see them use `library(help='dataset
 ```{r}
 # Install and load the palmerpenguins package
 #install.packages("palmerpenguins")
-library(palmerpenguins) 
+library(palmerpenguins)
 library(tidyverse)
 
 # Load the penguins dataset
@@ -109,7 +110,7 @@ The essiential tidyverse data manipulating functions can be categorized into:
 
 # Data Wrangling in practice
 
-## Data integration 
+## Data integration
 
 ### Combine multiple datasets
 
@@ -122,7 +123,7 @@ The essiential tidyverse data manipulating functions can be categorized into:
 To understand if there is a pattern in the missingness you could use the `gg_miss_upset()`function from the package naniar.
 
 ```{r}
-gg_miss_upset(penguins)
+naniar::gg_miss_upset(penguins)
 ```
 
 And to see if the data is missing at random
@@ -150,35 +151,35 @@ data("penguins")
 # Function: Adds new variables or transforms existing ones.
 # Example: Add a new column 'Bill_Ratio' which is the ratio of bill length to bill depth.
 penguins %>%
-  mutate(Bill_Ratio = bill_length_mm / bill_depth_mm) %>% 
+  mutate(Bill_Ratio = bill_length_mm / bill_depth_mm) %>%
   head()
 
 # select()
 # Function: Selects columns by their names.
 # Example: Select only the columns 'species', 'island', 'bill_length_mm', and 'bill_depth_mm'.
 penguins %>%
-  select(species, island, bill_length_mm, bill_depth_mm) %>% 
+  select(species, island, bill_length_mm, bill_depth_mm) %>%
   head()
 
 # rename()
 # Function: Renames columns.
 # Example: Rename 'bill_length_mm' to 'BillLength' and 'bill_depth_mm' to 'BillDepth'.
 penguins %>%
-  rename(BillLength = bill_length_mm, BillDepth = bill_depth_mm) %>% 
+  rename(BillLength = bill_length_mm, BillDepth = bill_depth_mm) %>%
   head()
 
 # summarise()
 # Function: Summarizes multiple values to a single value per group.
 # Example: Calculate the mean of 'bill_length_mm'.
 penguins %>%
-  summarise(Mean_Bill_Length = mean(bill_length_mm, na.rm = TRUE))  %>% 
+  summarise(Mean_Bill_Length = mean(bill_length_mm, na.rm = TRUE))  %>%
   head()
 
 # relocate()
 # Function: Changes the position of columns.
 # Example: Move the 'species' column to be the first column in the dataset.
 penguins %>%
-  relocate(species, .before = bill_length_mm) %>% 
+  relocate(species, .before = bill_length_mm) %>%
   head()
 
 # 2. Row Manipulation
@@ -187,17 +188,17 @@ penguins %>%
 # Function: Only retain specific rows of data that meet the specified requirement(s).
 # Example: Only display data where the species is "Adelie".
 penguins %>%
-  filter(species == "Adelie") %>% 
+  filter(species == "Adelie") %>%
   head()
 
 # Example: Only display data where the species is "Adelie" or "Gentoo" and the bill length is greater than 40.
 penguins %>%
-  filter(species %in% c("Adelie", "Gentoo"), bill_length_mm > 40) %>% 
+  filter(species %in% c("Adelie", "Gentoo"), bill_length_mm > 40) %>%
   head()
 
 # Example: Only display data where the species is not "Adelie".
 penguins %>%
-  filter(species != "Adelie") %>% 
+  filter(species != "Adelie") %>%
   head()
 
 # slice()
@@ -210,14 +211,14 @@ penguins %>%
 # Function: Orders rows by the values of columns.
 # Example: Order rows by 'bill_length_mm' in ascending order.
 penguins %>%
-  arrange(bill_length_mm)  %>% 
+  arrange(bill_length_mm)  %>%
   head()
 
 # distinct()
 # Function: Returns unique rows based on selected columns.
 # Example: Return unique combinations of 'species' and 'island'.
 penguins %>%
-  distinct(species, island)  %>% 
+  distinct(species, island)  %>%
   head()
 
 # slice_sample()
@@ -232,7 +233,7 @@ penguins %>%
 # Function: Groups data by one or more variables.
 # Example: Group by 'species' to perform operations within each species.
 penguins %>%
-  group_by(species)  %>% 
+  group_by(species)  %>%
   head()
 
 # summarise()
@@ -243,7 +244,7 @@ penguins %>%
   summarise(Mean_Flipper_Length = mean(flipper_length_mm, na.rm = TRUE),
             SD_Flipper_Length = sd(flipper_length_mm, na.rm = TRUE),
             Count = n()) %>%
-  ungroup() %>% 
+  ungroup() %>%
   head()
 
 # ungroup()
@@ -252,7 +253,7 @@ penguins %>%
 penguins %>%
   group_by(species) %>%
   summarise(Mean_Flipper_Length = mean(flipper_length_mm, na.rm = TRUE)) %>%
-  ungroup() %>% 
+  ungroup() %>%
   head()
 
 # Example of when ungroup() matters
@@ -260,7 +261,7 @@ penguins %>%
 penguins %>%
   group_by(species) %>%
   mutate(mean_flipper_length = mean(flipper_length_mm, na.rm = TRUE)) %>%
-  mutate(mean_body_mass = mean(body_mass_g, na.rm = TRUE)) %>% 
+  mutate(mean_body_mass = mean(body_mass_g, na.rm = TRUE)) %>%
   head()
 
 # With ungroup() in the correct place
@@ -268,7 +269,7 @@ penguins %>%
   group_by(species) %>%
   mutate(mean_flipper_length = mean(flipper_length_mm, na.rm = TRUE)) %>%
   ungroup() %>%
-  mutate(mean_body_mass = mean(body_mass_g, na.rm = TRUE)) %>% 
+  mutate(mean_body_mass = mean(body_mass_g, na.rm = TRUE)) %>%
   head()
 
 # 4. Joining and Merging Data
@@ -277,35 +278,35 @@ penguins %>%
 island_info <- tibble(
   island = unique(penguins$island),
   region = c("Antarctica", "Antarctica", "Antarctica")
-)  %>% 
+)  %>%
   head()
 
 # inner_join()
 # Function: Joins two data frames by common columns.
 # Example: Join the penguins dataset with island_info on the 'island' column.
 penguins %>%
-  inner_join(island_info, by = "island") %>% 
+  inner_join(island_info, by = "island") %>%
   head()
 
 # left_join()
 # Function: Keeps all rows from the left data frame and matches with the right.
 # Example: Left join the penguins dataset with island_info on the 'island' column.
 penguins %>%
-  left_join(island_info, by = "island")  %>% 
+  left_join(island_info, by = "island")  %>%
   head()
 
 # right_join()
 # Function: Keeps all rows from the right data frame and matches with the left.
 # Example: Right join the penguins dataset with island_info on the 'island' column.
 penguins %>%
-  right_join(island_info, by = "island")  %>% 
+  right_join(island_info, by = "island")  %>%
   head()
 
 # full_join()
 # Function: Keeps all rows from both data frames.
 # Example: Full join the penguins dataset with island_info on the 'island' column.
 penguins %>%
-  full_join(island_info, by = "island")  %>% 
+  full_join(island_info, by = "island")  %>%
   head()
 
 # 5. Reshaping Data
@@ -314,18 +315,18 @@ penguins %>%
 # Function: Converts wide data to long format.
 # Example: Convert the penguins dataset from wide to long format, focusing on bill measurements.
 penguins %>%
-  pivot_longer(cols = starts_with("bill"), names_to = "Measurement", values_to = "Value") %>% 
+  pivot_longer(cols = starts_with("bill"), names_to = "Measurement", values_to = "Value") %>%
   head()
 
 # pivot_wider()
 # Function: Converts long data to wide format.
 # Example: Convert the penguins dataset from long back to wide format.
 penguins_long <- penguins %>%
-  pivot_longer(cols = starts_with("bill"), names_to = "Measurement", values_to = "Value") %>% 
+  pivot_longer(cols = starts_with("bill"), names_to = "Measurement", values_to = "Value") %>%
   head()
 
 penguins_long %>%
-  pivot_wider(names_from = Measurement, values_from = Value)  %>% 
+  pivot_wider(names_from = Measurement, values_from = Value)  %>%
   head()
 
 # 6. Handling Missing Data
@@ -334,21 +335,21 @@ penguins_long %>%
 # Function: Removes rows with missing values.
 # Example: Remove any rows that have missing values.
 penguins %>%
-  drop_na()  %>% 
+  drop_na()  %>%
   head()
 
 # replace_na()
 # Function: Replaces missing values with specified values.
 # Example: Replace missing values in 'bill_length_mm' with 0.
 penguins %>%
-  replace_na(list(bill_length_mm = 0))  %>% 
+  replace_na(list(bill_length_mm = 0))  %>%
   head()
 
 # is.na()
 # Function: Identifies missing values.
 # Example: Add a new column indicating whether the 'bill_length_mm' values are missing.
 penguins %>%
-  mutate(Missing_Bill_Length = is.na(bill_length_mm)) %>% 
+  mutate(Missing_Bill_Length = is.na(bill_length_mm)) %>%
   head()
 
 # 7. Utility Functions
@@ -356,22 +357,22 @@ penguins %>%
 # glimpse()
 # Function: Provides a compact view of the data.
 # Example: Get a brief overview of the penguins dataset.
-glimpse(penguins)  %>% 
-  data.frame() %>% 
+glimpse(penguins)  %>%
+  data.frame() %>%
   head()
 
 # count()
 # Function: Counts the number of occurrences of unique values.
 # Example: Count the number of occurrences of each species.
 penguins %>%
-  count(species) %>% 
+  count(species) %>%
   head()
 
 # arrange()
 # Function: Orders rows by the values of columns.
 # Example: Order rows by 'bill_length_mm' in ascending order.
 penguins %>%
-  arrange(bill_length_mm) %>% 
+  arrange(bill_length_mm) %>%
   head()
 
 # Additional Functions: if_else() and case_when()
@@ -380,7 +381,7 @@ penguins %>%
 # Function: Vectorized conditional transformation.
 # Example: Add a new column 'Bill_Category' based on the length of the bill.
 penguins %>%
-  mutate(Bill_Category = if_else(bill_length_mm > 40, "Large", "Small")) %>% 
+  mutate(Bill_Category = if_else(bill_length_mm > 40, "Large", "Small")) %>%
   head()
 
 # case_when()
@@ -391,7 +392,7 @@ penguins %>%
     bill_length_mm > 40 ~ "Large",
     bill_length_mm <= 40 ~ "Small",
     TRUE ~ "Unknown"
-  )) %>% 
+  )) %>%
   head()
 ```
 
@@ -406,9 +407,9 @@ penguins %>%
 
 ::: {.callout-note}
 ## Coding best practices
-- Everything you do with your data needs to be documented  
-- You need to be able to retrace your steps  
-- Follow a consistent coding style, such as the [Tidyverse style guide](https://style.tidyverse.org/)  
+- Everything you do with your data needs to be documented
+- You need to be able to retrace your steps
+- Follow a consistent coding style, such as the [Tidyverse style guide](https://style.tidyverse.org/)
 - Use version control systems like [Git](https://git-scm.com/) to track changes and collaborate with others.
 :::
 
@@ -429,15 +430,15 @@ library(here)
 
 ```
 
-Sometimes, you may want to use a specific function from a package without loading the entire package. You can do this using the :: operator. For example, if you only need the here() function from the here package, you can use it directly as follows:  
+Sometimes, you may want to use a specific function from a package without loading the entire package. You can do this using the :: operator. For example, if you only need the here() function from the here package, you can use it directly as follows:
 
 `here::here()`
 
-here is the package and using the `::` will call a function in that package in this case `here()`.  
+here is the package and using the `::` will call a function in that package in this case `here()`.
 
 # **Reading in Rectangular Data**
 
-Importing data from various sources into R is a crucial step in any data analysis workflow. Rectangular data, typically stored in formats like CSV, Excel, or databases, can be easily imported using various R packages. 
+Importing data from various sources into R is a crucial step in any data analysis workflow. Rectangular data, typically stored in formats like CSV, Excel, or databases, can be easily imported using various R packages.
 
 The `here` package is particularly useful for constructing file paths in a reproducible way, ensuring that your code works across different environments.
 
@@ -506,11 +507,11 @@ data_excel <- read.xlsx(here::here("data", "data_excel.xlsx"))
 # **Data Transformation**
    - Manipulate and transform the data as needed for analysis (e.g., filtering, mutating, summarizing).
   [data transformation](https://tidyr.tidyverse.org/articles/tidy-data.html)
-  
+
   {{< video https://www.youtube.com/watch?v=x3KM5uxaFdI?start=164&end=482
     title="pivoting"
     aspect-ratio="21x9">}}
-    
+
 
 # **Data Analysis and Visualization**
    - Apply statistical methods to analyze the data and test hypotheses (e.g., regression analysis, t-tests).
@@ -523,10 +524,10 @@ data_excel <- read.xlsx(here::here("data", "data_excel.xlsx"))
 
 # **Saving Data**
    - Save the final transformed and analyzed data to a file or database for future use or sharing.
-   
-   
-   
-   
+
+
+
+
 ## Coding best practices
 
 Coding best practices, involves following guidelines and principles that make your code more readable, maintainable, and reproducible. Here are some key aspects of good code conduct in the context of data analysis with R:
