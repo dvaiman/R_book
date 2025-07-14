@@ -22,7 +22,7 @@ library(palmerpenguins)
 library(skimr)
 library(DataExplorer)
 library(naniar)
-library(rcompanion) # for cramerV function
+# library(rcompanion) # for cramerV function
 ```
 
 ```{r}
@@ -61,6 +61,9 @@ plot_correlation(na.omit(penguins), maxcat = 5L)
 Function correlation between all variables
 cannot handle date variables
 ```{r}
+#| eval: false
+#
+
 # Calculate a pairwise association between all variables in a data-frame. In particular nominal vs nominal with Chi-square, numeric vs numeric with Pearson correlation, and nominal vs numeric with ANOVA. Does not handle data columns.
 # Adopted from https://stackoverflow.com/a/52557631/590437
 mixed_assoc = function(
