@@ -52,7 +52,7 @@ jobs:
             any::DataExplorer
             any::misty
             any::mvnmle
-#            any::rcompanion
+            any::rcompanion
 
       - name: Render Quarto Project
         run: |
