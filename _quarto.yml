@@ -34,8 +34,6 @@ format:
     code-copy: true
     css: include/webex.css
     include-after-body: include/webex.js
-  pdf:
-    documentclass: scrreprt
 editor: source
 execute:
   echo: true
