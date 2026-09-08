@@ -1,4 +1,4 @@
-# Useful Packages in R
+# Useful Packages {#sec-packages}
 
 R offers a diverse ecosystem of packages that extend its capabilities in various domains. Below is a curated list of packages categorized by their primary functions, along with brief descriptions and links for further exploration. Tidyverse packages are excluded from this list.
 

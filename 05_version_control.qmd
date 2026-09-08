@@ -1,4 +1,4 @@
-# Version Control
+# Version Control {#sec-git}
 
 Version control is not a large part of this book, but it is worth a mention as it is a good practice to use in a reproducible workflow. It is an important part of modern software development and data analysis, particularly when projects involve multiple collaborators or making code publicly available (trancparancy). Version control systems help manage changes to source code or data files by keeping track of modifications and allowing users to revert to previous versions if needed. 
 

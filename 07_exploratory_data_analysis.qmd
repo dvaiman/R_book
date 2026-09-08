@@ -1,128 +1,750 @@
----
-title: "Exploratory data analysis"
----
+# Exploratory Data Analysis {#sec-eda}
 
-# EDA
-
-John Tukey, often regarded as the father of exploratory data analysis (EDA), introduced the concept in his seminal work, Exploratory Data Analysis (Tukey, 1977). EDA is closely related to data cleaning but serves a distinct purpose. While data cleaning involves preparing the data by handling missing values, correcting errors, and ensuring consistency, EDA is about understanding the data’s underlying structure through visual and statistical methods. EDA helps identify further cleaning needs by revealing patterns, anomalies, and relationships within the data. To elucidate EDA, I’m borrowing a paragraph from [Jebb et al](https://www.sciencedirect.com/science/article/abs/pii/S1053482216300353):
-
-> Putting all these perspectives together, EDA is best described as an overarching analytic attitude characterized as “detective work designed to reveal the structure or patterns in the data” (Haig, 2005, p. 375; Tukey, 1980). Put simply, when confronted with a data set, EDA tries to answer the simple question, “What is going on here?” (Behrens, 1997, p. 132) and aims to build a rich mental model of the data. The goal is simply to understand the structure of the data, and this understanding goes on to serve all kinds of analytic goals: **indicating whether statistical assumptions are met, identifying outliers, suggesting future hypotheses, uncovering empirical relationships, identifying potential transformations, and suggesting appropriate models for the data** (Behrens, 1997). In this way, **EDA is the statistical embodiment of inductive research; through its visualization and quantitative techniques**, EDA comprises the research practices that allow researchers to detect empirical phenomena.
-
-In simple terms EDA is a way to assess the quality of your data. it is a prerequisite of any analysis. It is also the step where you notice if parts of your data needs further cleaning.
-
-[An Interview Study](https://arxiv.org/abs/1911.00568) on shows
-
-EDA could be performed solely with the tidyverse, see [R for Data Science](https://r4ds.hadley.nz/eda). however for simplicity we will utilize several R packages to make the process easier.
-
-Below is an exaple on how to conduct an EDA to understand your data better.
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Explorativ dataanalys*. It covers what EDA is
+and why it comes before modelling, then works through univariate, bivariate and
+multivariate exploration, missing-data patterns, and the packages that make it
+quicker.
+:::
 
 ```{r}
+#| label: setup-eda
+#| include: false
+library(webexercises)
+```
+
+## What EDA is
+
+John Tukey, often regarded as the father of exploratory data analysis,
+introduced the idea in *Exploratory Data Analysis* (1977). EDA is related to
+data cleaning but serves a different purpose. Cleaning prepares the data —
+handling missing values, correcting errors, ensuring consistency. EDA is about
+*understanding* the data's structure through visual and statistical methods. In
+practice the two are iterative: EDA reveals what still needs cleaning.
+
+To describe EDA I borrow a paragraph from
+[Jebb et al.](https://www.sciencedirect.com/science/article/abs/pii/S1053482216300353):
+
+> Putting all these perspectives together, EDA is best described as an
+> overarching analytic attitude characterized as "detective work designed to
+> reveal the structure or patterns in the data" (Haig, 2005, p. 375; Tukey,
+> 1980). Put simply, when confronted with a data set, EDA tries to answer the
+> simple question, "What is going on here?" (Behrens, 1997, p. 132) and aims to
+> build a rich mental model of the data. The goal is simply to understand the
+> structure of the data, and this understanding goes on to serve all kinds of
+> analytic goals: **indicating whether statistical assumptions are met,
+> identifying outliers, suggesting future hypotheses, uncovering empirical
+> relationships, identifying potential transformations, and suggesting
+> appropriate models for the data** (Behrens, 1997). In this way, **EDA is the
+> statistical embodiment of inductive research; through its visualization and
+> quantitative techniques**, EDA comprises the research practices that allow
+> researchers to detect empirical phenomena.
+
+In simple terms, EDA is how you assess the quality of your data and build a
+feel for what it can support. It is a prerequisite for any analysis.
+
+Key characteristics:
+
+- **Visual, intuitive, iterative.** There are no strict rules.
+- **Question-driven.** Start with a question; the answer generates more.
+- **Not confirmatory.** You are getting a sense of what to expect, not testing
+  hypotheses.
+
+### Three levels
+
+- **Univariate** — the distribution and variation *within* one variable.
+  Histograms, density curves, Q-Q plots; mean, median, standard deviation.
+- **Bivariate** — covariation *between* two variables. Scatterplots,
+  correlations; group comparisons with boxplots and violin plots.
+- **Multivariate** — patterns among several variables at once. Pairs plots,
+  heatmaps, dimension reduction such as PCA.
+
+::: {.callout-important}
+## EDA is exploratory, and that has consequences
+Everything you learn here shapes what you do next, which means that a hypothesis
+generated by staring at your data cannot then be tested on the same data as
+though it were pre-specified. The p-value from a comparison you chose *because
+it looked interesting* does not mean what a p-value normally means.
+
+This is not an argument against EDA — you cannot analyse data you do not
+understand. It is an argument for being explicit in the write-up about which
+analyses were planned in advance and which were suggested by the data.
+:::
+
+## Starting with questions
+
+Broad questions:
+
+- What variation exists within the variables?
+- What covariation exists between them?
+
+Specific questions for the penguin data:
+
+- What differences are there between species?
+- Is there overlap between species, islands, sexes?
+- Which species is most common?
+- Are the species evenly distributed across the islands?
+- Are there extreme values?
+- How strong is the relationship between bill length and flipper length, or
+  body mass?
+- Is that relationship linear?
+- Are there variables that modify the relationship between other variables?
+- Which variables have missing values, and is there a pattern?
+
+## Setup
+
+```{r}
+#| label: eda-libs
+#| message: false
 library(tidyverse)
 library(palmerpenguins)
 library(skimr)
-library(DataExplorer)
 library(naniar)
-# library(rcompanion) # for cramerV function
+library(patchwork)
+
+theme_set(
+  theme_minimal(base_size = 13) +
+    theme(panel.grid.minor = element_blank())
+)
 ```
 
-```{r}
-data("penguins")
-```
+## First look
 
-
-###
-
-For a first look at the dataset use skimr from the skim package. Here you will notice what class a variable is, how many missing there are and also some descriptive information.
+`skim()` from `skimr` is the fastest way to see class, missingness and
+distribution for every variable at once.
 
 ```{r}
+#| label: eda-skim
 skimr::skim(penguins)
 ```
 
+Read this output carefully before doing anything else. It tells you:
 
+- **344 rows, 8 columns.**
+- `sex` has 11 missing values; the four measurement variables have 2 each.
+- The mean and median of each numeric variable are close, suggesting no severe
+  skew.
+- The little `hist` column gives a first hint of shape — `body_mass_g` looks
+  right-skewed, `flipper_length_mm` looks possibly bimodal.
 
+That last observation is the sort of thing worth following up.
 
-`plot_bar` will plot your character and factor variables to understand their distribution.
 ```{r}
-plot_bar(penguins)
+#| label: eda-glimpse
+glimpse(penguins)
 ```
 
-`plot_histogram` will plot your numeric variables to understand their distribution.
+## Overview table
+
 ```{r}
-plot_histogram(penguins)
-```
-
-To visualize correlation heatmap for numerical variables. `na.omit()` removes all rows with missing:
-```{r}
-plot_correlation(na.omit(penguins), maxcat = 5L)
-```
-
-
-
-Function correlation between all variables
-cannot handle date variables
-```{r}
-#| eval: false
-#
-
-# Calculate a pairwise association between all variables in a data-frame. In particular nominal vs nominal with Chi-square, numeric vs numeric with Pearson correlation, and nominal vs numeric with ANOVA. Does not handle data columns.
-# Adopted from https://stackoverflow.com/a/52557631/590437
-mixed_assoc = function(
-  df,
-  cor_method = "spearman",
-  adjust_cramersv_bias = TRUE
-) {
-  df_comb = expand.grid(names(df), names(df), stringsAsFactors = F) %>%
-    set_names("X1", "X2")
-
-  is_nominal = function(x) class(x) %in% c("factor", "character")
-  # https://community.rstudio.com/t/why-is-purr-is-numeric-deprecated/3559
-  # https://github.com/r-lib/rlang/issues/781
-  is_numeric <- function(x) {
-    is.integer(x) || is_double(x)
-  }
-
-  f = function(xName, yName) {
-    x = pull(df, xName)
-    y = pull(df, yName)
-
-    result = if (is_nominal(x) && is_nominal(y)) {
-      # use bias corrected cramersV as described in https://rdrr.io/cran/rcompanion/man/cramerV.html
-      cv = rcompanion::cramerV(
-        as.character(x),
-        as.character(y),
-        bias.correct = adjust_cramersv_bias
+#| label: eda-overview
+penguins |>
+  summarise(
+    n = n(),
+    across(
+      where(is.numeric),
+      list(
+        mean = \(x) round(mean(x, na.rm = TRUE), 1),
+        sd = \(x) round(sd(x, na.rm = TRUE), 1)
       )
-      data.frame(xName, yName, assoc = cv, type = "cramersV")
-    } else if (is_numeric(x) && is_numeric(y)) {
-      correlation = cor(x, y, method = cor_method, use = "complete.obs")
-      data.frame(xName, yName, assoc = correlation, type = "correlation")
-    } else if (is_numeric(x) && is_nominal(y)) {
-      # from https://stats.stackexchange.com/questions/119835/correlation-between-a-nominal-iv-and-a-continuous-dv-variable/124618#124618
-      r_squared = summary(lm(x ~ y))$r.squared
-      data.frame(xName, yName, assoc = sqrt(r_squared), type = "anova")
-    } else if (is_nominal(x) && is_numeric(y)) {
-      r_squared = summary(lm(y ~ x))$r.squared
-      data.frame(xName, yName, assoc = sqrt(r_squared), type = "anova")
-    } else {
-      warning(paste("unmatched column type combination: ", class(x), class(y)))
-    }
-
-    # finally add complete obs number and ratio to table
-    result %>%
-      mutate(
-        complete_obs_pairs = sum(!is.na(x) & !is.na(y)),
-        complete_obs_ratio = complete_obs_pairs / length(x)
-      ) %>%
-      rename(x = xName, y = yName)
-  }
-
-  # apply function to each variable combination
-  map2_df(df_comb$X1, df_comb$X2, f)
-}
-
-
-mx <- mixed_assoc(penguins)
-
-
-mx
+    ),
+    .by = c(species, sex)
+  ) |>
+  select(-starts_with("year"))
 ```
+
+## Univariate analysis
+
+**Question: what does the distribution of each variable look like?**
+
+### Categorical variables
+
+```{r}
+#| label: fig-eda-cat
+#| fig-cap: "Distribution of the categorical variables."
+penguins |>
+  select(where(is.factor)) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "category") |>
+  ggplot(aes(y = category)) +
+  geom_bar(fill = "steelblue") +
+  facet_wrap(~variable, scales = "free") +
+  labs(x = "Count", y = NULL)
+```
+
+Three immediate observations: the species are unbalanced (Adelie is the most
+common), Biscoe holds the most penguins, and sex is close to balanced.
+
+### Continuous variables
+
+Three views of the same variable, each showing something the others do not.
+
+::: {.panel-tabset}
+## Histogram
+
+```{r}
+#| label: fig-eda-hist
+#| warning: false
+penguins |>
+  ggplot(aes(bill_length_mm)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", colour = "white") +
+  labs(x = "Bill length (mm)", y = "Count")
+```
+
+## Density
+
+```{r}
+#| label: fig-eda-density
+#| warning: false
+penguins |>
+  ggplot(aes(bill_depth_mm)) +
+  geom_density(fill = "gold3", colour = "gold4", alpha = 0.7) +
+  labs(x = "Bill depth (mm)", y = "Density")
+```
+
+## All at once
+
+```{r}
+#| label: fig-eda-all-dens
+#| warning: false
+penguins |>
+  select(where(is.numeric), -year) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "value") |>
+  ggplot(aes(value)) +
+  geom_density(fill = "indianred", alpha = 0.7) +
+  facet_wrap(~variable, scales = "free") +
+  labs(x = "Value", y = "Density")
+```
+
+## Boxplots
+
+```{r}
+#| label: fig-eda-all-box
+#| warning: false
+penguins |>
+  select(where(is.numeric), -year) |>
+  pivot_longer(everything(), names_to = "variable", values_to = "value") |>
+  ggplot(aes(y = value)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.6) +
+  facet_wrap(~variable, scales = "free") +
+  labs(y = "Value", x = NULL)
+```
+:::
+
+Notice that `bill_depth_mm` and `flipper_length_mm` are clearly **bimodal** —
+two humps. A boxplot of the same variable shows none of this; it would report a
+median and a reasonable-looking spread. This is the single best argument for
+always looking at a distribution before summarising it.
+
+### Histogram and Q-Q plot together
+
+A Q-Q plot compares your data against a theoretical normal distribution. Points
+on the line mean the data is approximately normal.
+
+```{r}
+#| label: fig-eda-qq
+#| fig-cap: "Distribution and normality of flipper length."
+#| fig-width: 9
+#| fig-height: 4
+#| warning: false
+hist_plot <- penguins |>
+  filter(!is.na(flipper_length_mm)) |>
+  ggplot(aes(flipper_length_mm)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", colour = "white") +
+  labs(title = "Histogram", x = "Flipper length (mm)", y = "Count")
+
+qq_plot <- penguins |>
+  filter(!is.na(flipper_length_mm)) |>
+  ggplot(aes(sample = flipper_length_mm)) +
+  geom_qq(colour = "navy", alpha = 0.6) +
+  geom_qq_line(colour = "red") +
+  labs(title = "Q-Q plot", x = "Theoretical quantiles", y = "Sample quantiles")
+
+hist_plot + qq_plot
+```
+
+The S-shape in the Q-Q plot is what bimodality looks like there. It is *not*
+evidence that a transformation is needed — it is evidence that the sample
+contains more than one group. Splitting by species would show three
+approximately normal distributions.
+
+::: {.callout-tip}
+## Normality of what?
+A common misunderstanding: linear regression does not assume that your outcome
+variable is normally distributed. It assumes the *residuals* are. A bimodal
+outcome, as here, is entirely compatible with a well-behaved model once the
+grouping variable is included.
+:::
+
+## Bivariate analysis
+
+**Question: how do distributions differ between groups, and how do variables
+relate to each other?**
+
+### Continuous by categorical
+
+```{r}
+#| label: fig-eda-bivar1
+#| fig-cap: "Body mass by species, showing summary and raw data together."
+#| warning: false
+penguins |>
+  filter(!is.na(body_mass_g)) |>
+  ggplot(aes(species, body_mass_g, fill = species)) +
+  geom_violin(alpha = 0.4, trim = FALSE, show.legend = FALSE) +
+  geom_boxplot(width = 0.15, alpha = 0.8, outlier.shape = NA, show.legend = FALSE) +
+  geom_point(
+    position = position_jitter(width = 0.12, seed = 1),
+    alpha = 0.3, size = 1, show.legend = FALSE
+  ) +
+  labs(x = NULL, y = "Body mass (g)")
+```
+
+Adding a grouping variable:
+
+```{r}
+#| label: fig-eda-bivar2
+#| fig-cap: "Body mass by species and sex."
+#| warning: false
+penguins |>
+  filter(!is.na(sex)) |>
+  ggplot(aes(species, body_mass_g, fill = sex)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(x = NULL, y = "Body mass (g)", fill = "Sex")
+```
+
+### Continuous by continuous
+
+```{r}
+#| label: fig-eda-scatter
+#| fig-cap: "Flipper length against body mass."
+#| warning: false
+penguins |>
+  ggplot(aes(flipper_length_mm, body_mass_g)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  labs(x = "Flipper length (mm)", y = "Body mass (g)")
+```
+
+### Correlations
+
+```{r}
+#| label: eda-cor
+penguins |>
+  select(where(is.numeric), -year) |>
+  cor(use = "pairwise.complete.obs") |>
+  round(2)
+```
+
+::: {.callout-warning}
+## `use = "pairwise.complete.obs"`
+By default `cor()` returns `NA` if there is any missing value anywhere.
+`"pairwise.complete.obs"` uses every available pair, which means each
+correlation may be based on a different subset of participants. That is usually
+acceptable for exploration, but it is worth knowing that the correlations in
+such a matrix are not all computed on the same sample, and the matrix is not
+guaranteed to be internally consistent.
+:::
+
+## Multivariate analysis
+
+### Simpson's paradox
+
+This is the most important idea in this chapter. A relationship in the pooled
+data can **reverse** when you account for a grouping variable.
+
+```{r}
+#| label: fig-eda-simpson
+#| fig-cap: "Same data, with and without accounting for species."
+#| fig-width: 9
+#| fig-height: 4
+#| warning: false
+pooled <- penguins |>
+  ggplot(aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "black") +
+  labs(title = "Ignoring species", x = "Bill length (mm)", y = "Bill depth (mm)")
+
+by_species <- penguins |>
+  ggplot(aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_colour_manual(values = c("darkorange", "purple", "cyan4")) +
+  labs(title = "Within species", x = "Bill length (mm)", y = NULL, colour = "Species")
+
+pooled + by_species
+```
+
+Pooled, the relationship is **negative**: longer bills appear shallower. Within
+each species it is **positive**. Both are computed correctly from the same data;
+the pooled slope is simply an artefact of Gentoo penguins having long, shallow
+bills while Adelie have short, deep ones.
+
+::: {.callout-important}
+## The practical lesson
+There is no statistical test that tells you which grouping variable you forgot.
+This is a subject-matter problem, not a computational one — the only defence is
+knowing your data and plotting it by every grouping you have. In epidemiology
+this same phenomenon appears as confounding, and it is why a scatterplot of raw
+data is never sufficient evidence of a relationship.
+:::
+
+### Non-linear relationships
+
+```{r}
+#| label: fig-eda-nonlinear
+#| fig-cap: "A loess smoother makes no assumption of linearity."
+#| warning: false
+penguins |>
+  ggplot(aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "loess", formula = y ~ x, se = FALSE) +
+  scale_colour_manual(values = c("darkorange", "purple", "cyan4")) +
+  labs(x = "Bill length (mm)", y = "Bill depth (mm)", colour = "Species")
+```
+
+Fitting a smoother before a straight line is a cheap way to check whether a
+linear model is defensible.
+
+### Pairs plot
+
+A pairs plot shows every bivariate relationship at once — distributions on the
+diagonal, scatterplots below, correlations above.
+
+```{r}
+#| label: fig-eda-pairs
+#| fig-cap: "All pairwise relationships, coloured by species."
+#| fig-width: 9
+#| fig-height: 7
+#| message: false
+#| warning: false
+penguins |>
+  select(species, body_mass_g, ends_with("_mm")) |>
+  GGally::ggpairs(
+    aes(colour = species, alpha = 0.5),
+    columns = c(
+      "flipper_length_mm", "body_mass_g",
+      "bill_length_mm", "bill_depth_mm"
+    )
+  ) +
+  scale_colour_manual(values = c("darkorange", "purple", "cyan4")) +
+  scale_fill_manual(values = c("darkorange", "purple", "cyan4"))
+```
+
+This single figure contains most of what the preceding pages established. Pairs
+plots become unreadable beyond about eight variables, but for a first look at a
+modest set they are hard to beat.
+
+### Heatmap of group means
+
+```{r}
+#| label: fig-eda-heatmap
+#| fig-cap: "Standardised mean measurements by species."
+penguins |>
+  drop_na(species, bill_length_mm, bill_depth_mm, flipper_length_mm, body_mass_g) |>
+  summarise(
+    across(
+      c(bill_length_mm, bill_depth_mm, flipper_length_mm, body_mass_g),
+      mean
+    ),
+    .by = species
+  ) |>
+  # variables are on different scales, so standardise before comparing them
+  mutate(across(where(is.numeric), \(x) as.numeric(scale(x)))) |>
+  pivot_longer(!species, names_to = "variable", values_to = "z") |>
+  ggplot(aes(variable, species, fill = z)) +
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "steelblue", mid = "white", high = "indianred") +
+  labs(x = NULL, y = NULL, fill = "z-score") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+### Summary of what we found
+
+- Gentoo penguins are generally the largest, with longer flippers and higher
+  body mass.
+- Chinstrap and Adelie are similar in size but differ in bill measurements.
+- The bill length / bill depth relationship reverses when species is ignored.
+- Bill depth and flipper length are bimodal in the pooled data, which is a
+  consequence of the species structure rather than a property of any species.
+
+## Missing data
+
+```{r}
+#| label: fig-eda-miss-var
+#| fig-cap: "Missing values per variable."
+naniar::gg_miss_var(penguins)
+```
+
+```{r}
+#| label: fig-eda-miss-upset
+#| fig-cap: "Which combinations of variables are missing together."
+naniar::gg_miss_upset(penguins)
+```
+
+The upset plot is the more informative of the two: it shows that the two
+penguins missing body mass are missing *everything*, while nine others are
+missing only sex. Those are two different problems with two different causes.
+
+### Is the missingness random?
+
+Little's test has the null hypothesis that data are **missing completely at
+random** (MCAR).
+
+```{r}
+#| label: eda-mcar
+naniar::mcar_test(penguins)
+```
+
+::: {.callout-warning}
+## What the MCAR test can and cannot tell you
+A high p-value is consistent with MCAR; it does not prove it, and with a small
+sample the test has little power to detect anything.
+
+More importantly, the three missingness mechanisms are not equally
+distinguishable. MCAR and MAR can be examined from the observed data; **MNAR —
+missing because of the unobserved value itself** — cannot be detected
+statistically at all. A participant who dropped out because they got worse is
+MNAR, and no test on your dataset will reveal it. That question is answered by
+knowing how the data were collected, not by running a test.
+:::
+
+## Packages worth knowing
+
+**For exploring and summarising**
+
+- [**skimr**](https://github.com/ropensci/skimr) — fast, informative summaries
+- [**naniar**](https://naniar.njtierney.com/) — missing data from every angle
+- [**visdat**](https://docs.ropensci.org/visdat/) — a visual map of your data
+- [**GGally**](https://ggobi.github.io/ggally/) — pairs plots and more
+- [**DataExplorer**](https://boxuancui.github.io/DataExplorer/) — automated
+  exploratory reports
+- [**summarytools**](https://github.com/dcomtois/summarytools) — `dfSummary()`
+
+**For presenting**
+
+- [**gtsummary**](https://www.danieldsjoberg.com/gtsummary/) — publication-ready
+  summary tables (@sec-tables)
+- [**gt**](https://gt.rstudio.com/) — full control over table appearance
+- [**patchwork**](https://patchwork.data-imaginist.com/) — combining figures
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which function gives a quick overview of class, missingness and distribution for
+every variable?
+`r mcq(c("glimpse()", answer = "skim()", "head()", "str()"))`
+
+A boxplot will reveal whether a distribution is bimodal. `r torf(FALSE)`
+
+Simpson's paradox is when
+`r longmcq(c(
+  "a variable is missing not at random",
+  "two variables are perfectly correlated",
+  answer = "the direction of a relationship reverses once a grouping variable is accounted for",
+  "a p-value is significant but the effect is small"
+))`
+
+A non-significant Little's MCAR test proves your data are missing completely at
+random. `r torf(FALSE)`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: explore a new dataset
+
+Use `msleep` from `ggplot2` — mammal sleep data, deliberately messier than
+`penguins`.
+
+1. Get an overview. How many rows and columns, and which variables have the most
+   missing values?
+2. Plot the distribution of `sleep_total`. Is it symmetric?
+3. Is there a relationship between `bodywt` and `sleep_total`? Try it on the raw
+   scale and on a log scale for body weight.
+4. Does the relationship differ by `vore` (diet)?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-eda-sol
+#| message: false
+skimr::skim(msleep)
+```
+
+```{r}
+#| label: fig-ex1-eda1
+#| fig-cap: "Total sleep time is roughly symmetric."
+msleep |>
+  ggplot(aes(sleep_total)) +
+  geom_histogram(binwidth = 1.5, fill = "steelblue", colour = "white") +
+  labs(x = "Total sleep (hours)", y = "Count")
+```
+
+```{r}
+#| label: fig-ex1-eda2
+#| fig-cap: "Body weight spans five orders of magnitude, so a log scale is essential."
+#| fig-width: 9
+#| fig-height: 4
+raw_scale <- msleep |>
+  ggplot(aes(bodywt, sleep_total)) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Raw scale", x = "Body weight (kg)", y = "Total sleep (h)")
+
+log_scale <- msleep |>
+  ggplot(aes(bodywt, sleep_total)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_x_log10() +
+  labs(title = "Log scale", x = "Body weight (kg, log10)", y = NULL)
+
+raw_scale + log_scale
+```
+
+On the raw scale almost every point is crushed against the left axis and the
+elephant dominates everything. On the log scale a clear negative relationship
+appears: larger mammals sleep less.
+
+```{r}
+#| label: fig-ex1-eda3
+#| fig-cap: "The relationship by diet, with sample sizes."
+#| warning: false
+msleep |>
+  filter(!is.na(vore)) |>
+  ggplot(aes(bodywt, sleep_total, colour = vore)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  scale_x_log10() +
+  labs(x = "Body weight (kg, log10)", y = "Total sleep (h)", colour = "Diet")
+
+msleep |>
+  count(vore)
+```
+
+The slopes differ, but note the group sizes: five insectivores is not enough to
+estimate a slope with any confidence. Always plot the counts alongside the
+trends — a fitted line through five points looks exactly as authoritative as one
+through fifty.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: find the hidden group
+
+```{r}
+#| label: ex2-eda-data
+set.seed(2024)
+
+hidden <- tibble(
+  group = rep(c("A", "B"), each = 60),
+  x = c(rnorm(60, 50, 8), rnorm(60, 70, 8)),
+  y = c(rnorm(60, 100, 10), rnorm(60, 80, 10)) + 0.4 * x
+)
+```
+
+1. Plot `y` against `x` for the whole dataset and fit a straight line. What is
+   the direction of the relationship?
+2. Now colour by `group` and fit a line per group. What changes?
+3. Calculate the correlation overall and within each group.
+4. What would you have concluded if `group` had not been recorded?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: fig-ex2-eda
+#| fig-cap: "Pooled and within-group relationships."
+#| fig-width: 9
+#| fig-height: 4
+pooled <- hidden |>
+  ggplot(aes(x, y)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "black") +
+  labs(title = "Pooled")
+
+grouped <- hidden |>
+  ggplot(aes(x, y, colour = group)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  labs(title = "By group", y = NULL)
+
+pooled + grouped
+```
+
+```{r}
+#| label: ex2-eda-cor
+# overall
+cor(hidden$x, hidden$y) |> round(2)
+
+# within each group
+hidden |>
+  summarise(r = round(cor(x, y), 2), n = n(), .by = group)
+```
+
+Pooled, the correlation is negative (about -0.25); within each group it is
+positive (about 0.3 and 0.24). The two groups sit at different points on both
+axes, and pooling them not only cancels out the real within-group relationship
+but reverses its sign.
+
+Had `group` not been recorded, you would have concluded there was no
+relationship between `x` and `y` — and you would have had no way, from this data
+alone, of knowing you were wrong. That is the honest answer to part 4, and it is
+why EDA cannot be separated from knowing how the data were collected.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: a missingness investigation
+
+Using `penguins`:
+
+1. Which rows have missing values, and in which variables?
+2. Are the penguins with missing `sex` distributed evenly across species and
+   islands?
+3. Does body mass differ between penguins with and without a recorded sex?
+4. What would you conclude about the missingness mechanism, and what could you
+   *not* conclude?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex3-eda-sol
+# 1
+penguins |>
+  filter(if_any(everything(), is.na))
+
+# 2
+penguins |>
+  mutate(sex_missing = is.na(sex)) |>
+  summarise(n = n(), .by = c(species, sex_missing)) |>
+  pivot_wider(names_from = sex_missing, values_from = n, names_prefix = "missing_")
+
+# 3
+penguins |>
+  filter(!is.na(body_mass_g)) |>
+  mutate(sex_missing = is.na(sex)) |>
+  summarise(
+    n = n(),
+    mean_mass = round(mean(body_mass_g), 0),
+    sd_mass = round(sd(body_mass_g), 0),
+    .by = sex_missing
+  )
+```
+
+Missing sex is spread across all three species, with a slight concentration in
+Adelie. The nine penguins with missing sex and a recorded body mass have a mean
+mass close to the overall mean, which is at least consistent with the
+missingness being unrelated to size.
+
+What you **cannot** conclude is that the data are MCAR. If sex was unrecorded
+because the field team could not determine it in the field, and determinability
+relates to size or condition, the missingness depends on unobserved
+characteristics. Nothing in the dataset can rule that out — only knowledge of
+the field protocol can.
+:::
+:::
+
+## More information
+
+- [R for Data Science: EDA](https://r4ds.hadley.nz/eda)
+- [The interactive missingness explorer](https://allisonhorst.shinyapps.io/missingexplorer/)
+- Tukey, J. W. (1977). *Exploratory Data Analysis.*

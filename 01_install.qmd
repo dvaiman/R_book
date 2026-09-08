@@ -1,4 +1,4 @@
-# Setting up R and Rstudio
+# Setting up R and RStudio {#sec-install}
 
 ## Introduction to Installing R and RStudio
 

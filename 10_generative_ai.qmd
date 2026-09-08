@@ -1,4 +1,4 @@
-# Generative AI in coding
+# Generative AI in Coding {#sec-ai}
 
 # Why there still is a need to understand and learn code
 
@@ -65,6 +65,103 @@ Generative AI can be a valuable resource for learning and education. It can prov
 ```
 
 This enhanced version provides more context and detailed explanations, making it easier for learners to understand the benefits and applications of generative AI in coding. It also includes additional tips for effectively using AI tools in learning and development.
+
+## AI inside the IDE
+
+The examples above assume you copy code into a chat window in a browser. That
+still works, but AI assistance has largely moved into the editor itself. Three
+options are relevant for R users.
+
+### Posit Assistant (Positron)
+
+[Posit Assistant](https://positron.posit.co/assistant.html) is the AI assistant
+built into Positron (@sec-positron). It became the default AI experience in
+Positron in 2026.07, replacing the earlier separate offerings.
+
+What makes it different from a browser chat is that it can see your **live
+session**. Its context includes the active file, your selection, the project
+structure, the data you have loaded, your plots, console history, and the names
+and types of your variables. Asking "why is this column character?" works,
+because it can look.
+
+Notable features:
+
+- **Bring your own key**: you connect it to a provider — Anthropic, OpenAI,
+  GitHub Copilot or Amazon Bedrock among others — rather than paying Posit.
+- **Plan mode**: it proposes an approach before writing code, which you can
+  correct before any edits happen.
+- **Slash commands** such as `/plan` and `/new`.
+- **MCP servers**, letting it reach external tools.
+
+On data handling, Posit states that it does not track, collect or store your
+prompts, code or conversations. Your chosen model provider, however, applies its
+own retention policy — which is the part that matters for the warning below.
+
+### GitHub Copilot
+
+Available in RStudio (**Tools → Global Options → Copilot**), Positron and VS
+Code. Copilot is primarily an autocomplete: it suggests the rest of the line or
+block as you type. Good at boilerplate, `ggplot2` scaffolding and repetitive
+`mutate()` calls; less useful for reasoning about a problem.
+
+### R packages that talk to models
+
+- [`ellmer`](https://ellmer.tidyverse.org/) — the current tidyverse package for
+  calling LLMs from R, supporting most providers, with structured output and
+  tool calling.
+- [`chattr`](https://mlverse.github.io/chattr/) — a chat interface inside the
+  RStudio IDE.
+- [`btw`](https://posit-dev.github.io/btw/) — describes your R environment to an
+  assistant, so it can answer questions about your actual objects.
+
+::: {.callout-important}
+## Sensitive data must never reach a hosted model
+This applies to every tool above, and it is the reason to read the previous
+paragraph carefully rather than skim it.
+
+An assistant with session context is genuinely more useful *because* it can see
+your data — which means that if your data is identifiable, it is being sent to
+whichever provider you configured. Under GDPR and under the ethical approval
+most registry projects run on, that is not permitted.
+
+Practical rules:
+
+- **Never paste personal data** — identity numbers, names, dates of birth, free
+  text from medical records — into any AI tool.
+- **Be careful with session context.** Sending a code snippet is a decision you
+  make each time; enabling an assistant that reads your environment is a
+  decision you make once, and it then applies to everything you load.
+- **Work on de-identified or synthetic data** when using an assistant. Building
+  a small fake dataset with the same structure is usually enough to get a useful
+  answer, and it is safe.
+- **Check your institution's rules.** GIH, like most universities, has a policy
+  on which AI services may be used with which categories of data.
+
+If you cannot de-identify, do not use the tool. There is no configuration
+setting that makes sending identifiable data to a third party acceptable.
+:::
+
+::: {.callout-tip}
+## What AI is genuinely good at in R
+- **Explaining an error message** you have never seen before.
+- **Writing regular expressions** from a plain-language description — then you
+  test them (@sec-strings-factors).
+- **Translating between dialects**: base R to tidyverse, `%>%` to `|>`, or an
+  SPSS procedure into R.
+- **Boilerplate**: a `ggplot2` theme, a `case_when()` with twelve categories.
+- **A first draft of a function**, which you then check and simplify.
+
+And what it is bad at:
+
+- **Knowing your data.** It will confidently invent column names.
+- **Statistical judgement.** It will suggest a test without asking about your
+  design, clustering, or missingness.
+- **Being current.** Models trained before dplyr 1.2.0 will write
+  `case_match()` and never mention `filter_out()`. Check against the installed
+  version's documentation — `?function_name` and `news(package = "dplyr")`.
+- **Saying "I do not know."** A plausible wrong answer looks exactly like a
+  right one, which is why you have to be able to read the code it gives you.
+:::
 
 ::: callout-tip
 ## Tip

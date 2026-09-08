@@ -1,0 +1,545 @@
+# Reshaping Data: Pivoting {#sec-pivot}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Pivoting*. It revisits the tidy data rules and
+then works through `pivot_longer()` and `pivot_wider()`, including the awkward
+cases where column names contain several variables at once.
+:::
+
+```{r}
+#| label: setup-pivot
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: pivot-libs
+#| message: false
+library(tidyverse)
+```
+
+## The same data in many shapes
+
+The same information can be stored in many different layouts, and most of them
+are perfectly readable to a human. They are not all equally usable in R.
+
+```{r}
+#| label: pivot-shapes
+# wide: one row per person, one column per measurement occasion
+wide_data <- tibble(
+  id = 1:3,
+  sex = c("F", "M", "F"),
+  weight_pre = c(65, 80, 70),
+  weight_post = c(63, 79, 71)
+)
+
+wide_data
+
+# long: one row per measurement
+long_data <- wide_data |>
+  pivot_longer(
+    cols = starts_with("weight"),
+    names_to = "occasion",
+    values_to = "weight_kg"
+  )
+
+long_data
+```
+
+Neither is wrong. Which you need depends entirely on what you are about to do:
+
+- **`ggplot2` wants long data.** One row per point to be drawn.
+- **Most statistical models want long data**, especially anything repeated
+  measures or mixed effects.
+- **Tables for humans want wide data.** A reader wants pre and post side by
+  side.
+- **Some calculations want wide data**, for example a change score
+  `post - pre`.
+
+You will move back and forth between these constantly. Pivoting is a *reshaping*
+operation, so nothing is lost — you can always go back.
+
+## Tidy data
+
+Recall the three rules from @sec-tidy:
+
+1. Each variable has its own column.
+2. Each observation has its own row.
+3. Each value has its own cell.
+
+Hadley Wickham identified five common ways real data violates these rules:
+
+1. Column headers are values, not variable names.
+2. Multiple variables are stored in one column.
+3. Variables are stored in both rows and columns.
+4. Multiple types of observational units are stored in the same table.
+5. A single observational unit is stored in multiple tables.
+
+Problems 1 to 3 are solved by pivoting and separating; problems 4 and 5 are
+solved by joins (@sec-joins).
+
+::: {.callout-tip}
+## Tidy is not the same as clean
+"Tidy" is about *shape* — one variable per column, one observation per row.
+"Clean" is about *content* — no typos, sensible units, correct types, no
+duplicate rows. Data can be tidy and filthy, or immaculately clean and
+completely untidy. You need both, and they are different chapters
+(@sec-cleaning covers clean).
+:::
+
+## `pivot_longer()`
+
+Long is the default direction: you almost always pivot longer first, fix things,
+and only pivot wider at the very end for presentation.
+
+```{r}
+#| label: pivot-longer-basic
+df <- tribble(
+  ~id, ~bp1, ~bp2,
+  "A", 100, 120,
+  "B", 140, 115,
+  "C", 120, 125
+)
+
+df
+
+df |>
+  pivot_longer(
+    cols = bp1:bp2, # which columns to pivot
+    names_to = "measurement", # where the old column names go
+    values_to = "value" # where the cell values go
+  )
+```
+
+What happened, step by step:
+
+- Columns that were **not** pivoted (`id`) are repeated once for each pivoted
+  column.
+- The **names** of the pivoted columns become values in the new `measurement`
+  column.
+- The **values** in those columns are preserved and split across rows.
+
+### Choosing columns
+
+`cols` accepts the same selection language as `select()`:
+
+```{r}
+#| label: pivot-longer-select
+#| eval: false
+pivot_longer(cols = bp1:bp2) # a range
+pivot_longer(cols = starts_with("bp")) # a helper
+pivot_longer(cols = !id) # everything except id
+pivot_longer(cols = where(is.numeric)) # by type
+```
+
+`cols = !id` is often the most robust: it survives the addition of a new
+measurement column, whereas `bp1:bp2` does not.
+
+### Several variables in one column name
+
+Real column names often encode more than one thing. The `who2` dataset from
+`tidyr` is a good example: a name like `sp_m_014` means diagnosis method `sp`,
+sex `m`, age group `0-14`.
+
+```{r}
+#| label: who2-raw
+who_small <- who2 |> slice_head(n = 6)
+who_small |> select(1:6)
+```
+
+Give `names_to` a *vector* of names and tell `pivot_longer()` how the parts are
+separated:
+
+```{r}
+#| label: who2-pivot
+who_small |>
+  pivot_longer(
+    cols = !c(country, year),
+    names_to = c("diagnosis", "gender", "age"),
+    names_sep = "_",
+    values_to = "count"
+  ) |>
+  head(6)
+```
+
+One long column name has become three tidy variables.
+
+### Several variables *and* several values: `.value`
+
+The `household` dataset holds, for each family, the name and date of birth of up
+to two children. The column names contain the names of two variables (`dob` and
+`name`) plus the value of a third (child 1 or 2).
+
+```{r}
+#| label: household-raw
+household
+```
+
+The special value `.value` tells `pivot_longer()` that this part of the column
+name is not data — it is the name of the output column. It replaces the usual
+`values_to`:
+
+```{r}
+#| label: household-pivot
+household |>
+  pivot_longer(
+    cols = !family,
+    names_to = c(".value", "child"),
+    names_sep = "_"
+  )
+```
+
+The result has one row per child, with `dob` and `name` as proper columns.
+
+### Dropping generated missing values
+
+Not every family has two children, so pivoting creates rows that are entirely
+empty. `values_drop_na = TRUE` removes them:
+
+```{r}
+#| label: household-dropna
+household |>
+  pivot_longer(
+    cols = !family,
+    names_to = c(".value", "child"),
+    names_sep = "_",
+    values_drop_na = TRUE
+  )
+```
+
+::: {.callout-warning}
+## Only drop *structural* missing values
+`values_drop_na = TRUE` is right when the missingness is an artefact of the wide
+layout — a third child who does not exist. It is wrong when the missingness is
+real data, such as a participant who did not attend the follow-up visit. Those
+rows are informative: dropping them turns "did not attend" into "was never
+scheduled", and your denominators become wrong.
+
+If in doubt, do not drop, and count the missing values instead.
+:::
+
+## `pivot_wider()`
+
+`pivot_wider()` is the inverse. You need it for presentation tables, for
+calculating change scores, and for correlation matrices.
+
+```{r}
+#| label: pivot-wider-basic
+df <- tribble(
+  ~id, ~measurement, ~value,
+  "A", "bp1", 100,
+  "B", "bp1", 140,
+  "B", "bp2", 115,
+  "A", "bp2", 120,
+  "A", "bp3", 105
+)
+
+df
+
+df |>
+  pivot_wider(
+    names_from = measurement, # this column supplies the new column names
+    values_from = value # this column supplies the cell values
+  )
+```
+
+Patient B has no `bp3`, so that cell becomes `NA`. This is real information: the
+measurement was not made.
+
+### Calculating a change score
+
+The most common practical reason to pivot wider:
+
+```{r}
+#| label: pivot-change
+long_data |>
+  pivot_wider(names_from = occasion, values_from = weight_kg) |>
+  mutate(weight_change = weight_post - weight_pre)
+```
+
+## When there are several rows per cell
+
+This is the pivot problem that catches people out. What if two rows in the input
+map to the same cell in the output?
+
+```{r}
+#| label: pivot-dupes-data
+df_dupes <- tribble(
+  ~id, ~measurement, ~value,
+  "A", "bp1", 100,
+  "A", "bp1", 102, # a second bp1 for patient A
+  "A", "bp2", 120,
+  "B", "bp1", 140,
+  "B", "bp2", 115
+)
+
+df_dupes
+```
+
+```{r}
+#| label: pivot-dupes-warn
+#| warning: true
+df_dupes |>
+  pivot_wider(names_from = measurement, values_from = value)
+```
+
+The `bp1` column now contains *lists*, not numbers, and `tidyr` warns you about
+it. A list column will break the next step in your pipeline, usually with a
+confusing error a long way from the real cause.
+
+### Find the duplicates first
+
+Before pivoting wider, check whether the combination you are pivoting on is
+actually unique:
+
+```{r}
+#| label: pivot-find-dupes
+df_dupes |>
+  summarise(n = n(), .by = c(id, measurement)) |>
+  filter(n > 1)
+```
+
+### Three ways to resolve it
+
+Which one is correct depends entirely on **why** the duplicate exists, and that
+is a question about the data collection, not about R.
+
+```{r}
+#| label: pivot-fix
+# 1. The second reading is an error - remove it.
+df_dupes |>
+  filter(!(measurement == "bp1" & value == 102)) |>
+  pivot_wider(names_from = measurement, values_from = value)
+
+# 2. It was mislabelled - it should have been bp3.
+df_dupes |>
+  mutate(
+    measurement = if_else(
+      measurement == "bp1" & value == 102, "bp3", measurement
+    )
+  ) |>
+  pivot_wider(names_from = measurement, values_from = value)
+
+# 3. Both readings are valid replicates - average them.
+df_dupes |>
+  pivot_wider(
+    names_from = measurement,
+    values_from = value,
+    values_fn = mean
+  )
+```
+
+::: {.callout-important}
+## The warning is the useful part
+`values_fn = mean` makes the warning go away, which is why it is tempting. But
+if the duplicate was a data entry error, averaging it silently propagates the
+error into every downstream result.
+
+Treat the "values are not uniquely identified" warning as a finding about your
+data, not as an obstacle. Investigate first, then choose a fix, then write a
+comment saying which you chose and why.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+To go from one column per timepoint to one row per timepoint, you use
+`r mcq(c(answer = "pivot_longer()", "pivot_wider()", "separate()", "spread()"))`
+
+`ggplot2` generally wants data in wide format. `r torf(FALSE)`
+
+In `pivot_longer()`, which argument names the new column that receives the old
+column names?
+`r mcq(c("values_to", answer = "names_to", "cols", "names_sep"))`
+
+What does the special value `.value` do in `names_to`?
+`r longmcq(c(
+  "It drops missing values from the result",
+  "It fills empty cells with zero",
+  answer = "It tells pivot_longer() that this part of the column name is the name of an output column, not data",
+  "It sorts the resulting columns alphabetically"
+))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: long and back again
+
+```{r}
+#| label: ex1-pivot-data
+fitness <- tribble(
+  ~id, ~group, ~vo2max_week0, ~vo2max_week6, ~vo2max_week12,
+  1, "training", 42.1, 45.3, 47.8,
+  2, "training", 38.5, 41.0, 43.2,
+  3, "control", 40.2, 40.5, 39.9,
+  4, "control", 44.0, 43.8, 44.1
+)
+```
+
+1. Pivot to long format with a `week` column and a `vo2max` column.
+2. The `week` column will contain text like `vo2max_week0`. Turn it into a
+   number.
+3. Plot the individual trajectories, coloured by group.
+4. Pivot back to wide and calculate the change from week 0 to week 12.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-pivot-sol
+fitness_long <- fitness |>
+  pivot_longer(
+    cols = starts_with("vo2max"),
+    names_to = "week",
+    values_to = "vo2max",
+    # strip the shared prefix so only the number remains
+    names_prefix = "vo2max_week",
+    names_transform = list(week = as.numeric)
+  )
+
+fitness_long
+```
+
+`names_prefix` and `names_transform` do in the pivot what would otherwise need
+two extra `mutate()` steps.
+
+```{r}
+#| label: fig-ex1-pivot
+#| fig-cap: "Individual VO2max trajectories by group."
+fitness_long |>
+  ggplot(aes(week, vo2max, colour = group, group = id)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "Week", y = expression(VO[2]~max~(ml/kg/min)), colour = "Group") +
+  theme_minimal(base_size = 13)
+```
+
+Note `group = id`: without it `ggplot2` does not know which points belong to the
+same person and draws one zig-zagging line per group.
+
+```{r}
+#| label: ex1-pivot-change
+fitness_long |>
+  filter(week %in% c(0, 12)) |>
+  pivot_wider(
+    names_from = week,
+    values_from = vo2max,
+    names_prefix = "week_"
+  ) |>
+  mutate(change = week_12 - week_0)
+```
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: names with several variables
+
+```{r}
+#| label: ex2-pivot-data
+lab <- tribble(
+  ~id, ~glucose_pre, ~glucose_post, ~insulin_pre, ~insulin_post,
+  1, 5.2, 7.8, 45, 120,
+  2, 5.8, 8.4, 52, 140,
+  3, 4.9, 6.9, 38, 95
+)
+```
+
+1. Pivot so that you end up with columns `id`, `time`, `glucose` and `insulin`.
+2. Calculate the mean of each marker at each timepoint.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+The column names contain two things: which marker, and which timepoint. The
+marker should become a column name, so it maps to `.value`; the timepoint is
+data, so it gets its own name.
+
+```{r}
+#| label: ex2-pivot-sol
+lab_long <- lab |>
+  pivot_longer(
+    cols = !id,
+    names_to = c(".value", "time"),
+    names_sep = "_"
+  )
+
+lab_long
+
+lab_long |>
+  summarise(
+    mean_glucose = mean(glucose),
+    mean_insulin = mean(insulin),
+    .by = time
+  )
+```
+
+Had you instead written `names_to = c("marker", "time")` with a single
+`values_to`, you would have got one long column of mixed glucose and insulin
+values — tidy in shape, but with two different measurement scales in one column,
+which is rarely what you want.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: a pivot that fails
+
+```{r}
+#| label: ex3-pivot-data
+visits <- tribble(
+  ~patient, ~visit, ~systolic,
+  "P1", "baseline", 132,
+  "P1", "followup", 128,
+  "P2", "baseline", 145,
+  "P2", "baseline", 141,
+  "P2", "followup", 138
+)
+```
+
+1. Try `pivot_wider(names_from = visit, values_from = systolic)`. What happens?
+2. Identify which patient and visit is duplicated.
+3. Assume the two baseline readings for P2 are genuine repeated measurements
+   taken minutes apart. Produce a wide table with one baseline value per
+   patient, and justify your choice in a comment.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex3-pivot-sol
+#| warning: true
+visits |>
+  pivot_wider(names_from = visit, values_from = systolic)
+```
+
+The `baseline` column becomes a list column, and `tidyr` warns.
+
+```{r}
+#| label: ex3-pivot-find
+visits |>
+  summarise(n = n(), .by = c(patient, visit)) |>
+  filter(n > 1)
+```
+
+```{r}
+#| label: ex3-pivot-fix
+# Two readings minutes apart are replicates of the same underlying value,
+# so averaging them is defensible and reduces measurement error.
+visits |>
+  pivot_wider(
+    names_from = visit,
+    values_from = systolic,
+    values_fn = mean
+  )
+```
+
+Had the two readings been 141 and 191 rather than 141 and 145, averaging would
+be indefensible — that is not measurement noise, it is a data problem, and it
+needs investigating before any analysis.
+:::
+:::
+
+## More information
+
+- [The tidyr pivoting vignette](https://tidyr.tidyverse.org/articles/pivot.html)
+- [Tidy Data (Wickham 2014)](https://www.jstatsoft.org/article/view/v059i10)
+- [R for Data Science, chapter on tidy data](https://r4ds.hadley.nz/data-tidy)

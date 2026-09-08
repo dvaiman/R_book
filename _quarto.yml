@@ -1,41 +1,70 @@
 project:
   type: book
+
 book:
   cover-image: images/Rtree.png
   title: "NavigatoR: Plotting Your Course Through R Fundamentals"
   sidebar:
     logo: images/NavigatoR.png
   author: Daniel Väisänen
-  date: 6/11/2024
+  date: 9/8/2026
+  search: true
   chapters:
-  - index.qmd
-  - 00_preface.qmd
-  - 01_install.qmd
-  - 02_project_setup.qmd
-  - 03_basics.qmd
-  - 04_quarto_etc.qmd
-  - 05_version_control.qmd
-  - 06_tidy_data.qmd
-  - 07_exploratory_data_analysis.qmd
-  - 08_tables_plots.qmd
-  - 09_assemble_workflow.qmd
-  - 10_generative_ai.qmd
-  - 11_usefull_packages.qmd
-  - references.qmd
+    - index.qmd
+    - 00_preface.qmd
+    - part: "Getting started"
+      chapters:
+        - 01_install.qmd
+        - 01b_positron.qmd
+        - 02_project_setup.qmd
+        - 03_basics.qmd
+        - 03b_classes_objects.qmd
+        - 04_quarto_etc.qmd
+        - 05_version_control.qmd
+    - part: "Visualising data"
+      chapters:
+        - 04b_visualization.qmd
+    - part: "Getting data in and out"
+      chapters:
+        - 05b_import_export.qmd
+    - part: "Data wrangling"
+      chapters:
+        - 06_tidy_data.qmd
+        - 06b_dplyr_verbs.qmd
+        - 06c_pivot.qmd
+        - 06d_joins.qmd
+        - 06e_strings_factors.qmd
+        - 06f_cleaning_data.qmd
+    - part: "Exploring and communicating"
+      chapters:
+        - 07_exploratory_data_analysis.qmd
+        - 08_tables_plots.qmd
+        - 09_assemble_workflow.qmd
+    - part: "Beyond the basics"
+      chapters:
+        - 10_generative_ai.qmd
+        - 10b_functions_iteration.qmd
+        - 11_usefull_packages.qmd
+    - references.qmd
+
 bibliography: references.bib
+
 format:
   html:
     df-print: kable
     code-link: true
     theme:
       light: cosmo
-     # dark: [cosmo, theme-dark.scss]
     code-background: true
     code-copy: true
     css: include/webex.css
     include-after-body: include/webex.js
+    toc-depth: 3
+
 editor: source
+
 execute:
   echo: true
   warning: false
   message: false
+  freeze: auto

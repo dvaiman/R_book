@@ -1,8 +1,4 @@
----
-title: "Workflow"
----
-
-# Data Analysis Workflow
+# The Data Analysis Workflow {#sec-workflow}
 
 In a typical data analysis workflow, you should be able to follow the data from the moment it is read into RStudio until you save the plots, tables, and the clean data. The data analysis can be done in one or several scripts. Using several scripts often makes it easier to manage if it is a larger process. This usually means that at the end of one script, the data is saved (for example, after cleaning the data as a new file), and then at the start of the next script, it is read in.
 
@@ -130,3 +126,124 @@ However, the process could also be defined in 9 steps. Typical steps in a finali
   - [icpsr.umich.edu](https://www.icpsr.umich.edu/files/deposit/dataprep.pdf )  
   - [datamgmtinedresearch.com](https://datamgmtinedresearch.com/clean)  
 	
+
+## Mapping the workflow onto this book
+
+| Workflow step | Chapter |
+|---------------|---------|
+| Set up the project | @sec-projects |
+| Import | @sec-import |
+| Clean | @sec-cleaning, @sec-strings-factors |
+| Reshape and combine | @sec-pivot, @sec-joins |
+| Transform | @sec-dplyr |
+| Explore | @sec-eda |
+| Visualise | @sec-visualisation |
+| Tabulate | @sec-tables |
+| Report | @sec-quarto |
+| Version control | @sec-git |
+
+## A recommended project structure
+
+```
+my_project/
+├── my_project.Rproj
+├── README.md
+├── .gitignore          <- data/ and *.csv listed here
+├── data-raw/           <- original files, never modified
+├── data/               <- cleaned data produced by your scripts
+├── R/                  <- or scripts/
+│   ├── 01_import.R
+│   ├── 02_clean.R
+│   ├── 03_explore.qmd
+│   └── 04_analysis.qmd
+└── output/
+    ├── figures/
+    └── tables/
+```
+
+Numbering the scripts encodes the order in which they must run. Anyone — you in
+six months, a co-author, a reviewer — can see the sequence without being told.
+
+::: {.callout-important}
+## For sensitive data
+If your project involves registry or otherwise identifiable data, add `data/`,
+`data-raw/`, `*.csv`, `*.sav`, `*.dta`, `*.rds` and `*.parquet` to `.gitignore`
+**before your first commit**. Removing a file from a later commit does not
+remove it from the history.
+
+Keep the identity key in a separate, access-controlled location, and
+de-identify as early in the pipeline as possible (@sec-cleaning).
+:::
+
+::: {.callout-note collapse="true"}
+## Capstone exercise: an end-to-end analysis
+
+This exercise ties together everything in the book. Use your own data if you
+have it — this is good preparation for the examination assignment — otherwise
+use `palmerpenguins` or `msleep`.
+
+**Set up**
+
+1. Create an R project with the folder structure above.
+2. Create a `.gitignore` and add your data folders to it.
+
+**Import and validate**
+
+3. Import your data with `readr` and `here()`.
+4. Run `glimpse()` and `skimr::skim()`. Write down, in prose, three things you
+   notice.
+5. Check: is every column the class it should be? How many rows? Is the key
+   unique?
+
+**Clean**
+
+6. Work through the fourteen steps in @sec-cleaning, doing only the ones your
+   data needs.
+7. Record `nrow()` before and after. Account for every row you lost.
+8. Save the cleaned data as RDS with the date in the filename.
+
+**Explore**
+
+9. Write down three specific questions about your data.
+10. Answer each with a figure or a table.
+11. Check missingness: how much, where, and is there a pattern?
+12. Look for at least one grouping variable that changes a relationship
+    (@sec-eda).
+
+**Report**
+
+13. Build a Quarto document with a Table 1 (@sec-tables) and two or three
+    figures.
+14. Use inline R code for every number in the text.
+15. Render it with `embed-resources: true` and check that it works.
+
+**Review**
+
+16. Restart R (`Ctrl/Cmd + Shift + F10`), clear the environment, and re-run
+    everything from a clean session. Does it work?
+
+::: {.callout-tip collapse="true"}
+## What to look for when you review your own work
+
+Step 16 is the real test, and it is worth being explicit about what it catches:
+
+- **An object created in the console and never in the script.** Extremely
+  common. Your analysis works only because of something invisible.
+- **A file path that only exists on your machine.**
+- **A package used but never loaded**, because it was already attached from an
+  earlier session.
+- **Order dependence** — script 3 needs an object from script 2 that is never
+  saved to disk.
+- **Randomness without a seed**, so the numbers differ slightly each run.
+
+If it survives a clean session, it is reproducible. If it does not, you have
+just found a bug that a reviewer would otherwise have found for you.
+
+A few more things worth checking in the write-up itself:
+
+- Does every figure have axis labels with units?
+- Does every table state its sample size and how missing data was handled?
+- Is every exclusion documented, with a number?
+- Could someone else follow your script from raw data to final figure?
+:::
+:::

@@ -1,0 +1,1000 @@
+# Data Visualisation with ggplot2 {#sec-visualisation}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Datavisualisering*. It works through the seven
+layers of the grammar of graphics — data, aesthetics, geometries, facets,
+statistics, coordinates and themes — and finishes with saving figures and a set
+of design guidelines.
+:::
+
+```{r}
+#| label: setup-viz
+#| include: false
+library(webexercises)
+```
+
+> Data visualisation is the graphical representation of information and data.
+
+A useful way to think about why you are making a figure at all:
+
+**Explore → Understand → Explain.**
+
+The first plots you make are for yourself: quick, ugly and diagnostic. The last
+one is for your reader: deliberate, labelled and polished. Confusing these two
+modes is the most common reason people waste time on visualisation.
+
+### Before you visualise
+
+Three questions, every time:
+
+- **What is the purpose?** Are you checking an assumption or making an argument?
+- **Who is the audience?** A supervisor, a reviewer, a clinician, the public?
+- **What is the best way to show this message?** The answer is often simpler
+  than the plot you first imagined.
+
+## The grammar of graphics
+
+The grammar of graphics was formulated by [Leland
+Wilkinson](https://en.wikipedia.org/wiki/Leland_Wilkinson) in 1999 and
+implemented in R by [Hadley Wickham](https://en.wikipedia.org/wiki/Hadley_Wickham)
+in 2005 as `ggplot2`. The core idea is that any statistical graphic can be
+decomposed into independent components. Instead of choosing from a fixed menu of
+chart types, you compose a figure from layers.
+
+The layers, in the order this chapter treats them:
+
+| Layer | Component | Question it answers |
+|-------|-----------|---------------------|
+| 1 | **Data** | What is being plotted? |
+| 2 | **Aesthetics** (`aes()`) | Which variable maps to which visual property? |
+| 3 | **Geometries** (`geom_*`) | What shapes represent the data? |
+| 4 | **Facets** (`facet_*`) | Should this be split into small multiples? |
+| 5 | **Statistics** (`stat_*`) | Is the data summarised before drawing? |
+| 6 | **Coordinates** (`coord_*`) | How is the 2D space laid out? |
+| 7 | **Themes** (`theme_*`) | How does everything non-data look? |
+
+```{r}
+#| label: viz-data
+library(palmerpenguins)
+library(tidyverse)
+
+glimpse(penguins)
+```
+
+```{r}
+#| label: viz-theme
+# set a readable default for every figure in this chapter
+theme_set(theme_minimal(base_size = 13))
+```
+
+## Layer 1: Data
+
+`ggplot()` on its own produces an empty canvas. Every layer you add draws
+something onto it.
+
+```{r}
+#| label: fig-layer1
+#| fig-cap: "Layer 1 -- data only, so nothing is drawn yet."
+ggplot(data = penguins)
+```
+
+The data can be supplied in four equivalent places. Which you choose matters
+once you start combining several geoms.
+
+::: {.panel-tabset}
+## Inside `ggplot()`
+
+Most common. The data and mapping are inherited by every geom.
+
+```{r}
+#| label: fig-data-a
+#| fig-cap: "Data and mapping declared globally."
+ggplot(data = penguins, aes(x = bill_length_mm, y = bill_depth_mm)) +
+  geom_point()
+```
+
+## Inside the geom
+
+Useful when different layers use different datasets, for example raw points plus
+a summarised mean.
+
+```{r}
+#| label: fig-data-b
+#| fig-cap: "Data declared locally in the geom."
+ggplot() +
+  geom_point(data = penguins, aes(x = bill_length_mm, y = bill_depth_mm))
+```
+
+## Split
+
+```{r}
+#| label: fig-data-c
+#| fig-cap: "Data global, mapping local."
+ggplot(data = penguins) +
+  geom_point(aes(x = bill_length_mm, y = bill_depth_mm))
+```
+
+## Piped in
+
+The tidyverse-idiomatic form: wrangle, then plot, in one readable chain.
+
+```{r}
+#| label: fig-data-d
+#| fig-cap: "Data piped into ggplot()."
+penguins |>
+  ggplot() +
+  geom_point(aes(x = bill_length_mm, y = bill_depth_mm))
+```
+:::
+
+::: {.callout-warning}
+## `|>` before the plot, `+` inside it
+This trips up almost everyone once. You pipe data *into* `ggplot()` with `|>`,
+but you add layers *within* a plot with `+`. Using `|>` between layers produces
+an error; using `+` before `ggplot()` produces a stranger one.
+:::
+
+## Layer 2: Aesthetics
+
+**Aesthetics** link variables in your data to visual properties of the plot.
+`aes()` is where you say which variable determines position, colour, fill or
+shape.
+
+| Aesthetic | Controls |
+|-----------|----------|
+| `x`, `y` | position along the axes |
+| `colour` / `color` | the colour of lines and points (the outline) |
+| `fill` | the colour inside bars, areas and boxes |
+| `group` | which observations belong together, e.g. one line per participant |
+| `shape` | the plotting symbol for points |
+| `linetype` | solid, dashed, dotted |
+| `size` / `linewidth` | point size / line thickness |
+| `alpha` | transparency, from 0 (invisible) to 1 (solid) |
+
+### Inside or outside `aes()`
+
+This is the single most important distinction in `ggplot2`.
+
+- **Inside `aes()`**: the property is *mapped* to a variable, and varies across
+  observations. A legend appears.
+- **Outside `aes()`**: the property is *set* to a fixed value for the whole
+  layer. No legend.
+
+```{r}
+#| label: fig-aes-inout
+#| fig-cap: "Left: colour mapped to a variable. Right: colour set to a constant."
+#| fig-width: 9
+#| fig-height: 3.5
+library(patchwork)
+
+mapped <- ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point() +
+  labs(title = "colour inside aes()")
+
+set_value <- ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(colour = "steelblue") +
+  labs(title = "colour outside aes()")
+
+mapped + set_value
+```
+
+::: {.callout-warning}
+## The classic mistake
+`geom_point(aes(colour = "steelblue"))` does not give you blue points. It
+creates a one-level variable literally called "steelblue", maps it to the colour
+scale, and gives you red points plus a pointless legend. If the colour is a
+constant, it belongs outside `aes()`.
+:::
+
+### Global versus local mapping
+
+Aesthetics in `ggplot(aes())` apply to every layer. Aesthetics in a specific geom
+apply only to that layer.
+
+```{r}
+#| label: fig-global-local
+#| fig-cap: "Global colour affects both the points and the smoother; local colour affects only the points."
+#| fig-width: 9
+#| fig-height: 3.5
+global <- ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Global: three fitted lines")
+
+local <- ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(aes(colour = species), alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Local: one fitted line")
+
+global + local
+```
+
+That difference is not cosmetic — it is the difference between fitting one model
+and fitting three. We return to it under Simpson's paradox in @sec-eda.
+
+### More aesthetics at once
+
+::: {.panel-tabset}
+## colour
+
+```{r}
+#| label: fig-aes-colour
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point()
+```
+
+## + size
+
+```{r}
+#| label: fig-aes-size
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm,
+  colour = species, size = body_mass_g
+)) +
+  geom_point()
+```
+
+## + alpha
+
+```{r}
+#| label: fig-aes-alpha
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm,
+  colour = species, size = body_mass_g
+)) +
+  geom_point(alpha = 0.7)
+```
+
+## + shape
+
+```{r}
+#| label: fig-aes-shape
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm,
+  colour = species, size = body_mass_g, shape = island
+)) +
+  geom_point(alpha = 0.5)
+```
+:::
+
+The last plot encodes four variables at once, and it is close to unreadable.
+That is the lesson: just because an aesthetic is available does not mean it
+should be used.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+To make all points in a layer semi-transparent you should write
+`r mcq(c("geom_point(aes(alpha = 0.4))", answer = "geom_point(alpha = 0.4)", "aes(alpha = 0.4)", "scale_alpha(0.4)"))`
+
+`fill` controls the outline colour of a bar. `r torf(FALSE)`
+
+Which aesthetic would you map to draw one line per participant over time?
+`r mcq(c("colour", "shape", answer = "group", "facet"))`
+:::
+
+## Scales and guides
+
+A **scale** controls how data values are translated into an aesthetic. Every
+aesthetic has a corresponding scale, and each aesthetic can have only one — a
+later scale silently overrides an earlier one.
+
+**Guides** are how the reader reverses that translation: axes are the guides for
+position scales, legends are the guides for colour, shape and size.
+
+Scale functions are named `scale_<aesthetic>_<type>()`. The three main types:
+
+1. **Continuous** — `scale_x_continuous()`, `scale_colour_gradient()`
+2. **Discrete** — `scale_colour_discrete()`, `scale_shape_manual()`
+3. **Binned** — `scale_fill_binned()`
+
+::: {.panel-tabset}
+## Continuous colour
+
+```{r}
+#| label: fig-scale-cont
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = bill_length_mm)) +
+  geom_point() +
+  scale_colour_gradient(low = "blue", high = "red")
+```
+
+## Manual colours
+
+```{r}
+#| label: fig-scale-manual
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point() +
+  scale_colour_manual(values = c(
+    "Adelie" = "darkorange",
+    "Chinstrap" = "purple",
+    "Gentoo" = "cyan4"
+  ))
+```
+
+## Manual breaks
+
+```{r}
+#| label: fig-scale-breaks
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point() +
+  scale_x_continuous(
+    breaks = c(180, 200, 220),
+    labels = c("Short", "Medium", "Long")
+  )
+```
+
+## Log scale
+
+```{r}
+#| label: fig-scale-log
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point() +
+  scale_x_log10()
+```
+
+## Axis names
+
+```{r}
+#| label: fig-scale-names
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point() +
+  scale_x_continuous(name = "Flipper length (mm)") +
+  scale_y_continuous(name = "Body mass (g)")
+```
+:::
+
+### Labels with `labs()`
+
+`labs()` is the quickest way to set every label at once, and the label for an
+aesthetic is also the legend title.
+
+```{r}
+#| label: fig-labs
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point(alpha = 0.7) +
+  labs(
+    title = "Bill dimensions differ between penguin species",
+    subtitle = "Palmer Archipelago, Antarctica, 2007-2009",
+    x = "Bill length (mm)",
+    y = "Bill depth (mm)",
+    colour = "Species",
+    caption = "Data: palmerpenguins"
+  )
+```
+
+::: {.callout-tip}
+## Units belong on the axis
+An axis labelled `body_mass_g` tells the reader you did not finish the figure.
+An axis labelled "Body mass (g)" tells them what they are looking at. This is
+the cheapest quality improvement available in any figure.
+:::
+
+### Customising the legend with `guides()`
+
+```{r}
+#| label: fig-guides
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm,
+  colour = species, shape = species
+)) +
+  geom_point(alpha = 0.7) +
+  labs(x = "Bill length (mm)", y = "Bill depth (mm)") +
+  guides(
+    colour = guide_legend(title = "Species", override.aes = list(size = 4)),
+    shape = guide_legend(title = "Species")
+  )
+```
+
+Note that `colour` and `shape` are given the *same* title, which merges them
+into one legend instead of two. `override.aes` makes the legend keys larger than
+the plotted points, which is almost always an improvement when the points are
+small or transparent.
+
+## Layer 3: Geometries
+
+Different geoms require different aesthetics. Several geoms can be stacked in
+one figure, and **order matters** — later layers are drawn on top of earlier
+ones.
+
+| Geom | Use | Common aesthetics |
+|------|-----|-------------------|
+| `geom_point()` | scatterplots | `x`, `y`, `colour`, `size`, `shape` |
+| `geom_line()` | line plots, trends over time | `x`, `y`, `colour`, `linetype` |
+| `geom_bar()` | bar chart of counts | `x`, `fill` |
+| `geom_col()` | bar chart of pre-summarised values | `x`, `y`, `fill` |
+| `geom_histogram()` | distribution of a continuous variable | `x`, `fill` |
+| `geom_density()` | smoothed distribution | `x`, `fill`, `colour` |
+| `geom_boxplot()` | five-number summary by group | `x`, `y`, `fill` |
+| `geom_violin()` | full distribution by group | `x`, `y`, `fill` |
+| `geom_jitter()` | points with added noise | `x`, `y`, `colour` |
+| `geom_smooth()` | fitted trend line | `x`, `y`, `colour` |
+| `geom_errorbar()` | uncertainty intervals | `x`, `ymin`, `ymax` |
+| `geom_text()` / `geom_label()` | annotate points | `x`, `y`, `label` |
+| `geom_tile()` | heatmaps | `x`, `y`, `fill` |
+| `geom_ribbon()` | confidence bands | `x`, `ymin`, `ymax`, `fill` |
+
+### Building up a distribution plot
+
+::: {.panel-tabset}
+## Violin
+
+```{r}
+#| label: fig-geom-violin
+ggplot(penguins, aes(species, body_mass_g, fill = species)) +
+  geom_violin(alpha = 0.5)
+```
+
+## + boxplot
+
+```{r}
+#| label: fig-geom-box
+ggplot(penguins, aes(species, body_mass_g, fill = species)) +
+  geom_violin(alpha = 0.5, trim = FALSE) +
+  geom_boxplot(width = 0.2, alpha = 0.7)
+```
+
+## + raw points
+
+```{r}
+#| label: fig-geom-points
+ggplot(penguins, aes(species, body_mass_g, fill = species)) +
+  geom_violin(alpha = 0.5, trim = FALSE) +
+  geom_boxplot(width = 0.2, alpha = 0.7, outlier.shape = NA) +
+  geom_point(
+    position = position_jitter(width = 0.2),
+    colour = "black", alpha = 0.5, size = 1
+  )
+```
+:::
+
+Note `outlier.shape = NA` in the last panel. Without it the boxplot draws its
+outliers *and* the point layer draws them again — the same observation appears
+twice.
+
+::: {.callout-tip}
+## Show the data
+A bar chart of group means hides everything that matters: sample size, spread,
+skew, outliers. With the group sizes typical in sport and health science, plot
+the raw observations. The violin-box-point combination above shows the summary
+and the data at the same time.
+:::
+
+### Position adjustments
+
+Position is the third required part of a layer, alongside the geom and the stat.
+It resolves overlap between groups.
+
+::: {.panel-tabset}
+## stack
+
+```{r}
+#| label: fig-pos-stack
+ggplot(penguins, aes(species, fill = sex)) +
+  geom_bar(position = "stack")
+```
+
+## dodge
+
+```{r}
+#| label: fig-pos-dodge
+ggplot(penguins, aes(species, fill = sex)) +
+  geom_bar(position = "dodge")
+```
+
+## fill
+
+```{r}
+#| label: fig-pos-fill
+# proportions instead of counts - good for comparing composition,
+# but it hides how many observations each bar is based on
+ggplot(penguins, aes(species, fill = sex)) +
+  geom_bar(position = "fill")
+```
+
+## jitter
+
+```{r}
+#| label: fig-pos-jitter
+ggplot(penguins, aes(species, body_mass_g, colour = sex)) +
+  geom_jitter(width = 0.2, alpha = 0.6)
+```
+
+## nudge
+
+```{r}
+#| label: fig-pos-nudge
+ggplot(penguins, aes(species, body_mass_g, colour = sex)) +
+  geom_point(position = position_nudge(x = 0.2), alpha = 0.6)
+```
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: your first figure
+
+Using `penguins`:
+
+1. Make a scatterplot of `flipper_length_mm` against `body_mass_g`.
+2. Colour the points by `species`.
+3. Add a linear trend line per species.
+4. Give the figure proper axis labels with units, a title and a legend title.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: fig-ex1-solution
+#| warning: false
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point(alpha = 0.7) +
+  # colour is mapped globally, so geom_smooth() fits one line per species
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Heavier penguins have longer flippers",
+    x = "Flipper length (mm)",
+    y = "Body mass (g)",
+    colour = "Species"
+  )
+```
+
+Because `colour = species` sits in `ggplot(aes())` it is inherited by
+`geom_smooth()`, which is why three lines appear rather than one.
+:::
+:::
+
+## Layer 4: Facets
+
+Faceting splits one plot into small multiples by a categorical variable. It is
+often a better answer than adding a fourth aesthetic.
+
+::: {.panel-tabset}
+## facet_wrap()
+
+One variable, wrapped into a grid.
+
+```{r}
+#| label: fig-facet-wrap
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(aes(colour = species)) +
+  facet_wrap(~island)
+```
+
+## facet_grid()
+
+Two variables, as rows and columns.
+
+```{r}
+#| label: fig-facet-grid
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(aes(colour = species)) +
+  facet_grid(sex ~ island)
+```
+
+## Free scales
+
+```{r}
+#| label: fig-facet-free
+# free scales let each panel zoom to its own data, which is useful for
+# exploration but makes panels no longer directly comparable
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(aes(colour = species)) +
+  facet_grid(sex ~ island, scales = "free")
+```
+:::
+
+::: {.callout-warning}
+## `scales = "free"` breaks comparability
+Small multiples work because every panel shares the same ruler. The moment you
+free the scales, a difference in panel appearance no longer means a difference
+in the data. Use free scales when exploring, fixed scales when explaining.
+:::
+
+## Layer 5: Statistics
+
+A statistical transformation, or **stat**, processes the data before it is
+drawn — usually by summarising it. Every geom has a default stat, and every stat
+has a default geom.
+
+- `stat_bin()` — used by `geom_histogram()`, `geom_bar()`, `geom_freqpoly()`
+- `stat_boxplot()` — used by `geom_boxplot()`
+- `stat_smooth()` — used by `geom_smooth()`
+- `stat_summary()` — arbitrary summaries such as means with error bars
+
+There are two equivalent ways to use them: add a `stat_*()` and override its
+geom, or add a `geom_*()` and override its stat.
+
+::: {.panel-tabset}
+## stat_summary()
+
+```{r}
+#| label: fig-stat-summary
+ggplot(penguins, aes(species, bill_length_mm)) +
+  geom_point(alpha = 0.4, position = position_jitter(width = 0.15)) +
+  stat_summary(geom = "point", fun = "mean", colour = "darkorange", size = 5)
+```
+
+## geom with stat
+
+```{r}
+#| label: fig-geom-stat
+# identical result, written the other way round
+ggplot(penguins, aes(species, bill_length_mm)) +
+  geom_point(alpha = 0.4, position = position_jitter(width = 0.15)) +
+  geom_point(stat = "summary", fun = "mean", colour = "darkorange", size = 5)
+```
+
+## Mean with CI
+
+```{r}
+#| label: fig-stat-ci
+ggplot(penguins, aes(species, bill_length_mm)) +
+  geom_point(alpha = 0.3, position = position_jitter(width = 0.15)) +
+  stat_summary(
+    fun.data = mean_cl_normal,
+    geom = "errorbar", width = 0.2, colour = "darkorange", linewidth = 1
+  )
+```
+:::
+
+### Binning
+
+`stat_bin()` is what makes a histogram. It creates new variables you can access
+with `after_stat()`:
+
+- `count` — number of observations per bin (the default)
+- `density` — proportion per unit of the x axis
+- `x` — the midpoint of each bin
+
+```{r}
+#| label: fig-hist-count
+ggplot(penguins, aes(body_mass_g)) +
+  geom_histogram(binwidth = 100)
+```
+
+```{r}
+#| label: fig-hist-density
+# density instead of count: the total area sums to 1, so histograms
+# with different sample sizes become comparable
+ggplot(penguins, aes(body_mass_g)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 100)
+```
+
+::: {.callout-important}
+## Always set `binwidth`
+The default 30 bins is a placeholder, and `ggplot2` says so in a message every
+time. Bin width is an analytical choice: too wide hides structure, too narrow
+turns the histogram into noise. Try a few and pick one you can defend.
+:::
+
+## Layer 6: Coordinates
+
+Scales decide which values appear; the **coordinate system** decides where they
+are physically drawn. Coordinate systems can be linear or non-linear.
+
+```{r}
+#| label: fig-coord-base
+base_plot <- ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "loess", formula = y ~ x)
+
+base_plot
+```
+
+::: {.panel-tabset}
+## coord_cartesian()
+
+```{r}
+#| label: fig-coord-cart
+# zooms without discarding data - the smoother is still fitted on everything
+base_plot + coord_cartesian(xlim = c(40, 50))
+```
+
+## coord_flip()
+
+```{r}
+#| label: fig-coord-flip
+base_plot + coord_flip()
+```
+
+## coord_fixed()
+
+```{r}
+#| label: fig-coord-fixed
+# one unit on x takes the same physical space as one unit on y
+base_plot + coord_fixed(ratio = 1)
+```
+
+## coord_polar()
+
+```{r}
+#| label: fig-coord-polar
+# a stacked bar in polar coordinates is a pie chart
+ggplot(penguins, aes(x = "", fill = species)) +
+  geom_bar(width = 1) +
+  coord_polar(theta = "y") +
+  labs(x = NULL, y = NULL)
+```
+:::
+
+::: {.callout-warning}
+## Zooming: two ways, two meanings
+`coord_cartesian(xlim = ...)` zooms the view and keeps all the data.
+`scale_x_continuous(limits = ...)` *removes* observations outside the range
+before anything is computed, which silently changes your means, smoothers and
+regression lines. When you mean "zoom", use `coord_cartesian()`.
+:::
+
+## Layer 7: Themes
+
+Themes control everything that is not data: fonts, background, grid lines,
+spacing, legend placement.
+
+::: {.panel-tabset}
+## theme_minimal()
+
+```{r}
+#| label: fig-theme-min
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point() +
+  theme_minimal()
+```
+
+## theme_classic()
+
+```{r}
+#| label: fig-theme-classic
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point() +
+  theme_classic()
+```
+
+## Custom theme()
+
+```{r}
+#| label: fig-theme-custom
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+  geom_point(size = 2) +
+  theme(
+    panel.background = element_rect(fill = "grey95", colour = NA),
+    panel.grid.major = element_line(colour = "white"),
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(size = 12, face = "bold"),
+    legend.position = "bottom" # use "none" to drop the legend entirely
+  )
+```
+:::
+
+The `element_*()` functions are how you address theme components:
+`element_text()` for anything written, `element_line()` for lines,
+`element_rect()` for backgrounds and borders, and `element_blank()` to remove a
+component entirely.
+
+### Setting a theme once
+
+Rather than repeating `theme_minimal()` in every plot, set it once at the top of
+your document:
+
+```{r}
+#| eval: false
+theme_set(
+  theme_minimal(base_size = 13) +
+    theme(
+      panel.grid.minor = element_blank(),
+      plot.title.position = "plot" # left-align the title with the plot edge
+    )
+)
+```
+
+Every subsequent figure inherits it, which is both less typing and more
+consistent.
+
+## Combining plots with patchwork
+
+```{r}
+#| label: fig-patchwork
+#| fig-width: 9
+#| fig-height: 7
+p1 <- ggplot(penguins, aes(body_mass_g)) +
+  geom_histogram(binwidth = 200, fill = "steelblue", colour = "white")
+
+p2 <- ggplot(penguins, aes(species, body_mass_g, fill = species)) +
+  geom_boxplot(show.legend = FALSE)
+
+p3 <- ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point(alpha = 0.6)
+
+# / stacks vertically, | places side by side
+(p1 | p2) / p3 +
+  plot_annotation(
+    title = "Body mass in three penguin species",
+    tag_levels = "A"
+  )
+```
+
+## Saving figures
+
+```{r}
+#| eval: false
+ggsave(
+  filename = "figures/my_figure.pdf", # extension decides the format
+  plot = my_figure, # the plot object to save
+  width = 11, # width
+  height = 8.5, # height
+  units = "cm" # "cm", "mm" or "in"
+)
+
+ggsave(
+  filename = "figures/my_figure.png",
+  plot = my_figure,
+  width = 11,
+  height = 8.5,
+  units = "cm",
+  dpi = 300 # resolution; journals typically require 300 or more
+)
+```
+
+::: {.callout-tip}
+## Vector or raster?
+Save as **PDF or SVG** for anything with points, lines and text — the figure
+stays sharp at any size, which is what journals want. Save as **PNG** when the
+figure contains very many overlapping points (tens of thousands) and the vector
+file would be enormous, or when you need to paste into PowerPoint. Never save a
+final figure as JPEG: the compression smears text and thin lines.
+:::
+
+Note also that `ggsave()` does not take a screenshot of the RStudio plot pane —
+it redraws the figure at the size you asked for. Text does not scale with the
+figure, so a figure saved at 20 cm wide has relatively smaller text than the
+same figure saved at 10 cm. Always check the saved file, not the preview.
+
+## Design guidelines
+
+- **Left-align** most text, including titles.
+- **Labels and subtitles** may be centred or right-aligned when there is a
+  reason.
+- **Do not rotate** axis text. If the labels do not fit, flip the coordinates
+  instead.
+- **Fonts** should suit the context. A few good ones: Montserrat, Lato, Roboto,
+  Open Sans. Use a couple, not a dozen.
+- **Text hierarchy** is created with size, colour and weight — and applied
+  consistently.
+- **Colour** should carry meaning. If colour is decorative only, greyscale is
+  usually better.
+- **Check accessibility**: roughly 8% of men have some form of colour vision
+  deficiency. Viridis and Okabe-Ito palettes are safe choices, and redundant
+  encoding (colour *and* shape) is safer still.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which function zooms into a plot without removing observations?
+`r mcq(c("scale_x_continuous(limits = ...)", answer = "coord_cartesian(xlim = ...)", "xlim()", "facet_zoom()"))`
+
+`facet_wrap(~ island, scales = "free")` keeps the panels directly comparable.
+`r torf(FALSE)`
+
+Which geom would you use for a bar chart of values you have already summarised?
+`r mcq(c("geom_bar()", answer = "geom_col()", "geom_histogram()", "geom_count()"))`
+
+To remove the legend you set `legend.position` to
+`r fitb(c("none", "\"none\""), ignore_ws = TRUE)`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: distributions by group
+
+1. Plot the distribution of `flipper_length_mm` as a histogram with a sensible
+   bin width.
+2. Now show the same distribution separately for each species, in a way that
+   makes them easy to compare.
+3. Which approach do you find clearest, and why?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: fig-ex2a
+#| warning: false
+ggplot(penguins, aes(flipper_length_mm)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", colour = "white") +
+  labs(x = "Flipper length (mm)", y = "Count")
+```
+
+Three options, each with a trade-off:
+
+```{r}
+#| label: fig-ex2b
+#| warning: false
+#| fig-width: 9
+#| fig-height: 7
+# faceted: no overlap, but the eye has to travel between panels
+facets <- ggplot(penguins, aes(flipper_length_mm)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", colour = "white") +
+  facet_wrap(~species, ncol = 1) +
+  labs(title = "Faceted histograms", x = NULL, y = NULL)
+
+# overlaid densities: direct comparison, but overlap can obscure
+densities <- ggplot(penguins, aes(flipper_length_mm, fill = species)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Overlaid densities", x = NULL, y = NULL)
+
+# boxplots: compact and precise, but hides bimodality
+boxes <- ggplot(penguins, aes(flipper_length_mm, species, fill = species)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = "Boxplots", x = NULL, y = NULL)
+
+facets | (densities / boxes)
+```
+
+There is no single right answer. The densities make the separation between
+Gentoo and the other two species most immediate; the facets are the most honest
+about sample size; the boxplots are the most compact. Which you choose depends
+on whether you are exploring or explaining.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: debug the plot
+
+Each of these produces something other than what was intended. Explain why, then
+fix it.
+
+```{r}
+#| eval: false
+# a) why are the points red, not blue?
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(aes(colour = "blue"))
+
+# b) why does this error?
+penguins |>
+  ggplot(aes(species, body_mass_g)) |>
+  geom_boxplot()
+
+# c) why is there only one boxplot?
+ggplot(penguins, aes(body_mass_g, fill = species)) +
+  geom_boxplot()
+```
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+**a)** `colour = "blue"` inside `aes()` maps a constant *string* to the colour
+scale, creating a single-level variable whose first default colour is red. Move
+it outside `aes()`:
+
+```{r}
+#| label: fig-ex3a
+ggplot(penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(colour = "blue")
+```
+
+**b)** Layers are added with `+`, not piped with `|>`. The pipe is only used to
+get the data *into* `ggplot()`:
+
+```{r}
+#| label: fig-ex3b
+penguins |>
+  ggplot(aes(species, body_mass_g)) +
+  geom_boxplot()
+```
+
+**c)** `fill` colours the boxes but does not position them. Without a
+categorical variable on an axis, all three species are drawn in the same place.
+Map `species` to `y` as well:
+
+```{r}
+#| label: fig-ex3c
+ggplot(penguins, aes(body_mass_g, species, fill = species)) +
+  geom_boxplot(show.legend = FALSE)
+```
+:::
+:::
+
+## Further resources
+
+- **400 examples with code**: [R Graph Gallery](https://r-graph-gallery.com/)
+- **The `ggplot2` book**: [ggplot2-book.org](https://ggplot2-book.org/)
+- **Concepts**: Wilke, C. O. (2019). *Fundamentals of Data Visualization*
+  ([free online](https://clauswilke.com/dataviz/))
+- **People to learn from**: [Cedric Scherer](https://cedricscherer.netlify.app),
+  [Georgios Karamanis](https://karaman.is/),
+  [Thomas Lin Pedersen](https://www.data-imaginist.com)
+- **Choosing a chart type**: [data-to-viz.com](https://www.data-to-viz.com/)
+- **Colour**: [viz-palette](https://projects.susielu.com/viz-palette),
+  [Datawrapper on beautiful colours](https://blog.datawrapper.de/beautifulcolors/)

@@ -1,0 +1,396 @@
+# Importing and Exporting Data {#sec-import}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Importera och exportera data*. It covers the
+four ways to get data into R, why `setwd()` should be avoided, how the `here`
+package solves the file-path problem, and which format to save your results in.
+:::
+
+```{r}
+#| label: setup-import
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: import-libs
+#| message: false
+library(tidyverse)
+library(here)
+```
+
+Reading data in is the first line of almost every analysis script, and it is
+where a surprising number of problems begin. A file path that works on your
+laptop and nowhere else, a column of numbers imported as text, a Swedish decimal
+comma silently turning 3,5 into a character string — all of these are import
+problems, and all of them are cheaper to fix here than three steps later.
+
+## Four ways to import
+
+### 1. By clicking
+
+RStudio has a graphical import wizard:
+
+- **File → Import Dataset**
+- Choose the file type, for example CSV or Excel.
+- Follow the dialogue. You get a preview of the data, which is genuinely useful
+  for checking delimiters and whether the first row is a header.
+- RStudio generates the R code in the bottom-right of the dialogue.
+
+**Copy that generated code into your script.** Clicking through the wizard again
+next week is not reproducible; the line of code it produces is.
+
+### 2. With base R
+
+```{r}
+#| eval: false
+data_base <- read.csv("data/my_file.csv", header = TRUE)
+head(data_base)
+```
+
+- **Advantage**: built in, no packages needed.
+- **Disadvantage**: slower on large files, and older R versions converted text
+  to factors automatically, which surprised a generation of users.
+
+### 3. With `readr` (tidyverse)
+
+```{r}
+#| eval: false
+library(readr)
+
+data_tidy <- read_csv("data/my_file.csv")
+```
+
+- Faster and more predictable.
+- Returns a tibble rather than a data frame.
+- Guesses column types and, importantly, **tells you what it guessed** in a
+  message. Read that message.
+
+::: {.callout-important}
+## Swedish CSV files
+Swedish Excel exports usually use a **semicolon** as the field separator and a
+**comma** as the decimal mark. `read_csv()` expects commas and periods, so it
+will read the whole file into one column, or turn your numbers into text.
+
+Use `read_csv2()` instead — it expects exactly the Swedish convention.
+
+```{r}
+#| eval: false
+data_comma <- read_csv(here("data", "data_comma.csv")) # , separator, . decimal
+data_semicolon <- read_csv2(here("data", "data_sv.csv")) # ; separator, , decimal
+```
+
+If you are unsure, open the file in a plain text editor and look at the first
+two lines. This takes ten seconds and saves an hour.
+:::
+
+### 4. Other file types
+
+```{r}
+#| eval: false
+# Excel
+library(readxl)
+data_excel <- read_excel(here("data", "my_file.xlsx"), sheet = 1)
+
+# SPSS, Stata, SAS
+library(haven)
+data_spss <- read_sav(here("data", "my_file.sav"))
+data_stata <- read_dta(here("data", "my_file.dta"))
+data_sas <- read_sas(here("data", "my_file.sas7bdat"))
+
+# tab-separated text
+data_txt <- read_tsv(here("data", "my_file.txt"))
+
+# any delimiter you like
+data_odd <- read_delim(here("data", "my_file.txt"), delim = "|")
+```
+
+::: {.callout-tip}
+## `haven` keeps the SPSS labels
+When you import an `.sav` file, `haven` preserves SPSS value labels as a
+`labelled` class. That is useful — the labels are your codebook — but `labelled`
+columns behave oddly in `ggplot2` and some models. Convert them explicitly when
+you are ready: `haven::as_factor()` for categorical variables,
+`haven::zap_labels()` to strip labels from numeric ones.
+:::
+
+## Useful arguments for reading files
+
+Real files are rarely clean. These arguments handle most of what goes wrong:
+
+```{r}
+#| eval: false
+read_csv(
+  file = here("data", "messy.csv"),
+  skip = 3, # skip 3 junk rows above the header
+  na = c("", "NA", "999", "missing"), # values that mean "missing"
+  col_types = cols( # override the guesses
+    participant_id = col_character(), # keep leading zeros!
+    date = col_date(format = "%Y-%m-%d"),
+    weight_kg = col_double()
+  ),
+  locale = locale(encoding = "latin1") # for old files with broken a, a, o
+)
+```
+
+::: {.callout-warning}
+## ID numbers are text, not numbers
+An ID like `00734` read as a number becomes `734`, and it will never join
+correctly against the register file that still has the leading zeros. Personal
+identity numbers have the same problem, plus they overflow the precision of a
+double. Always read identifiers as `col_character()`.
+:::
+
+## Do not use `setwd()`
+
+```{r}
+#| eval: false
+setwd("C:/Users/daniel/OneDrive/projects/study_2024/data")
+data <- read.csv("my_file.csv")
+```
+
+Why this is a bad idea:
+
+- **Fragile**: works only on one machine, in one folder.
+- **Hard to maintain**: rename or move the folder and the script breaks.
+- **Not portable**: a new computer, a co-author, or the same project on a server
+  all require editing the path.
+- **Not reproducible**: the reviewer who downloads your code cannot run it.
+
+## The `here` package
+
+`here()` builds paths relative to the **root of your R project**, which it finds
+by looking for the `.Rproj` file. The same line of code then works on every
+machine.
+
+```{r}
+#| eval: false
+library(here)
+
+data_here <- read_csv(here("data", "my_file.csv"))
+```
+
+Advantages:
+
+- Readable and reproducible.
+- Integrates with RStudio projects.
+- The project can be shared, moved, or synced through OneDrive and still work.
+- You can step out of the project with `".."`, e.g.
+  `here("..", "shared_data", "register.csv")`.
+
+```{r}
+#| label: here-demo
+# here() reports the project root it has found
+here()
+```
+
+::: {.callout-tip}
+## The recommended setup
+1. Always create an R project (**File → New Project**).
+2. Use `here()` for every file path.
+3. Use `readr` functions for text files.
+4. Never use an absolute path in a script you intend to keep.
+
+If you work on several computers and keep the project in a cloud folder, this
+combination is the difference between code that runs everywhere and code that
+runs on one laptop.
+:::
+
+## Saving data
+
+You save data to avoid redoing work, to share results, and to separate slow
+steps from fast ones. In a multi-step project, saving the cleaned dataset means
+you never have to re-run the cleaning to make one more figure.
+
+### CSV
+
+```{r}
+#| eval: false
+# base R
+write.csv(data, "data_output.csv", row.names = FALSE)
+
+# readr - faster, and no row-names nonsense
+write_csv(data, here("data", "data_output.csv"))
+```
+
+### RDS
+
+RDS saves a single R object exactly as it is, preserving factor levels, column
+types, attributes and the tibble class.
+
+```{r}
+#| eval: false
+saveRDS(data, here("data", "data_output.rds"))
+data <- readRDS(here("data", "data_output.rds"))
+```
+
+This is the right format for intermediate results — a cleaned dataset, or a
+model that took twenty minutes to fit.
+
+### Excel
+
+```{r}
+#| eval: false
+library(writexl)
+write_xlsx(data, here("output", "data_output.xlsx"))
+```
+
+## Which format should you choose?
+
+| Format | Advantages | Disadvantages |
+|--------|------------|---------------|
+| **CSV** | Readable by every program; plain text; diffs nicely in Git | Loses all metadata — factor levels, date formats, column types |
+| **RDS** | Preserves everything R-specific exactly | Only readable in R; binary, so Git cannot diff it |
+| **XLSX** | Easy to share with Excel users; multiple sheets | Inefficient for large data; invites manual editing |
+| **Parquet** | Fast, compressed, keeps types; readable from R and Python | Needs the `arrow` package; not human-readable |
+
+Recommendations:
+
+- **To share with others**: CSV, or Excel if the recipient insists.
+- **To preserve types, or to save a model object**: RDS.
+- **For large datasets**: Parquet via the `arrow` package.
+- Use `readr` and `here` throughout.
+
+::: {.callout-important}
+## Never overwrite your raw data
+Raw data is written once and read forever. Keep it in a separate folder, treat
+it as read-only, and write every cleaned version to a different file. If a
+cleaning step turns out to be wrong, you want to be able to go back — and you
+cannot go back to a file you have already overwritten.
+
+For registry data under ethical approval, this is not just good practice. Add
+`data/` and `*.csv`, `*.sav`, `*.rds` to `.gitignore` **before** your first
+commit, so that identifiable data never enters version control.
+:::
+
+## `::` without `library()`
+
+```{r}
+#| eval: false
+write_csv(data, here::here("data", "data_output.csv"))
+```
+
+Writing `here::here()` calls the function directly from the package without
+attaching the whole package with `library()`. Two reasons to do it:
+
+- It makes the source of an unfamiliar function obvious to your reader.
+- It avoids conflicts when two packages export the same function name — the
+  classic case being `dplyr::filter()` versus `stats::filter()`.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which function reads a Swedish CSV file with `;` separators and `,` decimals?
+`r mcq(c("read_csv()", answer = "read_csv2()", "read.csv()", "read_tsv()"))`
+
+`here()` builds paths relative to your project root. `r torf(TRUE)`
+
+Which format preserves factor levels and column types exactly?
+`r mcq(c("CSV", answer = "RDS", "XLSX", "TXT"))`
+
+Why should a participant ID be read as character rather than numeric?
+`r longmcq(c(
+  "Because character columns take less memory",
+  answer = "Because leading zeros are lost when an ID is read as a number, which breaks later joins",
+  "Because dplyr cannot join on numeric columns",
+  "There is no reason; numeric is preferable"
+))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: a full round trip
+
+Practise the import-modify-export cycle without needing any external file.
+
+1. Create a folder `data/` in your project.
+2. Write the `penguins` dataset to `data/penguins_raw.csv` using `write_csv()`
+   and `here()`.
+3. Read it back in with `read_csv()`. Look at the message about column types.
+4. Compare `class(penguins$species)` before saving with the class after reading
+   back in. What happened, and why?
+5. Save the same data as RDS instead and repeat step 4.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| eval: false
+library(tidyverse)
+library(palmerpenguins)
+library(here)
+
+dir.create(here("data"), showWarnings = FALSE)
+
+write_csv(penguins, here("data", "penguins_raw.csv"))
+penguins_csv <- read_csv(here("data", "penguins_raw.csv"))
+
+class(penguins$species) # "factor"
+class(penguins_csv$species) # "character"
+
+saveRDS(penguins, here("data", "penguins_raw.rds"))
+penguins_rds <- readRDS(here("data", "penguins_raw.rds"))
+
+class(penguins_rds$species) # "factor"
+```
+
+A CSV file is plain text. It has no way to record that `species` was a factor
+with three specific levels in a specific order, so `read_csv()` reads it back as
+character. RDS stores the R object itself, so everything survives.
+
+This matters in practice: if you carefully ordered your factor levels during
+cleaning and then round-trip through CSV, that ordering is silently gone, and
+your figures and model reference groups change.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: diagnose the import
+
+A colleague sends you a file and complains that "R has broken the numbers".
+Their code and the first lines of the file look like this:
+
+```
+id;weight;height;group
+001;72,5;181;kontroll
+002;68,0;175;intervention
+```
+
+```{r}
+#| eval: false
+d <- read_csv("data/study.csv")
+```
+
+1. Predict what goes wrong. There are at least three separate problems.
+2. Write the corrected import call.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+The problems:
+
+1. The separator is `;`, not `,`. `read_csv()` will read every line into a
+   single column.
+2. The decimal mark is `,`. Even with the right separator, `72,5` would be read
+   as text.
+3. `id` has leading zeros. Read as a number it becomes `1`, `2` and will not
+   join to anything.
+
+```{r}
+#| eval: false
+d <- read_csv2(
+  here("data", "study.csv"),
+  col_types = cols(
+    id = col_character(), # keep the leading zeros
+    weight = col_double(),
+    height = col_double(),
+    group = col_factor()
+  )
+)
+```
+
+`read_csv2()` handles the first two problems in one function; `col_types` fixes
+the third. Always run `glimpse()` straight after importing and confirm that
+every column has the type you expected.
+:::
+:::

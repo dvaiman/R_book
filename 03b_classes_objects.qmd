@@ -1,0 +1,724 @@
+# Classes and Objects {#sec-classes}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Klasser och objekt*. You will use R as a
+calculator, learn the operators that show up later in data transformation, and
+build up the object types that everything else in the book depends on: vectors,
+factors, data frames, tibbles and functions.
+:::
+
+```{r}
+#| label: setup-classes
+#| include: false
+library(webexercises)
+```
+
+## R as an advanced calculator
+
+Before R is a statistics tool it is a calculator. Everything you type in the
+console is evaluated and the result is printed. Learning the arithmetic rules
+first pays off later: the same operators appear inside `mutate()` when you
+derive BMI, z-scores or ratios.
+
+### Arithmetic operators
+
+```{r}
+1 + 2 # addition
+3 - 1 # subtraction
+2 * 3 # multiplication
+5 / 2 # division
+2^3 # exponent
+```
+
+Two operators are less familiar but genuinely useful. Integer division `%/%`
+returns the whole-number part, and the modulus `%%` returns the remainder.
+
+```{r}
+5 %/% 2 # integer division: how many whole 2s fit in 5?
+5 %% 2 # remainder after integer division
+```
+
+The modulus is the standard way to test divisibility, for example to find even
+numbers or to convert minutes into hours and minutes.
+
+```{r}
+# an even number has no remainder when divided by two
+c(4, 7, 10) %% 2 == 0
+```
+
+### Operator precedence
+
+R follows the usual mathematical order of operations, not the order you typed
+things in. When in doubt, add parentheses — they cost nothing and make the
+intent explicit for whoever reads the code next.
+
+```{r}
+1 / 2 * 3 # same precedence, evaluated left to right
+1 + 2 * 3 # * before +
+(1 + 2) * 3 # parentheses change the order
+2^1 / 2 # ^ before /
+2^(1 / 2) # the square root of 2
+```
+
+### Comparisons
+
+Comparisons return a *logical* value, `TRUE` or `FALSE`. These are the building
+blocks of `filter()`, `if_else()` and `case_when()`.
+
+```{r}
+2 > 1 # greater than
+2 >= 2 # greater than or equal to
+2 < 1 # less than
+2 <= 1 # less than or equal to
+1 == 1 # equal to (two equals signs!)
+1 != 1 # not equal to
+```
+
+::: {.callout-warning}
+## `=` is not `==`
+A single `=` assigns a value; a double `==` asks a question. Writing
+`filter(penguins, species = "Gentoo")` is one of the most common beginner errors
+in R, and the error message it produces is not especially helpful.
+:::
+
+### Logical operators
+
+```{r}
+(2 > 1) & (1 > 2) # & is AND: both sides must be TRUE
+(2 < 1) | (1 < 2) # | is OR: at least one side must be TRUE
+(1 < 1) | !(1 < 1) # ! negates
+```
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+What does `7 %% 3` return? `r fitb(1)`
+
+What does `2 + 3 * 4` return? `r fitb(14)`
+
+`(TRUE | FALSE) & FALSE` evaluates to TRUE. `r torf(FALSE)`
+
+Which operator tests whether two values are equal?
+`r mcq(c("=", answer = "==", "!=", "<-"))`
+:::
+
+## Objects
+
+An expression typed in the console is calculated and then forgotten. To reuse a
+result you have to *store* it in an object using the assignment arrow `<-`.
+
+```{r}
+x <- 3 * 4
+x
+```
+
+`=` also works for assignment, but the convention in the R community — and the
+one used throughout this book — is `<-`. Keeping `=` reserved for function
+arguments makes it obvious at a glance which lines create objects.
+
+Every object has a class, a length, and a structure. Three functions tell you
+what you are holding:
+
+```{r}
+class(x) # what kind of object is this?
+length(x) # how many elements does it contain?
+is.vector(x) # a single value is still a vector of length 1
+```
+
+::: {.callout-tip}
+## The class tells you what is possible
+Knowing the class is not trivia. It determines which functions will work. You
+cannot take the mean of a character vector, and a statistical model will treat a
+factor completely differently from a numeric variable with the same values. When
+something behaves unexpectedly, `class()` is usually the first diagnostic.
+:::
+
+### Naming objects
+
+R is case sensitive, so `R_code` and `r_code` are two different objects.
+
+```{r}
+R_code <- 666
+```
+
+```{r}
+#| eval: false
+r_code
+#> Error: object 'r_code' not found
+```
+
+Rules and conventions for names:
+
+- No spaces in names.
+- A name cannot start with a digit.
+- Avoid `!`, `@`, `#`, `$`, `%` and similar characters. Underscore `_` and
+  period `.` are allowed.
+- Use readable names: `body_mass_kg` beats `bmk` and `x2`.
+- This book uses `snake_case` (lower case, words separated by underscores),
+  which is the tidyverse convention.
+- The decimal separator is always `.`; the comma `,` separates arguments.
+
+::: {.callout-important}
+## Swedish characters in names
+`å`, `ä` and `ö` are technically allowed in object and column names, but they
+cause trouble the moment a file crosses between Windows and macOS, or when a
+collaborator opens your script with a different encoding. Use `a` and `o` in
+code, and keep the Swedish spelling for labels in figures and tables where it is
+actually read by humans.
+:::
+
+## Vectors
+
+A vector is the fundamental data structure in R: an ordered collection of
+elements **of the same type**. Build one with `c()` (concatenate, though
+"combine" is easier to remember).
+
+```{r}
+primes <- c(2, 3, 5, 7, 11, 13)
+primes
+```
+
+### Vectorised arithmetic
+
+Operations apply to every element at once. This is why R rarely needs loops for
+data work, and it is exactly what happens inside `mutate()`.
+
+```{r}
+primes * 2 # every element is multiplied by 2
+primes * primes # element-wise multiplication, position by position
+```
+
+### Recycling
+
+If the two vectors have different lengths, R *recycles* the shorter one.
+
+```{r}
+primes * c(1, 2)
+```
+
+The shorter vector `c(1, 2)` is repeated to match the length of `primes`:
+`2 * 1`, `3 * 2`, `5 * 1`, `7 * 2`, and so on. When the longer length is not a
+multiple of the shorter one, R still recycles but warns you:
+
+```{r}
+#| warning: true
+primes + c(1, 2, 3, 4)
+```
+
+::: {.callout-warning}
+## Recycling silently hides bugs
+Recycling is convenient with a single value (`primes * 2`) and dangerous with
+anything longer. If you ever see the "longer object length is not a multiple"
+warning in a data-cleaning script, treat it as an error: something is not the
+length you thought it was.
+:::
+
+### Character vectors
+
+Character vectors store text. Each element is a *string* — a sequence of
+characters written between quotes.
+
+```{r}
+x <- "a new value for x"
+x
+
+fruits <- c("Apple", "Banana", "Orange", "Grape")
+fruits
+```
+
+A vector can only hold one type. If you mix numbers and text, R silently
+converts everything to the most flexible type, which is character:
+
+```{r}
+y <- c("eighteen", 23, 27)
+class(y)
+y
+```
+
+Note the quotes around `"23"` — it is no longer a number, and `mean(y)` will
+fail. This coercion is a frequent source of confusion when a stray text value
+such as `"missing"` or `"<0.01"` sits in an otherwise numeric column of an
+imported Excel file.
+
+### Sorting
+
+```{r}
+sort(fruits)
+```
+
+Sorting text is alphabetical, which is rarely what you want for something like
+months:
+
+```{r}
+months <- c(
+  "August", "February", "January", "December",
+  "March", "May", "September", "April",
+  "November", "June", "October", "July"
+)
+
+sort(months)
+```
+
+December before February is correct alphabetically and useless analytically.
+This is precisely the problem factors solve.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+What is the class of `c(1, 2, "3")`?
+`r mcq(c("numeric", answer = "character", "logical", "factor"))`
+
+What does `c(1, 2, 3, 4) * c(10, 100)` return?
+`r mcq(c("10 200 3 4", answer = "10 200 30 400", "an error", "10 200"))`
+
+`length(c("a", "b", "c"))` is `r fitb(3)`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: build and inspect vectors
+
+1. Create a numeric vector `heights_cm` with the values 165, 175, 162, 180 and
+   168.
+2. Create a character vector `sex` with the values "female", "male", "female",
+   "male", "female".
+3. Convert `heights_cm` to metres in a new object.
+4. Check the class and length of all three objects.
+5. What happens if you run `mean(sex)`? Read the error message carefully.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+heights_cm <- c(165, 175, 162, 180, 168)
+sex <- c("female", "male", "female", "male", "female")
+
+# dividing by 100 applies to every element (vectorised)
+heights_m <- heights_cm / 100
+
+class(heights_cm)
+class(sex)
+class(heights_m)
+length(heights_cm)
+```
+
+```{r}
+#| eval: false
+mean(sex)
+#> Warning: argument is not numeric or logical: returning NA
+```
+
+`mean()` has no meaningful definition for text, so R warns and returns `NA`
+rather than guessing.
+:::
+:::
+
+## Factors
+
+A **factor** is R's data structure for categorical data. It stores a limited set
+of unique values, called **levels**, and remembers the order you gave them.
+
+Factors matter for three reasons:
+
+- **Statistical analysis**: models treat factors as categories, and the first
+  level becomes the reference (comparison) group.
+- **Order**: you can define a meaningful order such as low < medium < high.
+- **Storage**: levels are stored once and the data as integer codes.
+
+### Unordered factors
+
+Categories with no inherent ranking — colours, cities, treatment arms.
+
+```{r}
+colours <- factor(c("Red", "Green", "Blue", "Green", "Red"))
+colours
+
+cities <- factor(c("Stockholm", "Gothenburg", "Malmo", "Gothenburg"))
+cities
+```
+
+Notice the `Levels:` line in the output. By default R sorts levels
+alphabetically.
+
+### Ordered factors
+
+Categories with a logical order — education level, dose, pain rating.
+
+```{r}
+factor(
+  c("Upper secondary", "Bachelor", "Master"),
+  ordered = TRUE
+)
+```
+
+### Fixing the month problem
+
+Give `factor()` an explicit `levels` argument and sorting follows *your* order
+rather than the alphabet.
+
+```{r}
+months_factor <- factor(
+  months,
+  levels = c(
+    "January", "February", "March", "April",
+    "May", "June", "July", "August",
+    "September", "October", "November", "December"
+  )
+)
+
+sort(months_factor)
+```
+
+Adding `ordered = TRUE` additionally allows comparisons between levels:
+
+```{r}
+months_ordered <- factor(
+  months,
+  levels = c(
+    "January", "February", "March", "April",
+    "May", "June", "July", "August",
+    "September", "October", "November", "December"
+  ),
+  ordered = TRUE
+)
+
+months_ordered[1] > months_ordered[3] # August is later in the year than January
+```
+
+### When does it matter?
+
+- Ordered factors can be compared with `<` and `>`.
+- Sorting follows the level order for both ordered and unordered factors.
+- In models, the level order decides the reference group.
+- Contrasts are constructed differently for ordered and unordered factors.
+- For the ordering of groups in a figure, either type works — the level order is
+  what `ggplot2` reads.
+
+::: {.callout-tip}
+## `forcats` does this more comfortably
+Writing out twelve levels by hand is tedious and error prone. The `forcats`
+package (part of the tidyverse) gives you `fct_relevel()`, `fct_infreq()`,
+`fct_reorder()` and friends. See @sec-strings-factors.
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: pain ratings
+
+A small study records pain as "None", "Mild", "Moderate" and "Severe".
+
+```{r}
+pain <- c("Moderate", "None", "Severe", "Mild", "Moderate", "None")
+```
+
+1. Turn `pain` into an unordered factor and run `sort()`. Is the order sensible?
+2. Turn it into an ordered factor with the levels in clinical order.
+3. Use `table()` to count how many observations fall in each level. What happens
+   to levels with zero observations?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+# alphabetical order is clinically meaningless here
+sort(factor(pain))
+
+# an explicit level order encodes the clinical severity
+pain_ordered <- factor(
+  pain,
+  levels = c("None", "Mild", "Moderate", "Severe"),
+  ordered = TRUE
+)
+
+sort(pain_ordered)
+table(pain_ordered)
+```
+
+`table()` reports every level, including empty ones. That is a feature: an empty
+category is information, and it keeps tables comparable across subgroups.
+:::
+:::
+
+## Rectangular data: data frames and tibbles
+
+A data frame is a set of equal-length vectors placed side by side as columns. It
+is the R equivalent of a spreadsheet, with one important difference: each column
+has a type, and the type is enforced.
+
+```{r}
+set.seed(123) # a seed makes the random draw reproducible
+
+name <- sample(
+  c("Anna", "Bjorn", "Cecilia", "David", "Elin", "Fredrik"),
+  30,
+  replace = TRUE
+)
+age <- sample(20:40, 30, replace = TRUE)
+city <- sample(
+  c("Stockholm", "Gothenburg", "Malmo", "Uppsala", "Lund"),
+  30,
+  replace = TRUE
+)
+```
+
+From these vectors we can build a data frame:
+
+```{r}
+df <- data.frame(name = name, age = age, city = city)
+head(df)
+```
+
+Or a tibble, the modern tidyverse version:
+
+```{r}
+library(tibble)
+
+tb <- tibble(name = name, age = age, city = city)
+tb
+```
+
+Differences worth knowing:
+
+- A data frame prints everything; a tibble prints the first ten rows plus the
+  dimensions, so you do not flood the console by accident.
+- A tibble shows the type of each column (`<chr>`, `<int>`, `<dbl>`, `<fct>`).
+- A tibble allows column names with spaces and special characters. Avoid these
+  in analysis code, but they are useful in the final table or figure.
+- Subsetting a tibble with `[` always returns a tibble; a data frame sometimes
+  drops to a vector.
+
+::: {.callout-tip}
+## Reproducibility: always set a seed
+Any time your code involves randomness — `sample()`, `rnorm()`, bootstrapping,
+cross-validation — call `set.seed()` first and note the value. Without it, your
+results change every time the script runs, and no one, including you, can
+reproduce the numbers in your manuscript.
+:::
+
+## Functions
+
+Functions are objects too, and they are the ones you will use most. A function
+is called by name followed by parentheses, with any arguments inside.
+
+```{r}
+mean(c(10, 20, 30))
+sum(c(10, 20, 30))
+length(c(10, 20, 30))
+sort(c(30, 10, 20))
+seq(1, 10, by = 2)
+rep(5, times = 3)
+round(3.14159, digits = 2)
+```
+
+### Arguments
+
+Arguments are the inputs a function needs. Some are required, some are optional
+and fall back to a default value.
+
+`mean()` takes among others:
+
+- `x`: a numeric vector (required)
+- `na.rm`: whether missing values should be dropped (optional, defaults to
+  `FALSE`)
+
+```{r}
+a_vector <- c(10, 20, 30, NA)
+
+mean(a_vector) # NA propagates: the answer is unknown
+mean(a_vector, na.rm = TRUE) # drop the NA and average the rest
+```
+
+::: {.callout-important}
+## `NA` is contagious on purpose
+`mean(a_vector)` returning `NA` is not a bug. R is telling you that it cannot
+know the average without knowing the missing value. `na.rm = TRUE` is you making
+the decision to ignore it — which is a real analytical choice with real
+consequences, so make it deliberately and say so in a comment.
+:::
+
+Two functions help you inspect any function you meet:
+
+```{r}
+args(mean) # which arguments does it take?
+```
+
+```{r}
+#| eval: false
+?mean # the full help page, with examples at the bottom
+```
+
+### Arguments by name or by position
+
+If you supply arguments in the documented order you can omit the names.
+Otherwise, name them.
+
+```{r}
+substr(x = fruits, start = 1, stop = 3) # explicit and readable
+substr(fruits, 1, 3) # same call, relying on position
+```
+
+Naming is safer. Position works fine for the first, obvious argument and gets
+risky after that.
+
+### Functions on text
+
+```{r}
+toupper(fruits)
+nchar(fruits) # number of characters in each string
+```
+
+### Changing the class of a vector
+
+The `as.*()` family converts between types: `as.character()`, `as.numeric()`,
+`as.integer()`, `as.logical()`, `as.factor()`.
+
+```{r}
+numeric_vector <- c(1, 2, 3, 4, 5)
+
+text_vector <- as.character(numeric_vector)
+text_vector
+
+as.numeric(text_vector) # back again
+as.factor(text_vector)
+```
+
+::: {.callout-warning}
+## The factor-to-numeric trap
+Converting a factor straight to numeric returns the *level codes*, not the
+values. This silently corrupts data and is one of the classic R bugs.
+
+```{r}
+f <- factor(c("10", "20", "30"))
+
+as.numeric(f) # WRONG: 1, 2, 3 - these are level positions
+as.numeric(as.character(f)) # RIGHT: go via character first
+```
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+`mean(c(1, 2, NA))` returns
+`r mcq(c("1.5", answer = "NA", "3", "an error"))`
+
+To convert a factor of numbers to real numbers you should use
+`r mcq(c("as.numeric(f)", answer = "as.numeric(as.character(f))", "as.integer(f)", "round(f)"))`
+
+A tibble prints all rows by default. `r torf(FALSE)`
+:::
+
+## Base R subsetting
+
+The tidyverse gives you `filter()` and `select()`, but base R subsetting still
+appears constantly — in other people's code, in error messages, and in places
+where the tidyverse has no equivalent.
+
+### The dollar sign `$`
+
+Extracts one column from a data frame or tibble, as a vector.
+
+```{r}
+data <- data.frame(A = c(1, 2, 3), B = c("X", "Y", "Z"))
+data
+
+data$A
+```
+
+### Single brackets `[ ]`
+
+Preserve the structure. For a data frame the syntax is `[rows, columns]`.
+
+```{r}
+data[1, ] # first row, all columns
+data[, 1] # all rows, first column
+data[1, 1] # a single cell
+```
+
+### Double brackets `[[ ]]`
+
+Extract the contents of an element, dropping the surrounding structure.
+
+```{r}
+list_data <- list(A = 1:3, B = c("X", "Y", "Z"))
+
+list_data[1] # a list containing A
+list_data[[1]] # the vector inside A
+```
+
+The same distinction holds for data frames:
+
+```{r}
+data["A"] # a data frame with one column
+data[["A"]] # a plain vector
+```
+
+::: {.callout-tip}
+## A mnemonic
+Think of a list as a train of wagons. `[` gives you a shorter train; `[[` gives
+you the cargo inside one wagon.
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: putting it together
+
+Using the `penguins` dataset from `palmerpenguins`:
+
+1. Load the package and the data.
+2. What class is the `species` column? What are its levels?
+3. Use `$` to pull out `body_mass_g` and calculate its mean, ignoring missing
+   values.
+4. Use `[ , ]` to display the first three rows and the first two columns.
+5. How many penguins are missing a value for `sex`?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+library(palmerpenguins)
+
+class(penguins$species)
+levels(penguins$species)
+
+# na.rm = TRUE is needed because two penguins lack a body mass measurement
+mean(penguins$body_mass_g, na.rm = TRUE)
+
+penguins[1:3, 1:2]
+
+sum(is.na(penguins$sex))
+```
+
+`is.na()` returns a logical vector, and `sum()` counts `TRUE` values as 1. This
+is the standard idiom for counting missing values.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 4: think before you run
+
+Predict the output of each line, then run it and check.
+
+```{r}
+#| eval: false
+c(1, 2, 3) + c(10, 20, 30)
+c(1, 2, 3) + 10
+c(TRUE, FALSE, TRUE) + 0
+class(TRUE)
+length(NA)
+c("a", "b") == c("a", "c")
+```
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+c(1, 2, 3) + c(10, 20, 30) # element-wise
+c(1, 2, 3) + 10 # 10 is recycled
+c(TRUE, FALSE, TRUE) + 0 # logicals coerce to 1/0 in arithmetic
+class(TRUE)
+length(NA) # NA is a length-1 vector, not "nothing"
+c("a", "b") == c("a", "c") # comparison is also element-wise
+```
+
+The third line is worth remembering: because `TRUE` counts as 1, `sum()` and
+`mean()` on a logical vector give you a count and a proportion respectively.
+:::
+:::

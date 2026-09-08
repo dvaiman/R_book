@@ -1,0 +1,1051 @@
+# Data Transformation with dplyr {#sec-dplyr}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Tidyverse verb*. It works through the core
+`dplyr` verbs — `arrange()`, `filter()`, `slice()`, `select()`, `mutate()`,
+`summarise()` — and grouped operations with `group_by()` and `.by`.
+:::
+
+```{r}
+#| label: setup-dplyr
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: dplyr-libs
+#| message: false
+library(tidyverse)
+library(palmerpenguins)
+```
+
+## Two ways to think about transformation
+
+Data transformation can be grouped along two dimensions, and it is worth being
+able to place any operation on both.
+
+**Reshaping versus reducing:**
+
+- **Reshaping** changes the *form* of the data without changing the information.
+  You can go back and forth. Converting a data frame to a tibble, or pivoting
+  between wide and long, are reshaping operations. Form matters because some
+  functions require a particular shape.
+- **Reducing** changes the data by removing information. Both structure and
+  content change, and you usually **cannot** reconstruct the original. Filtering
+  rows and summarising to group means are reducing operations.
+
+**Orientation:** row-wise, column-wise, grouped, or whole-table.
+
+| Function | What it does | Type | Orientation |
+|----------|--------------|------|-------------|
+| `arrange()` | sorts rows | reshapes | row-wise |
+| `filter()` | keeps rows meeting a condition | reduces | row-wise |
+| `slice()` | keeps rows by position | reduces | row-wise |
+| `select()` | keeps and reorders columns | reshapes | column-wise |
+| `rename()` | renames columns | reshapes | column-wise |
+| `mutate()` | creates or modifies columns | reshapes | column-wise |
+| `summarise()` | collapses to one row per group | reduces | grouped |
+| `group_by()` / `.by` | defines groups | both | grouped |
+
+::: {.callout-tip}
+## Why this distinction is worth keeping
+Every reducing step is a decision that a reader might question. Filtering out
+participants, dropping missing values, collapsing categories — these change what
+your results can support. Reshaping steps rarely need justification; reducing
+steps always do. Comment them.
+:::
+
+## The tidyverse
+
+The tidyverse is a collection of packages designed to work together:
+
+- **ggplot2** — visualisation
+- **dplyr** — data manipulation
+- **tidyr** — reshaping
+- **readr** — importing files
+- **tibble** — modern data frames
+- **stringr** — text
+- **forcats** — factors
+- **purrr** — functional programming
+
+`library(tidyverse)` loads all of them at once.
+
+## The pipe
+
+A pipe takes the object on its left and passes it as the first argument to the
+function on its right. Read it as **"and then"**.
+
+There are two pipes:
+
+- `%>%` — the magrittr pipe, introduced in 2014.
+- `|>` — the native pipe, added in R 4.1 (2021).
+
+They behave the same way in almost all everyday use. This book uses `|>`,
+because it is part of R itself and needs no package. The keyboard shortcut is
+`Ctrl/Cmd + Shift + M` (which pipe it inserts depends on an RStudio setting).
+
+```{r}
+#| label: pipe-compare
+# without a pipe: read from the inside out
+head(arrange(filter(penguins, species == "Gentoo"), body_mass_g), 3)
+
+# with a pipe: read from top to bottom
+penguins |>
+  filter(species == "Gentoo") |>
+  arrange(body_mass_g) |>
+  head(3)
+```
+
+The second version reads as instructions: take the penguins, **and then** keep
+the Gentoos, **and then** sort by body mass, **and then** show the first three.
+
+::: {.callout-tip}
+## One verb per line
+Put each verb on its own line, ending with the pipe. This makes the chain
+readable, makes it obvious where a step is missing, and — most usefully — lets
+you comment out a single line to see what the pipeline looks like without it.
+:::
+
+## `arrange()`: sorting rows
+
+```{r}
+#| label: arrange-basic
+penguins |>
+  arrange(body_mass_g) |>
+  head(5)
+```
+
+`desc()` sorts in descending order:
+
+```{r}
+#| label: arrange-desc
+penguins |>
+  arrange(desc(body_mass_g)) |>
+  head(5)
+```
+
+Multiple variables sort hierarchically — first by the first, ties broken by the
+second:
+
+```{r}
+#| label: arrange-multi
+penguins |>
+  arrange(species, desc(body_mass_g)) |>
+  head(5)
+```
+
+Missing values are always sorted to the end, regardless of direction.
+
+## `filter()`: keeping rows
+
+`filter()` keeps the rows for which a condition is `TRUE`. Rows where the
+condition is `NA` are **dropped**, which is worth remembering.
+
+::: {.panel-tabset}
+## Equal to
+
+```{r}
+#| label: filter-eq
+penguins |>
+  filter(species == "Gentoo") |>
+  head(3)
+```
+
+## Greater than
+
+```{r}
+#| label: filter-gt
+penguins |>
+  filter(body_mass_g > 4000) |>
+  head(3)
+```
+
+## AND
+
+A comma and `&` mean the same thing: both conditions must hold.
+
+```{r}
+#| label: filter-and
+penguins |>
+  filter(species != "Gentoo", body_mass_g >= 4000) |>
+  head(3)
+```
+
+## OR
+
+```{r}
+#| label: filter-or
+penguins |>
+  filter(species == "Chinstrap" | island == "Dream") |>
+  head(3)
+```
+
+## Combined
+
+```{r}
+#| label: filter-combined
+penguins |>
+  filter(
+    (species == "Gentoo" & body_mass_g > 5500) |
+      (species == "Adelie" & body_mass_g > 4500)
+  )
+```
+
+## Missing values
+
+```{r}
+#| label: filter-na
+penguins |>
+  filter(is.na(sex)) |>
+  head(5)
+```
+
+## `%in%` and `between()`
+
+```{r}
+#| label: filter-in
+penguins |>
+  filter(
+    species %in% c("Adelie", "Chinstrap"),
+    between(body_mass_g, 4000, 4250)
+  )
+```
+:::
+
+::: {.callout-warning}
+## `filter(x == NA)` never works
+`NA == NA` is `NA`, not `TRUE` — R cannot confirm that two unknown values are
+equal. To find missing values use `is.na(x)`; to exclude them use `!is.na(x)` or
+`drop_na(x)`.
+
+Equally important in the other direction: `filter(sex == "female")` silently
+drops the eleven penguins whose sex is missing. If you then report a total, it
+will not match the original sample size. Count before and after.
+:::
+
+### `filter_out()`: say what to drop
+
+New in **dplyr 1.2.0**. Use `filter()` to say which rows to *keep*, and
+`filter_out()` to say which rows to *drop*.
+
+That sounds like a cosmetic difference. It is not, because of how `NA` behaves.
+
+```{r}
+#| label: filter-out-motivation
+counts <- tibble(id = 1:5, count = c(3, 0, NA, 7, 0))
+
+# with filter(): you must negate the condition AND remember to protect the NA
+counts |>
+  filter(count != 0 | is.na(count))
+
+# with filter_out(): say what you want gone, and NA is kept automatically
+counts |>
+  filter_out(count == 0)
+```
+
+The `filter()` version needs two things to be right at once: the negation
+(`!= 0`) and the explicit `| is.na(count)`. Forget the second and the missing
+row disappears silently, which is exactly the class of bug that changes a sample
+size without anyone noticing.
+
+```{r}
+#| label: filter-out-penguins
+# keep everything except Gentoo
+penguins |>
+  filter_out(species == "Gentoo") |>
+  count(species)
+```
+
+::: {.callout-tip}
+## When to reach for `filter_out()`
+Whenever your `filter()` condition contains a `!`, a `!=`, or a `%in%` you were
+about to negate. If you are describing what you want *gone*, write it that way.
+Exclusions are also easier for a reviewer to check when they read as exclusions.
+:::
+
+### `when_any()` and `when_all()`
+
+Also new in dplyr 1.2.0. These are elementwise versions of `any()` and `all()` —
+think of them as `|` and `&` applied across any number of conditions.
+
+```{r}
+#| label: when-any
+# the old way: explicit |, extra parentheses, uneven indentation
+penguins |>
+  filter(
+    (species == "Gentoo" & body_mass_g > 5500) |
+      (species == "Adelie" & body_mass_g > 4500)
+  ) |>
+  nrow()
+
+# the same thing, with every condition at the same indentation level
+penguins |>
+  filter(when_any(
+    species == "Gentoo" & body_mass_g > 5500,
+    species == "Adelie" & body_mass_g > 4500
+  )) |>
+  nrow()
+```
+
+`when_all()` does the same for `&`. Both combine with `filter_out()`, which is
+where they earn their keep — a list of exclusion criteria reads as a list:
+
+```{r}
+#| label: when-any-out
+penguins |>
+  filter_out(when_any(
+    is.na(sex), # sex not recorded
+    is.na(body_mass_g), # no body mass measurement
+    body_mass_g < 3000 # below the pre-specified inclusion threshold
+  )) |>
+  nrow()
+```
+
+That is a study's exclusion criteria, written once, each on its own commented
+line. Compare it with the equivalent chain of negated `filter()` calls.
+
+## `slice()`: rows by position
+
+::: {.panel-tabset}
+## slice()
+
+```{r}
+#| label: slice-basic
+penguins |>
+  slice(1:5)
+```
+
+## slice_head() / slice_tail()
+
+```{r}
+#| label: slice-head
+penguins |>
+  slice_head(n = 3)
+
+penguins |>
+  slice_tail(n = 3)
+```
+
+## slice_min() / slice_max()
+
+```{r}
+#| label: slice-min
+penguins |>
+  slice_min(body_mass_g, n = 3)
+
+penguins |>
+  slice_max(body_mass_g, n = 3)
+```
+
+## slice_sample()
+
+```{r}
+#| label: slice-sample
+set.seed(42) # a seed makes the random draw reproducible
+
+penguins |>
+  slice_sample(n = 5)
+```
+:::
+
+`slice_min()` and `slice_max()` combine with grouping to answer questions like
+"the heaviest penguin of each species":
+
+```{r}
+#| label: slice-grouped
+penguins |>
+  slice_max(body_mass_g, n = 1, by = species) |>
+  select(species, island, sex, body_mass_g)
+```
+
+## `select()`: choosing columns
+
+::: {.panel-tabset}
+## By name
+
+```{r}
+#| label: select-name
+penguins |>
+  select(species, island, body_mass_g) |>
+  head(3)
+```
+
+## By position
+
+```{r}
+#| label: select-pos
+# works, but breaks silently if the column order changes upstream
+penguins |>
+  select(5, 1) |>
+  head(3)
+```
+
+## A range
+
+```{r}
+#| label: select-range
+penguins |>
+  select(species:bill_depth_mm) |>
+  head(3)
+```
+
+## Reordering
+
+```{r}
+#| label: select-everything
+# put year first, keep everything else in its current order
+penguins |>
+  select(year, everything()) |>
+  head(3)
+```
+
+## Helpers
+
+```{r}
+#| label: select-helpers
+penguins |>
+  select(starts_with("bill")) |>
+  head(3)
+
+penguins |>
+  select(ends_with("_mm")) |>
+  head(3)
+
+penguins |>
+  select(contains("length")) |>
+  head(3)
+```
+
+## By type
+
+```{r}
+#| label: select-where
+penguins |>
+  select(where(is.numeric)) |>
+  head(3)
+
+penguins |>
+  select(where(is.factor)) |>
+  head(3)
+```
+
+## Dropping
+
+```{r}
+#| label: select-drop
+penguins |>
+  select(-year, -island) |>
+  head(3)
+```
+:::
+
+`rename()` renames without dropping anything, and `relocate()` moves columns:
+
+```{r}
+#| label: rename-relocate
+penguins |>
+  rename(mass_g = body_mass_g) |>
+  relocate(mass_g, .after = species) |>
+  head(3)
+```
+
+::: {.callout-tip}
+## Select by name, not by number
+`select(5, 1)` works today and breaks the day someone adds a column upstream —
+without an error, just wrong results. Names are self-documenting and survive
+changes to the source file.
+:::
+
+## `mutate()`: creating columns
+
+`mutate()` adds new columns or modifies existing ones. It works element by
+element, using the vectorised arithmetic from @sec-classes.
+
+::: {.panel-tabset}
+## A new variable
+
+```{r}
+#| label: mutate-new
+penguins |>
+  mutate(body_mass_kg = body_mass_g / 1000) |>
+  select(species, body_mass_g, body_mass_kg) |>
+  head(3)
+```
+
+## Using a summary
+
+```{r}
+#| label: mutate-mean
+# a summary function inside mutate() is recycled across all rows,
+# which is exactly what you want for centring a variable
+penguins |>
+  mutate(mass_centred = body_mass_g - mean(body_mass_g, na.rm = TRUE)) |>
+  select(body_mass_g, mass_centred) |>
+  head(3)
+```
+
+## Row numbers
+
+```{r}
+#| label: mutate-rownum
+penguins |>
+  mutate(row_id = row_number()) |>
+  select(row_id, species, island) |>
+  head(3)
+```
+
+## Several columns at once
+
+```{r}
+#| label: mutate-across
+# z-standardise every numeric column
+penguins |>
+  mutate(across(where(is.numeric), \(x) as.numeric(scale(x)))) |>
+  select(where(is.numeric)) |>
+  head(3)
+```
+
+## `if_else()`
+
+```{r}
+#| label: mutate-ifelse
+penguins |>
+  mutate(size_category = if_else(body_mass_g > 4000, "Large", "Small")) |>
+  select(species, body_mass_g, size_category) |>
+  head(3)
+```
+
+## `case_when()`
+
+```{r}
+#| label: mutate-casewhen
+penguins |>
+  mutate(
+    size_category = case_when(
+      body_mass_g < 3500 ~ "Small",
+      body_mass_g < 4500 ~ "Medium",
+      body_mass_g >= 4500 ~ "Large",
+      .default = NA_character_ # anything unmatched, including NA
+    )
+  ) |>
+  count(size_category)
+```
+:::
+
+::: {.callout-warning}
+## `case_when()` evaluates in order and stops at the first match
+That is why the conditions above can be written as `< 3500`, `< 4500`,
+`>= 4500` — a penguin of 4000 g fails the first test, matches the second, and
+never reaches the third. It also means an accidentally broad first condition
+swallows everything below it.
+
+Always finish with `.default =`. Without it, unmatched rows become `NA`
+silently, and `NA` is one of the values that will not match any condition.
+Verify with `count()` afterwards, every time.
+:::
+
+### The recoding family
+
+Until dplyr 1.2.0, `case_when()` did nearly everything and `case_match()`
+handled simple value mapping. dplyr 1.2.0 splits the job into four functions
+along two axes — *create a new vector* versus *update an existing one*, and
+*conditions* versus *value mapping*:
+
+| | Based on **conditions** | Based on **values** |
+|---|---|---|
+| **Create** a new vector | `case_when()` | `recode_values()` |
+| **Update** an existing vector | `replace_when()` | `replace_values()` |
+
+```{r}
+#| label: recode-family
+penguins |>
+  mutate(
+    # create a new variable from conditions
+    size = case_when(
+      body_mass_g < 3500 ~ "Light",
+      body_mass_g < 4500 ~ "Medium",
+      .default = "Heavy"
+    ),
+    # create a new variable by mapping values
+    species_code = recode_values(
+      species,
+      "Adelie" ~ "ADE",
+      "Chinstrap" ~ "CHI",
+      "Gentoo" ~ "GEN"
+    ),
+    # update an existing variable, leaving the rest untouched
+    sex = replace_values(as.character(sex), "female" ~ "F", "male" ~ "M")
+  ) |>
+  count(species_code, sex, size) |>
+  head(5)
+```
+
+::: {.callout-warning}
+## These functions will not silently widen a factor
+`replace_values(island, "Torgersen" ~ "Torgersen Island")` errors, because
+`island` is a factor and `"Torgersen Island"` is not one of its levels. That is
+deliberate: silently inventing a level is how category lists drift apart between
+datasets.
+
+For factors, either convert to character first (as above) or use
+`forcats::fct_recode()`, which is built for the job (@sec-strings-factors).
+:::
+
+`replace_when()` updates values where a condition holds and leaves everything
+else, including `NA`, alone:
+
+```{r}
+#| label: replace-when
+weights <- c(72.5, 3.0, 68.0, NA, 270.0)
+
+# only the impossible values are touched; the NA stays an NA
+replace_when(weights, weights < 35 | weights > 250 ~ NA)
+```
+
+Written with `if_else()` that would be
+`if_else(weights < 35 | weights > 250, NA, weights)`, which requires you to
+repeat the variable name and think about what happens to the `NA`.
+
+`recode_values()` also accepts a lookup table through `from` and `to`, which is
+how you should apply a recoding scheme that lives in a file rather than in your
+script:
+
+```{r}
+#| label: recode-lookup
+lookup <- tibble(
+  code = c("Adelie", "Chinstrap", "Gentoo"),
+  latin = c("Pygoscelis adeliae", "Pygoscelis antarcticus", "Pygoscelis papua")
+)
+
+penguins |>
+  mutate(
+    species_latin = recode_values(
+      species,
+      from = lookup$code,
+      to = lookup$latin
+    )
+  ) |>
+  count(species, species_latin)
+```
+
+::: {.callout-note}
+## `case_match()` is on its way out
+`case_match()` is soft-deprecated in dplyr 1.2.0 and fully replaced by
+`recode_values()` and `replace_values()`. It still works, and you will meet it
+in existing code and older tutorials — but write the new names in new code.
+:::
+
+### `.unmatched = "error"`
+
+The safety feature worth adopting immediately. When you believe you have handled
+every possible case, say so, and let R check you:
+
+```{r}
+#| label: unmatched-error
+#| error: true
+mass <- c(3200, 4100, 5300)
+
+case_when(
+  mass < 3500 ~ "Light",
+  mass < 4500 ~ "Medium",
+  .unmatched = "error"
+)
+```
+
+The error names the exact position that fell through. With `.default =` the same
+mistake produces a silent category you did not intend; with
+`.unmatched = "error"` it stops the script.
+
+Use `.default =` when there genuinely is a sensible catch-all, and
+`.unmatched = "error"` when there should not be one. Both are better than
+neither.
+
+## `summarise()`: collapsing rows
+
+```{r}
+#| label: summarise-one
+penguins |>
+  summarise(mean_body_mass = mean(body_mass_g, na.rm = TRUE))
+```
+
+Several summaries at once. Note that counting non-missing values alongside the
+mean is not optional — a mean of 12 observations and a mean of 300 are very
+different things:
+
+```{r}
+#| label: summarise-many
+penguins |>
+  summarise(
+    n_rows = n(),
+    n_bill_length = sum(!is.na(bill_length_mm)),
+    mean_bill_length = mean(bill_length_mm, na.rm = TRUE),
+    sd_bill_length = sd(bill_length_mm, na.rm = TRUE),
+    n_body_mass = sum(!is.na(body_mass_g)),
+    mean_body_mass = mean(body_mass_g, na.rm = TRUE),
+    sd_body_mass = sd(body_mass_g, na.rm = TRUE),
+    n_species = n_distinct(species)
+  )
+```
+
+### `across()`: the same summary for many columns
+
+```{r}
+#| label: summarise-across1
+penguins |>
+  summarise(across(where(is.numeric), \(x) mean(x, na.rm = TRUE)))
+```
+
+Several functions at once, producing named columns:
+
+```{r}
+#| label: summarise-across2
+penguins |>
+  summarise(
+    across(
+      where(is.numeric),
+      list(
+        mean = \(x) mean(x, na.rm = TRUE),
+        sd = \(x) sd(x, na.rm = TRUE)
+      )
+    )
+  ) |>
+  glimpse()
+```
+
+::: {.callout-note}
+## The `\(x)` syntax
+`\(x) mean(x, na.rm = TRUE)` is R's shorthand for an anonymous function,
+available since R 4.1. It is equivalent to `function(x) mean(x, na.rm = TRUE)`.
+
+Passing `na.rm = TRUE` directly to `across()` — as in
+`across(where(is.numeric), mean, na.rm = TRUE)` — was deprecated in dplyr 1.1
+and will eventually stop working. Use the lambda.
+:::
+
+## Grouping
+
+Almost every interesting question is a grouped question: not "what is the mean
+body mass" but "how does mean body mass differ between species".
+
+There are two syntaxes, and both are current.
+
+### `group_by()` + `ungroup()`
+
+```{r}
+#| label: group-by
+penguins |>
+  group_by(species) |>
+  summarise(
+    n = n(),
+    mean_body_mass = mean(body_mass_g, na.rm = TRUE),
+    sd_body_mass = sd(body_mass_g, na.rm = TRUE)
+  ) |>
+  ungroup()
+```
+
+`group_by()` attaches a grouping to the data that persists until you remove it.
+That persistence is the source of a great many confusing bugs.
+
+### `.by`: per-operation grouping
+
+Since dplyr 1.1, most verbs accept a `.by` argument that groups for **that one
+operation only**. Nothing persists, so nothing needs ungrouping.
+
+```{r}
+#| label: dot-by
+penguins |>
+  summarise(
+    n = n(),
+    mean_body_mass = mean(body_mass_g, na.rm = TRUE),
+    .by = species
+  )
+```
+
+Multiple grouping variables:
+
+```{r}
+#| label: dot-by-multi
+penguins |>
+  summarise(
+    n = n(),
+    mean_body_mass = mean(body_mass_g, na.rm = TRUE),
+    .by = c(species, island)
+  )
+```
+
+::: {.callout-tip}
+## Prefer `.by` unless you need persistence
+`.by` removes an entire category of bug, keeps the pipeline shorter, and always
+returns an ungrouped result. Reach for `group_by()` when you genuinely need the
+grouping to survive several steps, or when you are reading older code.
+:::
+
+### Grouped `mutate()`
+
+`summarise()` collapses to one row per group. Grouped `mutate()` keeps every row
+but computes the summary within each group and recycles it back — the standard
+way to centre or standardise within groups.
+
+```{r}
+#| label: group-mutate
+penguins |>
+  mutate(mean_mass_species = mean(body_mass_g, na.rm = TRUE), .by = species) |>
+  select(species, body_mass_g, mean_mass_species) |>
+  head(5)
+```
+
+Z-scores within species:
+
+```{r}
+#| label: group-z
+penguins |>
+  mutate(
+    # standardising within species removes between-species size differences
+    body_mass_z = (body_mass_g - mean(body_mass_g, na.rm = TRUE)) /
+      sd(body_mass_g, na.rm = TRUE),
+    .by = species
+  ) |>
+  select(species, body_mass_g, body_mass_z) |>
+  head(5)
+```
+
+### Why `ungroup()` matters
+
+With `group_by()`, the grouping stays attached. The second `mutate()` below is
+still grouped, so `mean(bill_length_mm)` is a per-species mean, not an overall
+one:
+
+```{r}
+#| label: ungroup-wrong
+penguins |>
+  group_by(species) |>
+  mutate(mean_mass = mean(body_mass_g, na.rm = TRUE)) |>
+  # still grouped here - this is a within-species mean, probably not intended
+  mutate(mean_bill = mean(bill_length_mm, na.rm = TRUE)) |>
+  select(species, mean_mass, mean_bill) |>
+  distinct()
+```
+
+With `ungroup()` in the right place, the second mean is over the whole dataset:
+
+```{r}
+#| label: ungroup-right
+penguins |>
+  group_by(species) |>
+  mutate(mean_mass = mean(body_mass_g, na.rm = TRUE)) |>
+  ungroup() |>
+  mutate(mean_bill = mean(bill_length_mm, na.rm = TRUE)) |>
+  select(species, mean_mass, mean_bill) |>
+  distinct()
+```
+
+Both results are legitimate; only one of them is what you meant. With `.by` the
+question does not arise.
+
+## `count()` and `distinct()`
+
+```{r}
+#| label: count-distinct
+penguins |>
+  count(species)
+
+penguins |>
+  count(species, island, sort = TRUE)
+
+penguins |>
+  distinct(species, island)
+```
+
+`count()` is the most under-used function in `dplyr`. Use it after every recode
+to confirm that the categories are what you think they are.
+
+## Chaining it all together
+
+```{r}
+#| label: fig-dplyr-chain
+#| fig-cap: "A single pipeline from raw data to figure."
+penguins |>
+  filter(!is.na(sex)) |>
+  mutate(body_mass_kg = body_mass_g / 1000) |>
+  ggplot(aes(island, body_mass_kg, colour = sex)) +
+  geom_violin(fill = NA) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.15), alpha = 0.4) +
+  labs(x = "Island", y = "Body mass (kg)", colour = "Sex") +
+  theme_minimal(base_size = 13)
+```
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which verb would you use to keep only rows where age is over 65?
+`r mcq(c("select()", answer = "filter()", "slice()", "arrange()"))`
+
+`filter(sex == "female")` keeps rows where sex is missing. `r torf(FALSE)`
+
+Which is the modern way to group for a single operation?
+`r mcq(c("group_by() then ungroup()", answer = ".by =", "rowwise()", "aggregate()"))`
+
+After `summarise()` with `group_by(species, island)`, the result is still grouped
+by species. `r torf(TRUE)`
+
+To count how many penguins are on each island, you would write
+`penguins |> ` `r fitb(c("count(island)", "count( island )"), ignore_ws = TRUE, width = 16)`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: the core verbs
+
+Using `penguins`:
+
+1. How many penguins are there of each species on each island?
+2. What is the mean and standard deviation of `flipper_length_mm` per species,
+   with the number of non-missing observations?
+3. Which five penguins have the longest bills? Show species, island and bill
+   length only.
+4. Create a variable `bill_ratio` (bill length divided by bill depth) and report
+   its mean per species.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-dplyr
+# 1
+penguins |>
+  count(species, island)
+
+# 2 - reporting n alongside the mean is not optional; a mean of 68
+# and a mean of 152 observations carry very different weight
+penguins |>
+  summarise(
+    n = sum(!is.na(flipper_length_mm)),
+    mean_flipper = mean(flipper_length_mm, na.rm = TRUE),
+    sd_flipper = sd(flipper_length_mm, na.rm = TRUE),
+    .by = species
+  )
+
+# 3
+penguins |>
+  slice_max(bill_length_mm, n = 5) |>
+  select(species, island, bill_length_mm)
+
+# 4
+penguins |>
+  mutate(bill_ratio = bill_length_mm / bill_depth_mm) |>
+  summarise(mean_ratio = mean(bill_ratio, na.rm = TRUE), .by = species)
+```
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: recoding, carefully
+
+1. Create a categorical variable `mass_group` from `body_mass_g` with the cut
+   points below 3500 g, 3500 to under 4500 g, and 4500 g or more.
+2. Count how many penguins fall in each group. Do the counts add up to 344?
+3. If not, find out why and fix it so that missing body mass becomes an explicit
+   "Unknown" category rather than `NA`.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex2-dplyr
+penguins |>
+  mutate(
+    mass_group = case_when(
+      body_mass_g < 3500 ~ "Light",
+      body_mass_g < 4500 ~ "Medium",
+      body_mass_g >= 4500 ~ "Heavy"
+    )
+  ) |>
+  count(mass_group)
+```
+
+The counts do add up to 344, but only because `count()` reports the `NA` group
+as its own row. Two penguins have no recorded body mass, and none of the three
+conditions matches `NA` — so they fall through to the implicit default.
+
+Making that explicit:
+
+```{r}
+#| label: ex2-dplyr-fix
+penguins |>
+  mutate(
+    mass_group = case_when(
+      is.na(body_mass_g) ~ "Unknown", # handle missing first, deliberately
+      body_mass_g < 3500 ~ "Light",
+      body_mass_g < 4500 ~ "Medium",
+      .default = "Heavy"
+    ),
+    # an explicit level order controls how this appears in tables and figures
+    mass_group = factor(
+      mass_group,
+      levels = c("Light", "Medium", "Heavy", "Unknown")
+    )
+  ) |>
+  count(mass_group)
+```
+
+The lesson generalises: after any recode, `count()` the result and check that
+the total matches the number of rows you started with. Recoding is where data
+quietly disappears.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: grouped thinking
+
+1. For each species, what proportion of penguins are female? (Exclude penguins
+   with missing sex, and say so in a comment.)
+2. Add a column giving each penguin's body mass as a percentage of the mean body
+   mass **of its own species**.
+3. Which island has the largest difference in mean body mass between males and
+   females?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex3-dplyr
+# 1 - the 11 penguins with unknown sex are excluded, so these
+# proportions are among sexed birds only
+penguins |>
+  filter(!is.na(sex)) |>
+  summarise(
+    n = n(),
+    prop_female = mean(sex == "female"),
+    .by = species
+  )
+
+# 2 - grouped mutate keeps every row while using a per-species summary
+penguins |>
+  mutate(
+    pct_of_species_mean = 100 * body_mass_g / mean(body_mass_g, na.rm = TRUE),
+    .by = species
+  ) |>
+  select(species, body_mass_g, pct_of_species_mean) |>
+  head(5)
+
+# 3
+penguins |>
+  filter(!is.na(sex)) |>
+  summarise(mean_mass = mean(body_mass_g, na.rm = TRUE), .by = c(island, sex)) |>
+  pivot_wider(names_from = sex, values_from = mean_mass) |>
+  mutate(difference = male - female) |>
+  arrange(desc(difference))
+```
+
+Biscoe shows the largest sex difference — but note that Biscoe is also the only
+island with Gentoo penguins, which are the largest species. The apparent island
+effect is largely a species effect. This is the kind of confounding that
+grouping makes visible and that a single overall mean would hide.
+:::
+:::
+
+## More information
+
+- [The dplyr website](https://dplyr.tidyverse.org/)
+- [R for Data Science, chapter on transformation](https://r4ds.hadley.nz/data-transform)
+- [The tidyverse style guide](https://style.tidyverse.org/)

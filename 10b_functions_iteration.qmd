@@ -1,0 +1,675 @@
+# Writing Functions and Iterating {#sec-functions}
+
+::: {.callout-note}
+## What this chapter covers
+How to write your own functions, in both base R and tidyverse style, and how to
+repeat an operation over many things with `purrr::map()`. This is the step from
+*using* R to *programming* in R, and it is the point at which copy-paste stops
+being your main tool.
+:::
+
+```{r}
+#| label: setup-functions
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: functions-libs
+#| message: false
+library(tidyverse)
+library(palmerpenguins)
+```
+
+## Why write a function
+
+The rule of thumb: **if you have copied and pasted the same code three times,
+write a function.**
+
+Copy-paste has three failure modes, and all three are common in analysis
+scripts:
+
+```{r}
+#| label: copy-paste-problem
+# standardise three variables by copy-paste
+penguins |>
+  mutate(
+    bill_length_z = (bill_length_mm - mean(bill_length_mm, na.rm = TRUE)) /
+      sd(bill_length_mm, na.rm = TRUE),
+    bill_depth_z = (bill_depth_mm - mean(bill_depth_mm, na.rm = TRUE)) /
+      sd(bill_depth_mm, na.rm = TRUE),
+    flipper_z = (flipper_length_mm - mean(bill_length_mm, na.rm = TRUE)) /
+      sd(flipper_length_mm, na.rm = TRUE)
+  ) |>
+  select(ends_with("_z")) |>
+  head(3)
+```
+
+There is a bug in that code. The third line standardises `flipper_length_mm`
+using the mean of `bill_length_mm`. It is the kind of error that copy-paste
+produces reliably, that no error message will ever report, and that is nearly
+invisible on a screen full of similar-looking lines.
+
+A function fixes all three problems: the logic is written once, named once, and
+tested once.
+
+```{r}
+#| label: first-function
+z_score <- function(x) {
+  (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+}
+
+penguins |>
+  mutate(across(ends_with("_mm"), z_score, .names = "{.col}_z")) |>
+  select(ends_with("_z")) |>
+  head(3)
+```
+
+## Anatomy of a function
+
+```{r}
+#| label: function-anatomy
+#| eval: false
+name <- function(argument, optional_argument = default_value) {
+  # body: what the function does
+  result <- argument * 2
+
+  # the last expression is returned automatically
+  result
+}
+```
+
+Four parts:
+
+- **Name** — a verb if the function does something, a noun if it computes
+  something. `calculate_bmi()`, `z_score()`.
+- **Arguments** — the inputs. Required arguments have no default; optional ones
+  do.
+- **Body** — the code, between `{` and `}`.
+- **Return value** — the value of the last expression. `return()` exists but is
+  usually unnecessary; use it only to exit early.
+
+```{r}
+#| label: bmi-function
+calculate_bmi <- function(weight_kg, height_cm) {
+  # height is converted from cm to m because BMI is defined in kg/m2
+  height_m <- height_cm / 100
+  weight_kg / height_m^2
+}
+
+calculate_bmi(weight_kg = 72, height_cm = 180)
+calculate_bmi(c(72, 68, 90), c(180, 165, 183)) # vectorised for free
+```
+
+::: {.callout-tip}
+## Name the function after what it returns or does
+`f()`, `myfun()` and `temp2()` are not names, they are placeholders that will
+still be there in two years. A good name means the calling code reads as a
+sentence: `data |> mutate(bmi = calculate_bmi(weight_kg, height_cm))`.
+:::
+
+### Default arguments
+
+```{r}
+#| label: function-defaults
+summarise_variable <- function(x, digits = 1, na_rm = TRUE) {
+  c(
+    n = sum(!is.na(x)),
+    mean = round(mean(x, na.rm = na_rm), digits),
+    sd = round(sd(x, na.rm = na_rm), digits)
+  )
+}
+
+summarise_variable(penguins$body_mass_g)
+summarise_variable(penguins$body_mass_g, digits = 3)
+```
+
+Choose defaults that are safe rather than convenient. `na_rm = TRUE` above is a
+defensible default for a descriptive summary; it would be a poor default for a
+function that computes a study's primary outcome, where silently ignoring
+missing data is exactly what you do not want.
+
+### Checking the inputs
+
+A function that fails clearly is worth far more than one that fails
+mysteriously three steps later.
+
+```{r}
+#| label: function-checks
+#| error: true
+calculate_bmi <- function(weight_kg, height_cm) {
+  if (!is.numeric(weight_kg) || !is.numeric(height_cm)) {
+    stop("`weight_kg` and `height_cm` must be numeric.")
+  }
+  if (any(height_cm < 50, na.rm = TRUE)) {
+    warning("Height below 50 cm - is `height_cm` really in centimetres?")
+  }
+
+  weight_kg / (height_cm / 100)^2
+}
+
+calculate_bmi("72", 180)
+```
+
+```{r}
+#| label: function-checks2
+#| warning: true
+calculate_bmi(72, 1.8) # metres by mistake
+```
+
+That warning catches one of the most common unit errors in anthropometric data,
+and it costs two lines.
+
+::: {.callout-note}
+## `stop()`, `warning()`, `message()`
+- `stop()` — the function cannot continue. Use it when proceeding would produce
+  a wrong answer.
+- `warning()` — the function continues, but something looks off. Use it
+  sparingly; warnings that are always ignored are worse than none.
+- `message()` — informational, for progress or reporting a choice the function
+  made.
+
+The `cli` package produces nicer versions of all three, and `rlang::abort()` is
+what the tidyverse uses internally.
+:::
+
+## The tidyverse way: functions that take column names
+
+Base R functions take *values*. Tidyverse verbs take *bare column names* —
+`filter(penguins, species == "Gentoo")` refers to `species` without quotes. That
+convenience is called **tidy evaluation**, and it means a naive wrapper does not
+work:
+
+```{r}
+#| label: tidyeval-broken
+#| error: true
+# looks reasonable, fails
+group_mean_broken <- function(data, group_var, value_var) {
+  data |>
+    summarise(mean = mean(value_var, na.rm = TRUE), .by = group_var)
+}
+
+group_mean_broken(penguins, species, body_mass_g)
+```
+
+R tries to find an object called `species` in your environment rather than a
+column called `species` in the data. The fix is the **embrace operator**,
+`{{ }}`, which says "look this up in the data frame":
+
+```{r}
+#| label: tidyeval-fixed
+group_mean <- function(data, group_var, value_var) {
+  data |>
+    summarise(
+      n = n(),
+      mean = mean({{ value_var }}, na.rm = TRUE),
+      sd = sd({{ value_var }}, na.rm = TRUE),
+      .by = {{ group_var }}
+    )
+}
+
+group_mean(penguins, species, body_mass_g)
+group_mean(penguins, island, flipper_length_mm)
+```
+
+One function, any dataset, any grouping variable, any outcome.
+
+### Naming the output column after the input
+
+`{{ }}` handles the input side. To use an argument as an output *name*, use the
+walrus operator `:=` together with `{{ }}`:
+
+```{r}
+#| label: tidyeval-naming
+add_z_score <- function(data, var) {
+  data |>
+    mutate("{{ var }}_z" := z_score({{ var }}))
+}
+
+penguins |>
+  add_z_score(body_mass_g) |>
+  select(species, body_mass_g, body_mass_g_z) |>
+  head(3)
+```
+
+### Several columns at once
+
+For an argument that should accept `select()`-style input — several columns,
+helpers like `starts_with()` — pass it straight to `pick()` or `across()`:
+
+```{r}
+#| label: tidyeval-multi
+summarise_many <- function(data, cols, by) {
+  data |>
+    summarise(
+      across({{ cols }}, \(x) mean(x, na.rm = TRUE)),
+      .by = {{ by }}
+    )
+}
+
+penguins |>
+  summarise_many(cols = ends_with("_mm"), by = species)
+```
+
+### Functions that make plots
+
+The same rules apply to `ggplot2`:
+
+```{r}
+#| label: fig-tidyeval-plot
+#| fig-cap: "One function, reusable for any pair of variables."
+scatter_by_species <- function(data, x, y) {
+  data |>
+    ggplot(aes({{ x }}, {{ y }}, colour = species)) +
+    geom_point(alpha = 0.6) +
+    geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+    scale_colour_manual(values = c("darkorange", "purple", "cyan4")) +
+    theme_minimal(base_size = 13)
+}
+
+penguins |>
+  scatter_by_species(flipper_length_mm, body_mass_g)
+```
+
+::: {.callout-tip}
+## When you need `{{ }}`
+Only when an argument names a **column**. If the argument is an ordinary value —
+a number, a string, a threshold — pass it normally. `{{ }}` around a plain value
+is not an error but it is noise, and it signals to the reader that a column is
+expected when none is.
+:::
+
+## Iteration with `purrr`
+
+Once you have a function, the next question is how to apply it to many things.
+`purrr::map()` is the tidyverse answer.
+
+`map(x, f)` applies `f` to every element of `x` and returns a **list**. The
+variants return a specific type instead, and error if they cannot:
+
+| Function | Returns |
+|----------|---------|
+| `map()` | a list |
+| `map_dbl()` | a double vector |
+| `map_int()` | an integer vector |
+| `map_chr()` | a character vector |
+| `map_lgl()` | a logical vector |
+| `map_vec()` | a vector of whatever type fits (dates, factors) |
+| `map2()` | maps over two inputs in parallel |
+| `pmap()` | maps over any number of inputs |
+| `walk()` | returns nothing; for side effects such as writing files |
+
+```{r}
+#| label: map-basics
+# the mean of every numeric column
+penguins |>
+  select(where(is.numeric)) |>
+  map_dbl(\(x) mean(x, na.rm = TRUE))
+
+# the number of missing values in every column
+penguins |>
+  map_int(\(x) sum(is.na(x)))
+```
+
+A data frame is a list of columns, which is why `map()` over a data frame
+iterates over columns.
+
+::: {.callout-note}
+## `map_dbl()` versus `map()`
+Always prefer the typed variant when you know the type. `map_dbl()` errors
+immediately if a function returns something that is not a single number;
+`map()` returns a list containing the surprise, and you find out later, in a
+less obvious place.
+:::
+
+### `map()` versus the loop you would have written
+
+```{r}
+#| label: map-vs-loop
+species_list <- unique(penguins$species)
+
+# base R: a loop
+means_loop <- numeric(length(species_list))
+for (i in seq_along(species_list)) {
+  subset_data <- penguins[penguins$species == species_list[i], ]
+  means_loop[i] <- mean(subset_data$body_mass_g, na.rm = TRUE)
+}
+names(means_loop) <- species_list
+means_loop
+
+# purrr: a map
+means_map <- species_list |>
+  set_names() |>
+  map_dbl(\(sp) {
+    penguins |>
+      filter(species == sp) |>
+      pull(body_mass_g) |>
+      mean(na.rm = TRUE)
+  })
+means_map
+```
+
+Loops are not wrong, and R has not deprecated them. But the loop needs you to
+create the output container, get its length right, and index it correctly —
+three chances to make a mistake that `map()` removes.
+
+::: {.callout-important}
+## And often neither is needed
+```{r}
+#| label: map-vs-groupby
+penguins |>
+  summarise(mean_mass = mean(body_mass_g, na.rm = TRUE), .by = species)
+```
+
+For "do something per group of rows", `.by` is clearer than both. Reach for
+`map()` when you are iterating over **things that are not rows** — files,
+models, plots, variables, parameter values.
+:::
+
+### Where `map()` genuinely earns its place
+
+**Reading many files at once:**
+
+```{r}
+#| eval: false
+library(here)
+
+files <- list.files(here("data-raw"), pattern = "\\.csv$", full.names = TRUE)
+
+all_data <- files |>
+  set_names(basename) |>
+  map(read_csv) |>
+  # keep track of which file each row came from
+  list_rbind(names_to = "source_file")
+```
+
+Four lines, however many files there are, with the provenance of every row
+recorded. Doing this by hand is where "I forgot to include site 4" comes from.
+
+**Fitting the same model to several outcomes:**
+
+```{r}
+#| label: map-models
+outcomes <- c("body_mass_g", "flipper_length_mm", "bill_length_mm")
+
+model_results <- outcomes |>
+  set_names() |>
+  map(\(outcome) {
+    # build the formula from the outcome name
+    lm(reformulate("species + sex", response = outcome), data = penguins)
+  }) |>
+  map(broom::tidy) |>
+  list_rbind(names_to = "outcome")
+
+model_results |>
+  filter(term != "(Intercept)") |>
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
+```
+
+Three models, one tidy table, no copy-paste.
+
+**Writing many files:**
+
+```{r}
+#| eval: false
+penguins |>
+  group_split(species) |>
+  walk(\(d) {
+    species_name <- unique(d$species)
+    write_csv(d, here("output", paste0(species_name, ".csv")))
+  })
+```
+
+`walk()` rather than `map()` because you want the side effect, not the return
+value.
+
+### `map2()` and `pmap()`
+
+```{r}
+#| label: map2-pmap
+weights <- c(72, 68, 90)
+heights <- c(180, 165, 183)
+
+# two inputs in parallel
+map2_dbl(weights, heights, calculate_bmi)
+
+# any number of inputs, supplied as a data frame or list
+params <- tibble(
+  weight_kg = c(72, 68, 90),
+  height_cm = c(180, 165, 183)
+)
+
+pmap_dbl(params, calculate_bmi)
+```
+
+`pmap()` matches the column names of `params` to the argument names of the
+function, which makes it the natural tool for running an analysis across a grid
+of parameter combinations.
+
+### When a function might fail
+
+```{r}
+#| label: possibly
+#| error: true
+strict_mean <- function(x) {
+  if (!is.numeric(x)) {
+    stop("`x` must be numeric.", call. = FALSE)
+  }
+  mean(x, na.rm = TRUE)
+}
+
+inputs <- list(c(1, 2, 3), "not a number", c(4, 5))
+
+# without possibly(): the second element stops everything
+inputs |>
+  map_dbl(strict_mean)
+```
+
+```{r}
+#| label: possibly2
+# with possibly(): the failure becomes a value you can find later
+safe_mean <- possibly(strict_mean, otherwise = NA_real_)
+
+inputs |>
+  map_dbl(safe_mean)
+```
+
+Without `possibly()`, one bad element stops the whole run — after twenty minutes
+of processing, on file 47 of 50. `possibly()` returns a fallback instead;
+`safely()` returns both the result and the error so you can inspect what went
+wrong afterwards.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+What is the rule of thumb for when to write a function?
+`r mcq(c("When the code is more than 10 lines", answer = "When you have copied and pasted the same code three times", "When you need a loop", "Never; functions are for package developers"))`
+
+Inside a function, `{{ var }}` is needed when the argument is
+`r mcq(c("a number", "a string", answer = "a column name", "a data frame"))`
+
+`map_dbl()` returns a list. `r torf(FALSE)`
+
+Which function applies a function for its side effect and returns nothing
+useful?
+`r mcq(c("map()", "map_chr()", answer = "walk()", "possibly()"))`
+
+To standardise a per-group summary of your data, the clearest tool is usually
+`r mcq(c("a for loop", "map()", answer = "summarise() with .by", "pmap()"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: your first functions
+
+1. Write a function `cm_to_inches()` that converts centimetres to inches
+   (1 inch = 2.54 cm).
+2. Write `summarise_numeric(x)` that returns the n, mean, median, SD, minimum
+   and maximum of a numeric vector, rounded to a number of digits you can
+   control.
+3. Add a check that errors with a clear message if `x` is not numeric.
+4. Test it on `penguins$body_mass_g` and on `penguins$species`.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-functions-sol
+#| error: true
+cm_to_inches <- function(cm) {
+  cm / 2.54
+}
+
+cm_to_inches(c(165, 180))
+
+summarise_numeric <- function(x, digits = 1) {
+  if (!is.numeric(x)) {
+    stop(
+      "`x` must be numeric, not ", class(x)[1], ".",
+      call. = FALSE
+    )
+  }
+
+  round(
+    c(
+      n = sum(!is.na(x)),
+      mean = mean(x, na.rm = TRUE),
+      median = median(x, na.rm = TRUE),
+      sd = sd(x, na.rm = TRUE),
+      min = min(x, na.rm = TRUE),
+      max = max(x, na.rm = TRUE)
+    ),
+    digits
+  )
+}
+
+summarise_numeric(penguins$body_mass_g)
+summarise_numeric(penguins$species)
+```
+
+Note `call. = FALSE`: it suppresses the internal call in the error message, so
+the user sees your sentence rather than a line of code they did not write.
+Compare that with the message R gives you from `mean()` on a factor, which tells
+you what went wrong but not where.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: a tidyverse function
+
+Write `plot_distribution(data, var, group)` that:
+
+1. Takes a data frame, a continuous variable and a grouping variable.
+2. Draws a violin plot with a boxplot inside it.
+3. Labels the axes with the variable names.
+4. Works for any combination of variables in `penguins`.
+
+Then use it twice, on different variables.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: fig-ex2-functions
+#| fig-cap: "The same function, two different questions."
+#| fig-width: 9
+#| fig-height: 4
+#| warning: false
+plot_distribution <- function(data, var, group) {
+  data |>
+    filter(!is.na({{ var }}), !is.na({{ group }})) |>
+    ggplot(aes({{ group }}, {{ var }}, fill = {{ group }})) +
+    geom_violin(alpha = 0.4, trim = FALSE, show.legend = FALSE) +
+    geom_boxplot(width = 0.15, alpha = 0.8, show.legend = FALSE) +
+    theme_minimal(base_size = 13)
+}
+
+p1 <- penguins |> plot_distribution(body_mass_g, species)
+p2 <- penguins |> plot_distribution(flipper_length_mm, island)
+
+library(patchwork)
+p1 + p2
+```
+
+`ggplot2` picks up the axis labels from the mapped expressions automatically, so
+`labs()` is not needed for basic labelling. For a figure that will be published
+you would still add a `labs()` argument to the function so units can be
+supplied — an exercise worth doing.
+
+Note the `filter()` at the start: dropping missing values inside the plotting
+function keeps the console free of "removed N rows" warnings, but it also hides
+them. For a quick exploratory function that is a reasonable trade; for anything
+you report from, count the exclusions separately.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: iteration
+
+1. Use `map_dbl()` to calculate the median of every numeric column in
+   `penguins`.
+2. Use `map_chr()` to get the class of every column.
+3. Combine both into a small data frame with one row per variable.
+4. Fit a linear model of `body_mass_g` on `flipper_length_mm` separately for
+   each species, and extract the slope from each.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex3-functions-sol
+# 1 and 2
+penguins |>
+  select(where(is.numeric)) |>
+  map_dbl(\(x) median(x, na.rm = TRUE))
+
+penguins |>
+  map_chr(\(x) class(x)[1])
+
+# 3 - a small codebook, built by iterating over columns
+tibble(
+  variable = names(penguins),
+  class = map_chr(penguins, \(x) class(x)[1]),
+  n_missing = map_int(penguins, \(x) sum(is.na(x))),
+  n_unique = map_int(penguins, n_distinct)
+)
+
+# 4 - one model per species, using nest() + map() + unnest()
+penguins |>
+  drop_na(body_mass_g, flipper_length_mm) |>
+  # nest() puts each species' rows into a list column called `data`
+  nest(.by = species) |>
+  mutate(
+    model = map(data, \(d) lm(body_mass_g ~ flipper_length_mm, data = d)),
+    coefficients = map(model, broom::tidy)
+  ) |>
+  select(species, coefficients) |>
+  unnest(coefficients) |>
+  filter(term == "flipper_length_mm") |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+`nest()` + `map()` + `unnest()` is the standard tidyverse pattern for
+"one model per group". The intermediate object is a data frame with a list
+column holding a model in each row, which keeps the model and the group label
+attached to each other — much harder to mismatch than a separate list of models
+and a separate vector of names.
+
+The slopes differ between species: an extra millimetre of flipper is worth more
+grams in a Gentoo than in an Adelie. That is a fitted interaction, arrived at
+without fitting an interaction — and it is worth noticing that three separate
+models is *not* the same analysis as one model with an interaction term. The
+separate models each use only their own species' data to estimate the residual
+variance; the interaction model pools it. Which you want depends on the
+question, and `map()` makes the wrong one just as easy to produce as the right
+one.
+:::
+:::
+
+## More information
+
+- [R for Data Science: functions](https://r4ds.hadley.nz/functions)
+- [R for Data Science: iteration](https://r4ds.hadley.nz/iteration)
+- [Programming with dplyr](https://dplyr.tidyverse.org/articles/programming.html)
+  — the reference for `{{ }}` and `:=`
+- [The purrr website](https://purrr.tidyverse.org/)
+- [Advanced R](https://adv-r.hadley.nz/) — when you want the underlying model

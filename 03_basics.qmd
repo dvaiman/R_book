@@ -1,4 +1,12 @@
-# Basics
+# R Basics {#sec-basics}
+
+::: {.callout-note}
+## What this chapter covers
+An orientation to the objects, functions and pipes you will meet everywhere in
+R. @sec-classes goes deeper on the same material — arithmetic and logical
+operators, vectors, factors, tibbles and base R subsetting — and adds exercises.
+Read this chapter for the overview, then that one for the detail.
+:::
 
 ## Objects
 

@@ -1,0 +1,237 @@
+# Positron: The Other IDE {#sec-positron}
+
+::: {.callout-note}
+## What this chapter covers
+RStudio is not the only way to write R any more. This chapter explains what
+Positron is, how it differs from RStudio, how to set it up, and how to decide
+whether to switch. Nothing else in this book depends on which IDE you use.
+:::
+
+```{r}
+#| label: setup-positron
+#| include: false
+library(webexercises)
+```
+
+## What Positron is
+
+[Positron](https://positron.posit.co/) is a free IDE from Posit — the same
+company that makes RStudio — built for Python and R. It was released in
+public beta in 2024 and has had stable releases since.
+
+The important architectural difference: RStudio was written from scratch for R,
+while Positron is built on Code OSS, the open-source foundation of Visual Studio
+Code. That single fact explains most of the differences below. Positron inherits
+VS Code's extension ecosystem, its editor, its keyboard shortcuts and its
+workspace model, and Posit has added the data-science pieces on top — a real
+console, a Variables pane, a Plots pane, a Help pane and a Data Explorer.
+
+::: {.callout-important}
+## You do not need Positron for this course
+Everything in this book works identically in RStudio, Positron, VS Code or plain
+R in a terminal. R is the language; the IDE is just an editor with conveniences
+attached. If you are new to R, stay in RStudio until you are comfortable, then
+try Positron when you are curious. Learning two new things at once is harder
+than learning one.
+:::
+
+## How it differs from RStudio
+
+### Projects and workspaces
+
+This is the difference that trips up RStudio users first.
+
+In RStudio, a project is marked by an `.Rproj` file, and opening it sets the
+working directory and loads project-specific settings.
+
+Positron has no equivalent of `.Rproj`. It uses VS Code's **workspace** model:
+you open a *folder*, and that folder becomes your working directory. There is no
+marker file unless you create project-specific settings, in which case Positron
+writes `.vscode/settings.json`.
+
+The practical consequences:
+
+- Positron will happily open a folder containing an `.Rproj` file and ignore it.
+- You can move between the two IDEs on the same project without anything
+  breaking.
+- The `here` package works in both. `here()` does not look only for `.Rproj`; it
+  recognises a whole list of root markers, including `.git`,
+  `.vscode/settings.json`, `_quarto.yml`, `renv.lock` and `DESCRIPTION`. If your
+  project is under version control — and it should be — `here()` finds the root
+  in Positron without you doing anything.
+
+::: {.callout-tip}
+## Add a `.here` file if you need one
+If a project has no `.Rproj` and no `.git`, `here()` has nothing to anchor to.
+Run `here::set_here()` once in the project root: it creates an empty `.here`
+file that both IDEs respect.
+:::
+
+### What RStudio still does that Positron does not
+
+Posit's own comparison lists three:
+
+1. **Saving and restoring the workspace** when you restart R. Positron does not
+   do this — which, given the advice in @sec-tidy to turn that feature off
+   anyway, is arguably a feature rather than a gap.
+2. **Dedicated panes and buttons for specialised tasks**, such as code profiling
+   or the package-development tools (`Build`, `Check`, `Install`). These are
+   available in Positron through the terminal and extensions, but not as
+   buttons.
+3. **The data import wizard** (**File → Import Dataset**). There is an open
+   feature request; for now you write the `read_csv()` call yourself. Since
+   @sec-import recommends copying the generated code into your script anyway,
+   this costs you a preview rather than a capability.
+
+### What Positron adds
+
+- **The Data Explorer.** Click a data frame in the Variables pane and it opens
+  in a sortable, filterable, scrollable viewer with column summaries and
+  missing-value counts. It is noticeably better than RStudio's `View()`.
+- **Multiple R versions**, selectable per session from the interpreter picker in
+  the top right.
+- **Python and R with equal support**, in the same window, in the same project.
+  If you collaborate with people who use Python, this matters.
+- **The VS Code extension ecosystem** — Quarto, Git tooling, spell checking,
+  and so on.
+- **Multiple consoles** running at once, so a long model fit does not block you
+  from doing anything else.
+- **Posit Assistant**, the built-in AI assistant (@sec-ai).
+
+### Things that will feel different on day one
+
+| | RStudio | Positron |
+|---|---|---|
+| Run current line | `Ctrl/Cmd + Enter` | `Ctrl/Cmd + Enter` |
+| Run whole chunk | `Ctrl/Cmd + Shift + Enter` | `Ctrl/Cmd + Shift + Enter` |
+| Insert pipe | `Ctrl/Cmd + Shift + M` | `Ctrl/Cmd + Shift + M` |
+| Insert chunk | `Ctrl/Cmd + Alt + I` | `Ctrl/Cmd + Alt + I` |
+| Command palette | `Ctrl/Cmd + Shift + P` | `Ctrl/Cmd + Shift + P` |
+| Restart R | `Ctrl/Cmd + Shift + F10` | Command palette → "Restart R" |
+| Project switching | `.Rproj` files | **File → Open Folder** |
+| Environment | Environment pane | Variables pane |
+
+The most useful habit in Positron is the **command palette**
+(`Ctrl/Cmd + Shift + P`). Almost everything is reachable by typing part of its
+name, which matters because there are fewer buttons than in RStudio.
+
+::: {.callout-tip}
+## Keep the RStudio keybindings
+If your fingers know RStudio, install the **RStudio Keymap** extension in
+Positron. It maps the shortcuts you already have to the equivalent commands.
+:::
+
+## Setting up Positron
+
+1. **Download** it from
+   [positron.posit.co/download](https://positron.posit.co/download.html).
+   It is free, and available for Windows, macOS and Linux.
+2. **Install R first**, if you have not already (@sec-install). Positron detects
+   installed R versions; it does not bundle one.
+3. **Open a folder**, not a file: **File → Open Folder**, and pick your project
+   directory. Opening a single `.qmd` file gives you an editor with no project
+   context, and relative paths will not behave as you expect.
+4. **Check the interpreter** in the top right. It shows which R version the
+   console is running. Click it to switch.
+5. **Install the extensions you want.** The Quarto extension is worth having
+   immediately; the RStudio Keymap extension if you are migrating.
+6. **Install Quarto** separately if you intend to render documents — Positron
+   does not bundle it either.
+
+::: {.callout-warning}
+## Packages are per R version, not per IDE
+Positron and RStudio share the same R installation and the same library, so
+every package you have installed is already available. But if you switch
+Positron to a *different* R version, that version has its own library and will
+appear to have no packages installed. This is expected behaviour, not a bug —
+and it is the reason `renv` exists (@sec-workflow).
+:::
+
+## Which should you use?
+
+An honest summary:
+
+**Stay with RStudio if** you are new to R, you develop packages, you rely on the
+import wizard or the profiler, or your department has documented workflows built
+around it. RStudio is not deprecated and Posit continues to develop it.
+
+**Try Positron if** you also write Python, you work with several R versions, you
+already know VS Code, you frequently inspect large datasets, or you want the
+built-in AI assistant.
+
+**Use both** — this is entirely reasonable, and Posit says so explicitly. The
+files are just files. Nothing about opening a project in one IDE prevents you
+from opening it in the other tomorrow.
+
+::: {.callout-note}
+## What actually makes your work reproducible
+Neither IDE. Reproducibility comes from an R project with a defined root, paths
+built with `here()`, a script that runs top to bottom in a clean session,
+recorded package versions, and version control. Those are properties of your
+code, not of the window it was typed into — which is why this chapter is short
+and the rest of the book does not mention the IDE again.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Positron uses `.Rproj` files to define a project. `r torf(FALSE)`
+
+Which feature does RStudio have that Positron currently lacks?
+`r mcq(c("A console", answer = "A data import wizard", "A plots pane", "Git integration"))`
+
+Positron and RStudio can be used on the same project. `r torf(TRUE)`
+
+If a project has no `.Rproj` and no `.git`, how do you give `here()` an anchor?
+`r mcq(c("setwd()", answer = "here::set_here()", "You cannot", "Rename the folder"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise: try it on a project you already have
+
+If you want to try Positron, do it on a project that already works.
+
+1. Install Positron and open an existing project folder with **Open Folder**.
+2. Run `here::here()` in the console. Does it find the right root? If not, why?
+3. Load a dataset and click it in the Variables pane. Compare the Data Explorer
+   with what `View()` gives you in RStudio.
+4. Render a Quarto document. Did it work, or is something missing?
+5. Open the command palette and search for "Restart R".
+
+::: {.callout-tip collapse="true"}
+## What to expect
+
+**Step 2** is the interesting one. `here()` looks upward from the current
+directory for any of a list of marker files. You can see the full list with:
+
+```{r}
+#| eval: false
+rprojroot::criteria
+```
+
+It includes `.here`, `.Rproj`, `.git`, `.vscode/settings.json`, `_quarto.yml`,
+`renv.lock` and `DESCRIPTION`, among others. So:
+
+- A project with an `.Rproj` file works in Positron even though Positron itself
+  ignores that file — `here` still reads it.
+- A project with only a `.git` directory works in both.
+- A project with none of these markers falls back to the current working
+  directory, which may not be what you want. `here::set_here()` fixes it by
+  creating an empty `.here` file, which takes priority over everything else.
+
+**Step 4**: if rendering fails, the usual cause is that Quarto is not installed
+system-wide. RStudio bundles a copy; Positron expects you to install it from
+[quarto.org](https://quarto.org/docs/get-started/).
+
+Whatever you conclude, notice what did *not* need to change: not one line of
+your R code. That is the point of writing code that depends on the project
+structure rather than on the editor.
+:::
+:::
+
+## More information
+
+- [Positron documentation](https://positron.posit.co/)
+- [Migrating from RStudio](https://positron.posit.co/migrate-rstudio.html)
+- [Comparing RStudio and Positron features](https://positron.posit.co/migrate-rstudio-compare.html)
+- [Positron FAQs](https://positron.posit.co/faqs.html)

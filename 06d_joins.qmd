@@ -1,0 +1,526 @@
+# Combining Datasets: Joins {#sec-joins}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Joins*. It covers the four mutating joins, the
+two filtering joins, `join_by()`, and what happens when a key matches more than
+one row — the single most common source of silent errors in registry work.
+:::
+
+```{r}
+#| label: setup-joins
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: joins-libs
+#| message: false
+library(tidyverse)
+```
+
+Joins combine two datasets using one or more **key** variables that appear in
+both — an ID number, a date, a municipality code. This is the everyday reality
+of registry research: exposure in one file, outcome in another, covariates in a
+third.
+
+Every join function has the same interface: it takes two datasets and returns
+one, as in `left_join(x, y)`.
+
+There are two families:
+
+- **Mutating joins** add columns from `y` to `x`: `left_join()`,
+  `right_join()`, `inner_join()`, `full_join()`.
+- **Filtering joins** keep or drop rows of `x` based on whether they match in
+  `y`, without adding any columns: `semi_join()`, `anti_join()`.
+
+```{r}
+#| label: joins-data
+x <- tribble(
+  ~key, ~val_x,
+  1, "x1",
+  2, "x2",
+  3, "x3"
+)
+
+y <- tribble(
+  ~key, ~val_y,
+  1, "y1",
+  2, "y2",
+  4, "y3"
+)
+
+x
+y
+```
+
+Note that key 3 exists only in `x`, and key 4 only in `y`. That mismatch is what
+distinguishes the joins from each other.
+
+## Mutating joins
+
+::: {.panel-tabset}
+## left_join()
+
+Every row of `x` is kept. Where there is no match in `y`, the new columns are
+`NA`.
+
+```{r}
+#| label: join-left
+left_join(x, y, by = join_by(key))
+```
+
+## right_join()
+
+Every row of `y` is kept.
+
+```{r}
+#| label: join-right
+right_join(x, y, by = join_by(key))
+```
+
+## inner_join()
+
+Only rows with a match in both are kept.
+
+```{r}
+#| label: join-inner
+inner_join(x, y, by = join_by(key))
+```
+
+## full_join()
+
+Every row from both datasets is kept.
+
+```{r}
+#| label: join-full
+full_join(x, y, by = join_by(key))
+```
+:::
+
+::: {.callout-tip}
+## `left_join()` is the default choice
+In almost all analysis work, one dataset defines your sample and the others add
+information to it. `left_join()` preserves your sample exactly, and missing
+matches show up as `NA` where you can count them.
+
+`inner_join()` silently deletes participants. That is occasionally what you
+want, but it should always be a decision you made on purpose, never the
+side-effect of a function choice.
+:::
+
+## The row-count check
+
+The most valuable habit in this entire chapter takes one line:
+
+```{r}
+#| label: join-check
+nrow(x)
+
+joined <- left_join(x, y, by = join_by(key))
+nrow(joined)
+```
+
+For a `left_join()`, the result should have **exactly** as many rows as `x`. If
+it has more, your key was not unique in `y` and rows have been duplicated. If it
+has fewer, something is very wrong.
+
+```{r}
+#| label: join-check-assert
+#| eval: false
+# make the check part of the code, so it fails loudly rather than silently
+stopifnot(nrow(joined) == nrow(x))
+```
+
+## When a key matches more than one row
+
+There are three possible outcomes for a row in `x`:
+
+- **No match**: it is dropped (inner join) or filled with `NA` (left join).
+- **One match**: it is kept, with the new columns added.
+- **More than one match**: it is **duplicated**, once per match.
+
+That last case is where analyses go wrong. Nothing errors, nothing warns loudly;
+your dataset just quietly grows, and every subsequent count, mean and model is
+computed on the wrong number of observations.
+
+```{r}
+#| label: join-many-data
+df1 <- tibble(key = c(1, 2, 2), val_x = c("x1", "x2", "x3"))
+df2 <- tibble(key = c(1, 2, 2), val_y = c("y1", "y2", "y3"))
+
+df1
+df2
+```
+
+```{r}
+#| label: join-many
+#| warning: true
+inner_join(df1, df2, by = join_by(key))
+```
+
+Three rows in, five rows out. Key 2 appears twice on each side, so it produces
+2 × 2 = 4 combinations. `dplyr` warns about this many-to-many relationship
+because it is usually a mistake.
+
+### Check before you join
+
+```{r}
+#| label: join-dupe-check
+# is the key unique in the dataset you are joining in?
+df2 |>
+  count(key) |>
+  filter(n > 1)
+```
+
+If this returns any rows, decide what to do **before** joining: deduplicate,
+aggregate to one row per key, or add a second key variable that makes the
+combination unique.
+
+```{r}
+#| label: join-relationship
+#| eval: false
+# state the relationship you expect; dplyr then errors if it is violated
+left_join(df1, df2, by = join_by(key), relationship = "one-to-one")
+```
+
+::: {.callout-important}
+## Use `relationship =`
+`relationship = "one-to-one"` or `"many-to-one"` turns a silent data-corruption
+bug into an immediate, informative error. In any pipeline you intend to trust —
+and certainly in anything that will end up in a manuscript — state the
+relationship you expect. It costs one argument and catches a class of error that
+is otherwise almost invisible.
+:::
+
+## Filtering joins
+
+Filtering joins never add columns. They answer the question "which rows of `x`
+have a counterpart in `y`?"
+
+```{r}
+#| label: join-semi-anti
+# semi_join: keep rows of x that DO have a match
+semi_join(x, y, by = join_by(key))
+
+# anti_join: keep rows of x that do NOT have a match
+anti_join(x, y, by = join_by(key))
+```
+
+`anti_join()` is a data-quality tool as much as a data-manipulation one. Before
+any real join, run it in both directions to see what will fail to match:
+
+```{r}
+#| label: join-anti-diagnostic
+# which participants in x have no record in y?
+anti_join(x, y, by = join_by(key))
+
+# and which records in y belong to no one in x?
+anti_join(y, x, by = join_by(key))
+```
+
+A handful of unmatched rows is normal. Half your sample failing to match usually
+means the two files code the key differently — one with leading zeros, one
+without; one as text, one as a number; one with a stray space.
+
+## `join_by()`
+
+`join_by()` is the modern way to specify keys. It handles the common case where
+the key has different names in the two datasets.
+
+```{r}
+#| label: joinby-data
+students <- tibble(
+  id = c(1, 2, 3),
+  name = c("Alice", "Bob", "Charlie"),
+  score = c(85, 90, 78)
+)
+
+grades <- tibble(
+  student_id = c(1, 2, 4),
+  name = c("Alice", "Bob", "David"),
+  grade = c("A", "B", "C")
+)
+
+students
+grades
+```
+
+```{r}
+#| label: joinby-use
+students |>
+  left_join(grades, by = join_by(id == student_id, name))
+```
+
+Two keys are used here: `id` matched against `student_id`, and `name` matched
+against itself. David is not in `students`, so he does not appear; and because
+the join is a left join, all three students are kept.
+
+::: {.callout-warning}
+## Always name your keys
+If you omit `by`, `dplyr` performs a *natural join* using every column the two
+datasets share, and prints a message telling you which. That is convenient and
+fragile: add a column called `date` or `n` to one dataset and your join silently
+starts matching on it too.
+
+Write `by = join_by(...)` explicitly. Always.
+:::
+
+### What happens to duplicate column names
+
+If both datasets have a column of the same name that is *not* a key, `dplyr`
+adds suffixes:
+
+```{r}
+#| label: join-suffix
+a <- tibble(id = 1:2, value = c(10, 20))
+b <- tibble(id = 1:2, value = c(99, 88))
+
+left_join(a, b, by = join_by(id))
+
+# clearer: say where each came from
+left_join(a, b, by = join_by(id), suffix = c("_baseline", "_followup"))
+```
+
+## Non-equi joins
+
+Joins do not have to match on equality.
+
+- **Cross joins** (`cross_join()`) match every combination of rows —
+  `nrow(x) * nrow(y)` rows out.
+- **Inequality joins** use `<`, `<=`, `>` or `>=` inside `join_by()`.
+- **Rolling joins** (`closest()`) find the nearest match rather than all
+  matches.
+- **Overlap joins** (`between()`, `within()`, `overlaps()`) work with intervals,
+  for example joining an event to whichever exposure period contains it.
+
+```{r}
+#| label: join-nonequi
+events <- tibble(
+  id = c(1, 1, 2),
+  event_date = as.Date(c("2020-03-15", "2021-06-01", "2020-11-20"))
+)
+
+exposure_periods <- tibble(
+  id = c(1, 1, 2),
+  start = as.Date(c("2020-01-01", "2021-01-01", "2020-01-01")),
+  end = as.Date(c("2020-12-31", "2021-12-31", "2020-12-31")),
+  exposure = c("low", "high", "medium")
+)
+
+# match each event to the exposure period that contains its date
+events |>
+  left_join(
+    exposure_periods,
+    by = join_by(id, between(event_date, start, end))
+  )
+```
+
+This pattern — attaching a time-varying exposure to a dated event — is extremely
+common in registry work, and doing it with an overlap join is far safer than
+doing it by hand.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which join keeps every row of the left dataset?
+`r mcq(c(answer = "left_join()", "right_join()", "inner_join()", "semi_join()"))`
+
+`anti_join(x, y)` returns rows of x that have a match in y. `r torf(FALSE)`
+
+After `left_join(x, y)`, the result has more rows than `x`. What does this tell
+you?
+`r longmcq(c(
+  "Nothing unusual; left joins normally add rows",
+  "The join failed and should be re-run",
+  answer = "The key is not unique in y, so rows in x have been duplicated once per match",
+  "There were missing values in the key column"
+))`
+
+Which argument makes dplyr error if the join is not one-to-one?
+`r mcq(c("by =", "suffix =", answer = "relationship =", "keep ="))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: choosing the right join
+
+```{r}
+#| label: ex1-join-data
+participants <- tibble(
+  id = c(101, 102, 103, 104, 105),
+  age = c(34, 51, 28, 63, 45),
+  group = c("A", "B", "A", "B", "A")
+)
+
+measurements <- tibble(
+  id = c(101, 102, 104, 106),
+  vo2max = c(45.2, 38.1, 33.7, 51.0)
+)
+```
+
+1. Which participants have no measurement?
+2. Which measurement belongs to nobody in the participant list?
+3. Join so that all five participants are kept. How many rows does the result
+   have, and how many missing values?
+4. Join so that only participants with a measurement are kept. Which participants
+   did you lose, and would you report that in a paper?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-join-sol
+# 1
+anti_join(participants, measurements, by = join_by(id))
+
+# 2 - id 106 has a measurement but is not in the participant list.
+# This is a data problem worth investigating, not something to ignore.
+anti_join(measurements, participants, by = join_by(id))
+
+# 3
+all_participants <- participants |>
+  left_join(measurements, by = join_by(id))
+
+all_participants
+nrow(all_participants)
+sum(is.na(all_participants$vo2max))
+
+# 4
+matched <- participants |>
+  inner_join(measurements, by = join_by(id))
+
+matched
+```
+
+The inner join drops participants 103 and 105 — 40% of the sample. In a paper
+that is a flow-diagram entry, not a silent step: "of 5 participants, 3 had a
+valid VO2max measurement". The left join keeps the information that they existed
+and let you report the missingness honestly. The inner join loses it forever.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: the duplicated key
+
+```{r}
+#| label: ex2-join-data
+patients <- tibble(
+  id = c(1, 2, 3),
+  sex = c("F", "M", "F")
+)
+
+visits <- tibble(
+  id = c(1, 1, 2, 3, 3, 3),
+  visit_date = as.Date(c(
+    "2023-01-10", "2023-06-15", "2023-02-20",
+    "2023-03-01", "2023-07-12", "2023-11-05"
+  )),
+  systolic = c(132, 128, 145, 138, 141, 135)
+)
+```
+
+1. How many rows does `left_join(patients, visits)` produce? Explain why.
+2. You want one row per patient with their **mean** systolic pressure. Do it
+   correctly.
+3. You want one row per patient with their **most recent** visit. Do it
+   correctly.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex2-join-sol
+# 1 - six rows, not three: each patient is duplicated once per visit.
+# This is correct behaviour, but it is no longer "one row per patient".
+patients |>
+  left_join(visits, by = join_by(id)) |>
+  nrow()
+
+# 2 - aggregate FIRST, then join, so the key is unique before joining
+visit_means <- visits |>
+  summarise(
+    n_visits = n(),
+    mean_systolic = mean(systolic),
+    .by = id
+  )
+
+patients |>
+  left_join(visit_means, by = join_by(id), relationship = "one-to-one")
+
+# 3 - reduce to one row per patient before joining
+latest_visit <- visits |>
+  slice_max(visit_date, n = 1, by = id)
+
+patients |>
+  left_join(latest_visit, by = join_by(id), relationship = "one-to-one")
+```
+
+The general rule: **reduce to one row per key, then join.** Joining first and
+aggregating afterwards gives the same answer here, but as soon as a third table
+enters the pipeline the duplication multiplies and the row count becomes
+meaningless.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: keys that do not match
+
+```{r}
+#| label: ex3-join-data
+register_a <- tibble(
+  pnr = c("19750101", "19820315", "19910722"),
+  exposure = c("high", "low", "medium")
+)
+
+register_b <- tibble(
+  pnr = c(19750101, 19820315, 19910722),
+  outcome = c(1, 0, 1)
+)
+```
+
+1. Try to join these two registers. What happens?
+2. Diagnose the problem.
+3. Fix it, and explain which of the two files you would rather change and why.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex3-join-sol
+#| error: true
+left_join(register_a, register_b, by = join_by(pnr))
+```
+
+```{r}
+#| label: ex3-join-diagnose
+class(register_a$pnr)
+class(register_b$pnr)
+```
+
+The key is character in one file and numeric in the other, so `dplyr` refuses to
+join them. This is one of the more helpful errors in the tidyverse — the
+alternative, matching them anyway, would be worse.
+
+```{r}
+#| label: ex3-join-fix
+register_a |>
+  left_join(
+    # identifiers are labels, not quantities, so character is the correct type
+    register_b |> mutate(pnr = as.character(pnr)),
+    by = join_by(pnr),
+    relationship = "one-to-one"
+  )
+```
+
+Convert the numeric file to character, not the other way round. An identifier is
+never arithmetic: you will never add two personal identity numbers together, but
+you will lose leading zeros the moment one is stored as a number. Here the dates
+happen to start with 1 or 2 so nothing was lost — a person born in the year 0075
+would already have been silently corrupted in `register_b`.
+:::
+:::
+
+## More information
+
+- [The dplyr joins reference](https://dplyr.tidyverse.org/reference/mutate-joins.html)
+- [R for Data Science, chapter on joins](https://r4ds.hadley.nz/joins)

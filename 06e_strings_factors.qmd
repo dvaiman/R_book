@@ -1,0 +1,418 @@
+# Text and Categories: stringr and forcats {#sec-strings-factors}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *stringr and forcats*. `stringr` handles text;
+`forcats` handles categorical variables. Between them they solve most of what
+goes wrong with the non-numeric columns of a real dataset.
+:::
+
+```{r}
+#| label: setup-strings
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: strings-libs
+#| message: false
+library(tidyverse)
+library(palmerpenguins)
+```
+
+## stringr: working with text
+
+Every `stringr` function starts with `str_` and takes the string as its first
+argument, which makes them pipe-friendly and easy to find by typing `str_` and
+pressing Tab.
+
+| Function | What it does | Example |
+|----------|--------------|---------|
+| `str_detect()` | Does the pattern occur? Returns `TRUE`/`FALSE` | `str_detect("Hello world", "world")` → `TRUE` |
+| `str_subset()` | Keep only elements that match | `str_subset(c("apple", "pear"), "a")` → `"apple", "pear"` |
+| `str_replace()` | Replace the **first** match | `str_replace("cat bat", "at", "o")` → `"co bat"` |
+| `str_replace_all()` | Replace **all** matches | `str_replace_all("cat bat", "at", "o")` → `"co bo"` |
+| `str_split()` | Split on a pattern | `str_split("a,b,c", ",")` |
+| `str_c()` | Join strings together | `str_c("R", "is", "great", sep = " ")` |
+| `str_length()` | Number of characters | `str_length("Hello")` → `5` |
+| `str_trim()` | Remove leading/trailing whitespace | `str_trim("  Hi  ")` → `"Hi"` |
+| `str_squish()` | Also collapse internal whitespace | `str_squish("Hi    there")` → `"Hi there"` |
+| `str_to_lower()` / `str_to_upper()` / `str_to_title()` | Change case | `str_to_title("hello world")` → `"Hello World"` |
+| `str_extract()` | Pull out the matching part | `str_extract("BP 132 mmHg", "\\d+")` → `"132"` |
+| `str_pad()` | Pad to a fixed width | `str_pad("7", 3, pad = "0")` → `"007"` |
+
+```{r}
+#| label: str-basics
+messy <- c("  Stockholm ", "GÖTEBORG", "malmö  ", "  Sthlm")
+
+str_trim(messy)
+str_to_title(str_trim(messy))
+str_length(messy)
+str_detect(messy, "holm")
+```
+
+::: {.callout-tip}
+## `str_trim()` versus `str_squish()`
+`str_trim()` removes whitespace at the ends only. `str_squish()` also collapses
+runs of internal whitespace to a single space. For data that has been through
+Excel and manual entry, `str_squish()` is almost always the one you want —
+`"Erik  Mattsson"` with two spaces will not match `"Erik Mattsson"` in a join.
+:::
+
+### Combining strings
+
+```{r}
+#| label: str-combine
+str_c("Participant", 1:3, sep = " ")
+
+# glue() is often more readable for interpolation
+library(glue)
+n <- 344
+glue("The dataset contains {n} observations.")
+```
+
+### Extracting numbers from text
+
+A recurring problem: a measurement stored as `"165 cm"` or `"72,5 kg"`.
+
+```{r}
+#| label: str-numbers
+heights <- c("165 cm", "175 cm", "162 cm")
+
+# readr::parse_number() handles the common cases directly
+parse_number(heights)
+
+# str_extract with a regular expression, when you need more control
+str_extract(heights, "\\d+") |> as.numeric()
+```
+
+`parse_number()` is more forgiving — it copes with thousands separators and
+currency symbols — and should be your first choice.
+
+### Regular expressions, briefly
+
+A regular expression is a pattern language. You do not need to master it, but a
+handful of pieces cover most data cleaning:
+
+| Pattern | Matches |
+|---------|---------|
+| `\\d` | any digit |
+| `\\d+` | one or more digits |
+| `\\s` | any whitespace |
+| `[A-Za-z]` | any letter |
+| `^` | start of the string |
+| `$` | end of the string |
+| `.` | any single character |
+| `|` | either / or |
+
+```{r}
+#| label: str-regex
+ids <- c("SUB001", "SUB002", "CTRL001", "sub003")
+
+str_detect(ids, "^SUB") # starts with SUB (case sensitive)
+str_detect(ids, regex("^sub", ignore_case = TRUE)) # case insensitive
+str_extract(ids, "\\d+") # the numeric part
+```
+
+::: {.callout-tip}
+## Regex is a good use of AI
+Regular expressions are famously write-only. Describing what you want in plain
+language and asking an assistant to produce the pattern works well — but always
+test the result against cases you know should match *and* cases you know should
+not. See @sec-ai.
+:::
+
+## forcats: working with factors
+
+Factors were introduced in @sec-classes. `forcats` makes them comfortable to
+work with. Every function starts with `fct_`.
+
+| Function | What it does |
+|----------|--------------|
+| `fct_relevel()` | Move specified levels to the front |
+| `fct_recode()` | Rename levels |
+| `fct_collapse()` | Merge several levels into one |
+| `fct_lump()` | Collapse rare levels into "Other" |
+| `fct_infreq()` | Order levels by frequency, most common first |
+| `fct_inorder()` | Order levels by first appearance in the data |
+| `fct_reorder()` | Order levels by another variable |
+| `fct_rev()` | Reverse the level order |
+| `fct_drop()` | Drop unused levels |
+| `fct_na_value_to_level()` | Turn `NA` into an explicit level |
+
+### Why level order matters
+
+The level order determines two things: the reference group in a model, and the
+order of groups in a table or figure.
+
+```{r}
+#| label: fct-order
+education <- factor(c(
+  "University", "Primary", "Secondary", "University", "Primary"
+))
+
+levels(education) # alphabetical, and clinically meaningless
+
+education <- fct_relevel(education, "Primary", "Secondary", "University")
+levels(education)
+```
+
+### Ordering a figure by a value
+
+The most immediately useful `forcats` function is `fct_reorder()`, which sorts a
+categorical axis by a numeric variable.
+
+```{r}
+#| label: fig-fct-reorder
+#| fig-cap: "Left: alphabetical order. Right: ordered by the value being plotted."
+#| fig-width: 9
+#| fig-height: 3.5
+library(patchwork)
+
+mass_summary <- penguins |>
+  filter(!is.na(body_mass_g)) |>
+  summarise(mean_mass = mean(body_mass_g), .by = c(species, island)) |>
+  mutate(group = str_c(species, island, sep = " / "))
+
+unordered <- mass_summary |>
+  ggplot(aes(mean_mass, group)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Alphabetical", x = NULL, y = NULL)
+
+ordered <- mass_summary |>
+  # order the bars by the value they show, so the ranking is readable
+  ggplot(aes(mean_mass, fct_reorder(group, mean_mass))) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Ordered by value", x = NULL, y = NULL)
+
+unordered + ordered
+```
+
+The right-hand panel is the same data and takes one extra function. Alphabetical
+ordering of a categorical axis is almost never informative.
+
+### Recoding and collapsing levels
+
+```{r}
+#| label: fct-recode
+diagnosis <- factor(c(
+  "Asthma", "COPD", "Diabetes", "Asthma", "Broken foot",
+  "COPD", "Migraine", "Eczema", "Asthma"
+))
+
+# rename levels: new = old
+fct_recode(diagnosis,
+  "Chronic obstructive pulmonary disease" = "COPD",
+  "Type 2 diabetes" = "Diabetes"
+) |>
+  levels()
+
+# merge several levels into one
+fct_collapse(diagnosis,
+  "Respiratory" = c("Asthma", "COPD"),
+  "Metabolic" = c("Diabetes")
+) |>
+  table()
+
+# keep the 2 most common, everything else becomes Other
+fct_lump_n(diagnosis, n = 2) |>
+  table()
+```
+
+::: {.callout-warning}
+## Collapsing categories is an analytical decision
+Merging "Asthma" and "COPD" into "Respiratory" changes what your results can
+say. It is often the right call — small cell counts make estimates unstable, and
+combining them may be more clinically meaningful — but it needs a stated
+rationale, and it should be decided before you look at the outcome, not after.
+
+`fct_lump_n()` in particular is convenient and dangerous: it chooses categories
+based on frequency in *your* sample, which is a data-dependent decision.
+:::
+
+### Making missing values explicit
+
+```{r}
+#| label: fct-na
+sex_with_na <- factor(c("female", "male", NA, "female", NA))
+
+table(sex_with_na) # NA is invisible
+table(sex_with_na, useNA = "ifany") # NA is counted but is not a level
+
+fct_na_value_to_level(sex_with_na, level = "Unknown") |>
+  table()
+```
+
+Making missingness an explicit level means it appears in every table and figure
+automatically, rather than quietly vanishing. In descriptive tables this is
+usually what you want.
+
+::: {.callout-note}
+## `fct_explicit_na()` is deprecated
+Older code and older tutorials use `fct_explicit_na()`. It still works but is
+superseded by `fct_na_value_to_level()`. Use the new name in new code.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which function removes whitespace at the ends *and* inside a string?
+`r mcq(c("str_trim()", answer = "str_squish()", "str_replace()", "str_pad()"))`
+
+`fct_reorder(group, value)` orders factor levels alphabetically.
+`r torf(FALSE)`
+
+To extract the number from `"weight: 72.5 kg"` you could use
+`r mcq(c("str_detect()", "str_length()", answer = "parse_number()", "str_pad()"))`
+
+The order of factor levels determines the reference group in a regression model.
+`r torf(TRUE)`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: cleaning up text
+
+```{r}
+#| label: ex1-str-data
+sites <- c(
+  " Stockholm", "STOCKHOLM ", "stockholm", "  Göteborg  ",
+  "goteborg", "GÖTEBORG", "Malmö", "malmo  "
+)
+```
+
+1. How many distinct values are there as it stands?
+2. Clean the vector so that whitespace and capitalisation no longer create false
+   distinctions. How many distinct values now?
+3. Two spellings of Gothenburg and Malmö remain (with and without the Swedish
+   characters). Merge them.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-str-sol
+n_distinct(sites) # 8 - every one looks different to R
+
+sites_clean <- sites |>
+  str_squish() |> # remove leading, trailing and internal whitespace
+  str_to_title() # normalise capitalisation
+
+n_distinct(sites_clean) # 5
+sort(unique(sites_clean))
+
+# the remaining differences are real spelling variants, so they need
+# an explicit decision rather than an automatic rule
+sites_final <- sites_clean |>
+  fct_collapse(
+    "Göteborg" = c("Göteborg", "Goteborg"),
+    "Malmö" = c("Malmö", "Malmo")
+  )
+
+table(sites_final)
+```
+
+The order matters: mechanical fixes (whitespace, case) first, then human
+judgement (which spellings mean the same place). Never collapse categories
+before you have looked at the full list of distinct values.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: extracting structured information
+
+```{r}
+#| label: ex2-str-data
+records <- tibble(
+  raw = c(
+    "SUB001_baseline_2023-01-15",
+    "SUB002_baseline_2023-01-18",
+    "SUB001_followup_2023-07-15",
+    "SUB003_baseline_2023-02-02"
+  )
+)
+```
+
+1. Split `raw` into three columns: `id`, `visit` and `date`.
+2. Make `date` a proper date column.
+3. How many participants are there, and how many have a follow-up visit?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex2-str-sol
+records_clean <- records |>
+  separate_wider_delim(
+    raw,
+    delim = "_",
+    names = c("id", "visit", "date")
+  ) |>
+  mutate(
+    date = as.Date(date),
+    visit = factor(visit, levels = c("baseline", "followup"))
+  )
+
+records_clean
+
+n_distinct(records_clean$id)
+
+records_clean |>
+  count(visit)
+```
+
+`separate_wider_delim()` is the current function; older code uses `separate()`,
+which is superseded. The newer function has a clearer name and better error
+messages when a row has the wrong number of pieces — which is exactly the case
+you want to be told about.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: ordering a figure
+
+Using `penguins`:
+
+1. Make a bar chart of the number of penguins per island.
+2. Order the bars from most to fewest.
+3. Now make a boxplot of `body_mass_g` by species, with species ordered by
+   median body mass.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: fig-ex3-fct
+#| fig-cap: "Bars ordered by count rather than alphabetically."
+penguins |>
+  # fct_infreq() orders by frequency; fct_rev() puts the largest at the top
+  ggplot(aes(y = fct_rev(fct_infreq(island)))) +
+  geom_bar(fill = "steelblue") +
+  labs(x = "Number of penguins", y = NULL) +
+  theme_minimal(base_size = 13)
+```
+
+```{r}
+#| label: fig-ex3-fct2
+#| fig-cap: "Species ordered by median body mass."
+#| warning: false
+penguins |>
+  filter(!is.na(body_mass_g)) |>
+  ggplot(aes(body_mass_g, fct_reorder(species, body_mass_g, .fun = median))) +
+  geom_boxplot(fill = "steelblue", alpha = 0.6) +
+  labs(x = "Body mass (g)", y = NULL) +
+  theme_minimal(base_size = 13)
+```
+
+`fct_reorder()` uses the median by default, so `.fun = median` is written here
+only to make the choice explicit for the reader. If you order by the mean
+instead, say so — with skewed data the two can give a different ranking.
+:::
+:::
+
+## More information
+
+- [The stringr website](https://stringr.tidyverse.org/) and its
+  [regex vignette](https://stringr.tidyverse.org/articles/regular-expressions.html)
+- [The forcats website](https://forcats.tidyverse.org/)
+- [R for Data Science: strings](https://r4ds.hadley.nz/strings),
+  [factors](https://r4ds.hadley.nz/factors)

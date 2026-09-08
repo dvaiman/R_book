@@ -1,90 +1,436 @@
+# Quarto {#sec-quarto}
 
-### Reproducible Research
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Quarto*. It covers what a Quarto document is
+made of, the chunk options you will actually use, and how to produce a
+self-contained report that someone else can open.
+:::
 
-Using Quarto for your analyses ensures that your code, results, and documentation are integrated into a single document, enhancing reproducibility and transparency.
+```{r}
+#| label: setup-quarto
+#| include: false
+library(webexercises)
+```
 
-Before starting to use quarto you can test where you want the output to appear when you print a data frame or a plot. as a standard it appears inline after each code chunk. But in the settings its possible to change it to appear in the console and the plot pane.
+## Reproducible research
 
+Using Quarto for your analyses puts code, results and documentation in a single
+document. The numbers in your text are computed from your data every time the
+document is rendered, so they cannot drift out of date. This is the practical
+core of reproducibility: not that you *could* reproduce the analysis, but that
+you do so automatically on every render.
+
+::: {.callout-tip}
+## Set the output location first
+By default, plots and printed data frames appear inline underneath each code
+chunk. You can change this in **Tools → Global Options → R Markdown** so that
+output goes to the console and the plot pane instead.
+
+Neither is right. Inline output is good for a document you are writing; the
+console and plot pane are better when you are debugging and want a large plot.
+Try both and pick one.
+:::
 
 {{< video https://youtu.be/hgpL-sppw7E start="10" >}}
 
+[Quarto.org](https://quarto.org) is the go-to place for full documentation and
+tutorials.
 
-[Quarto.org](https://quarto.org) is the go-to place for full documentation and more tutorials! 
-[Quarto documentation](https://bookdown.org/pdr_higgins/rmrwr/quarto-is-a-next-generation-rmarkdown.html)
+## The three parts of a Quarto document
 
-## Example Quarto sites
+1. **YAML header** — metadata about the document
+2. **Markdown content** — the text
+3. **Code chunks** — the code that produces results
 
--   [Champions Lessons Series](https://openscapes.github.io/series)
--   [Openscapes Approach Guide](https://openscapes.github.io/approach-guide/)
--   [NASA Earthdata Cloud Cookbook](https://nasa-openscapes.github.io/earthdata-cloud-cookbook/)
--   [2021 NASA Cloud Hackathon](https://nasa-openscapes.github.io/2021-Cloud-Hackathon/)
--   [Faylab Lab Manual](https://thefaylab.github.io/lab-manual/)
--   [A Quarto tip a day](https://mine-cetinkaya-rundel.github.io/quarto-tip-a-day/)
+### 1. YAML header
 
+The YAML header sits at the top, enclosed in `---` lines.
 
-# Quarto Document Basics
-
-Quarto is an open-source scientific and technical publishing system that allows you to create dynamic documents, presentations, websites, and more. It's similar to R Markdown but offers additional features and flexibility.
-
-## Structure of a Quarto Document
-
-A Quarto document typically consists of three main parts:
-
-1. **YAML Header**: Contains metadata about the document.
-2. **Markdown Content**: Text, code chunks, and other content written in Markdown.
-3. **Code Chunks**: Embedded code for dynamic content.
-
-### 1. YAML Header
-
-The YAML header is placed at the top of the document, enclosed by `---` lines. It includes metadata such as the title, author, date, and output format.
-
-```yaml
+``` yaml
 ---
 title: "Introduction to Quarto"
-author: "Dr. [Your Name]"
-date: "2024-06-12"
+author: "Your Name"
+date: "2026-09-08"
 format: html
 ---
 ```
 
-If wanting a self-contained Quarto document, i.e., a file that can be mailed to someone else for instance, then you should ensure all dependencies and resources (such as images, data files, etc.) are either embedded within the document or included in a way that they can be accessed by the recipient. Here’s how to achieve this:  
-```yaml
+For a file you can email to someone, everything needs to be embedded in the
+single HTML file:
+
+``` yaml
 ---
-title: "Self-Contained Quarto Document"
-author: "Dr. [Your Name]"
-date: "2024-06-12"
-format: 
+title: "Self-contained report"
+author: "Your Name"
+format:
   html:
-    self-contained: true
+    embed-resources: true
 ---
 ```
-Embedding Resources
 
-	1.	Embedding Images: Convert images to base64 encoding and embed them directly into the document.
-### 2. Markdown Content
+A more complete header for a report:
 
-Markdown is a lightweight markup language for creating formatted text using a plain-text editor. In a Quarto document, you write your content in Markdown. For example:
+``` yaml
+---
+title: "Physical activity and cardiorespiratory fitness"
+subtitle: "Preliminary analysis"
+author:
+  name: "Your Name"
+  affiliation: "GIH"
+date: today
+format:
+  html:
+    toc: true              # table of contents
+    toc-depth: 3
+    number-sections: true
+    code-fold: true        # readers can hide the code
+    code-tools: true       # a button to view the source
+    embed-resources: true
+    theme: cosmo
+    df-print: kable
+execute:
+  echo: true               # show code
+  warning: false           # hide warnings
+  message: false           # hide messages
+  cache: false
+bibliography: references.bib
+---
+```
 
-# Introduction
+::: {.callout-warning}
+## YAML is fussy about indentation
+YAML uses spaces, never tabs, and indentation is meaningful. `format: html` and
+`format:` followed by an indented `html:` mean different things. If rendering
+fails with an unhelpful error, check the header first — it is the most common
+cause.
+:::
 
-This is an introduction to Quarto documents. You can include headings, paragraphs, lists, and other Markdown elements.
+### 2. Markdown content
 
-## Example
+Markdown is a lightweight way of formatting plain text.
 
-Here is an example of a list:
+``` markdown
+# A level 1 heading
+## A level 2 heading
 
-- Item 1
-- Item 2
-- Item 3
+Plain text, with *italics*, **bold**, and `inline code`.
 
-### 3. Code Chunks
+- A bullet
+- Another bullet
 
-Code chunks allow you to embed R, Python, or other code within your document. They are enclosed by triple backticks and specify the language after the first set of backticks.
+1. A numbered item
+2. Another one
 
-R Code Chunk
+[A link](https://quarto.org)
 
-```{r}
-# R code example
+> A block quote.
+```
+
+::: {.callout-important}
+## `#` means two different things
+In **Markdown text**, `#` at the start of a line creates a heading.
+In **R code**, `#` starts a comment.
+
+Same character, completely different meaning depending on whether you are
+inside a code chunk. This confuses nearly everyone at least once.
+:::
+
+### 3. Code chunks
+
+Code chunks are enclosed in triple backticks with the language in braces. The
+keyboard shortcut to insert one is `Ctrl/Cmd + Alt + I`.
+
+```{{r}}
 summary(cars)
 ```
 
+Chunk options go on lines starting with `#|` at the top of the chunk:
+
+```{{r}}
+#| label: fig-example
+#| fig-cap: "A caption for the figure."
+#| echo: false
+#| warning: false
+plot(cars)
+```
+
+### Chunk options worth knowing
+
+| Option | Effect |
+|--------|--------|
+| `echo: false` | Run the code, show the output, hide the code |
+| `eval: false` | Show the code, do not run it |
+| `include: false` | Run the code, show nothing (for setup chunks) |
+| `warning: false` / `message: false` | Hide warnings / messages |
+| `fig-cap:` | Caption the figure |
+| `fig-width:` / `fig-height:` | Size in inches |
+| `label:` | Name the chunk, so errors point somewhere useful |
+| `cache: true` | Reuse the result unless the code changes |
+
+::: {.callout-tip}
+## Label your chunks
+An unlabelled chunk that fails reports an error in "chunk 14". A labelled one
+reports an error in `clean-outliers`. Labels beginning `fig-` also enable
+cross-referencing.
+:::
+
+## Inline code
+
+The single most useful Quarto feature for a report. Instead of typing a number
+into your text, compute it:
+
+``` markdown
+The dataset contains `r knitr::inline_expr("nrow(penguins)")` observations.
+```
+
+```{r}
+#| label: inline-demo
+#| message: false
+library(palmerpenguins)
+```
+
+The dataset contains `r nrow(penguins)` observations, of which
+`r sum(is.na(penguins$sex))` are missing a recorded sex.
+
+Change the data, re-render, and the sentence updates itself. A number typed by
+hand does not, and sooner or later your text and your table will disagree.
+
+## Callouts
+
+Quarto has five callout types, useful for structuring a report:
+
+::: {.callout-note}
+## Note
+Background information.
+:::
+
+::: {.callout-tip}
+## Tip
+A recommendation.
+:::
+
+::: {.callout-warning}
+## Warning
+Something that could go wrong.
+:::
+
+::: {.callout-important}
+## Important
+Something that must not be missed.
+:::
+
+::: {.callout-caution collapse="true"}
+## Caution (collapsed by default)
+Written as `::: {.callout-caution collapse="true"}`. The reader clicks to open
+it — which is how the exercises in this book hide their solutions.
+:::
+
+## Cross-references
+
+Label a figure or table with a `fig-` or `tbl-` prefix and refer to it with `@`:
+
+````
+```{{r}}
+#| label: fig-mass
+#| fig-cap: "Body mass by species."
+...
+```
+
+As shown in @fig-mass, Gentoo penguins are heaviest.
+````
+
+The number is generated automatically and stays correct when you reorder your
+document.
+
+## Rendering
+
+- Click **Render** in RStudio, or press `Ctrl/Cmd + Shift + K`.
+- Or run `quarto::quarto_render("my_document.qmd")`.
+
+Rendering runs the document in a **fresh R session**. This is the single most
+useful thing about it: anything that works in your console but not on render is
+relying on an object you created by hand and forgot about. If it renders, it is
+reproducible.
+
+::: {.callout-important}
+## Render often
+If you only render at the end, you get all of your errors at once, in a document
+that has grown large enough that finding them is hard. Render after every
+substantial addition.
+:::
+
+## Example Quarto sites
+
+- [Champions Lessons Series](https://openscapes.github.io/series)
+- [Openscapes Approach Guide](https://openscapes.github.io/approach-guide/)
+- [NASA Earthdata Cloud Cookbook](https://nasa-openscapes.github.io/earthdata-cloud-cookbook/)
+- [Faylab Lab Manual](https://thefaylab.github.io/lab-manual/)
+- [A Quarto tip a day](https://mine-cetinkaya-rundel.github.io/quarto-tip-a-day/)
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which chunk option runs the code but hides it from the reader?
+`r mcq(c("eval: false", answer = "echo: false", "include: false", "output: false"))`
+
+Rendering a Quarto document runs it in your current R session.
+`r torf(FALSE)`
+
+To make a single HTML file you can email, you add
+`r mcq(c("self-contained-html: true", answer = "embed-resources: true", "standalone: yes", "format: file"))`
+
+In a code chunk, `# something` is
+`r mcq(c("a heading", answer = "a comment", "a chunk option", "an error"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: build a small report
+
+Create a new Quarto document and make it into a short report on the `penguins`
+data.
+
+1. Write a YAML header with a title, your name, a table of contents, and
+   `embed-resources: true`.
+2. Add a setup chunk with `include: false` that loads `tidyverse` and
+   `palmerpenguins`.
+3. Write a sentence that uses inline R code to report the number of penguins and
+   the number of species.
+4. Add a labelled, captioned figure and refer to it from the text with `@`.
+5. Add a table of mean body mass per species.
+6. Render it and check that the figure number in the text is correct.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+````markdown
+---
+title: "The Palmer penguins"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+```{{r}}
+#| label: setup
+#| include: false
+library(tidyverse)
+library(palmerpenguins)
+theme_set(theme_minimal(base_size = 13))
+```
+
+## Introduction
+
+The dataset contains `r knitr::inline_expr("nrow(penguins)")` penguins from
+`r knitr::inline_expr("n_distinct(penguins$species)")` species, measured on
+`r knitr::inline_expr("n_distinct(penguins$island)")` islands.
+
+## Body mass
+
+```{{r}}
+#| label: fig-mass
+#| fig-cap: "Body mass by species."
+penguins |>
+  filter(!is.na(body_mass_g)) |>
+  ggplot(aes(species, body_mass_g, fill = species)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(x = NULL, y = "Body mass (g)")
+```
+
+As @fig-mass shows, Gentoo penguins are considerably heavier than the other
+two species.
+
+```{{r}}
+#| label: tbl-mass
+#| tbl-cap: "Mean body mass by species."
+penguins |>
+  summarise(
+    n = sum(!is.na(body_mass_g)),
+    mean_mass = round(mean(body_mass_g, na.rm = TRUE), 0),
+    .by = species
+  ) |>
+  knitr::kable(col.names = c("Species", "n", "Mean body mass (g)"))
+```
+````
+
+Two things to notice when you render it. First, the figure number in the text is
+generated, not typed — reorder the document and it follows. Second, if you
+change `filter()` to something else, both the figure and the sentence above it
+update together. That coupling between text and data is the whole point.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: make it render
+
+A colleague's document fails to render. Their setup looks like this:
+
+````markdown
+---
+title: My Analysis
+author: Anna
+format:
+html:
+  toc: true
+---
+
+```{{r}}
+library(tidyverse)
+d <- read_csv("C:/Users/anna/Desktop/data.csv")
+summary(d)
+```
+````
+
+Identify at least three problems.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+1. **The YAML indentation is wrong.** `html:` must be indented under `format:`.
+   As written, `format:` is empty and `html:` is a separate top-level key.
+
+2. **The file path is absolute** and points at one specific computer. Nobody
+   else can render this, and neither can Anna after she gets a new laptop. Use
+   an R project and `here("data", "data.csv")`.
+
+3. **The chunk is unlabelled**, so any error reports an unhelpful chunk number.
+
+Two more worth mentioning:
+
+4. **`library(tidyverse)` prints attaching messages** into the report. Add
+   `#| message: false`, or set it once in the YAML `execute:` block.
+
+5. **There is no `embed-resources: true`**, so the rendered HTML depends on a
+   folder of supporting files. Emailing just the `.html` gives the recipient an
+   unstyled page with no figures.
+
+```` markdown
+---
+title: "My Analysis"
+author: "Anna"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  message: false
+  warning: false
+---
+
+```{{r}}
+#| label: import-data
+library(tidyverse)
+library(here)
+
+d <- read_csv(here("data", "data.csv"))
+glimpse(d)
+```
+````
+:::
+:::

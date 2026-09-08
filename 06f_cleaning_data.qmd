@@ -1,0 +1,1006 @@
+# Cleaning Data {#sec-cleaning}
+
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Städa data*. It works through a fourteen-step
+cleaning workflow on a deliberately messy dataset, using the
+problem → solution → confirm pattern for every step.
+:::
+
+```{r}
+#| label: setup-cleaning
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: cleaning-libs
+#| message: false
+library(tidyverse)
+library(janitor)
+library(lubridate)
+```
+
+The goal of cleaning is a dataset that is **correct and consistent**, with every
+individual still present. This is not the same as *tidy* data, which is about
+shape (@sec-pivot). Data can be perfectly tidy and full of errors.
+
+Three rules before you start:
+
+1. **Save the original raw data somewhere safe** and never write over it.
+2. **Every change is a line of code**, never a manual edit. If you fix a typo by
+   hand in Excel, that fix is invisible, unrepeatable and undocumented.
+3. **Confirm every step.** After each change, look at the result. A cleaning
+   step that silently does nothing is worse than no step at all, because you
+   believe the problem is fixed.
+
+::: {.callout-important}
+## Cleaning is where data quietly disappears
+Almost every step below can remove observations. `remove_empty()`,
+`distinct()`, and any recode that produces `NA` all change your denominator.
+Track `nrow()` from start to finish and be able to account for every row you
+lost. In a paper this becomes your flow diagram.
+:::
+
+## The workflow
+
+1. Column names — no spaces, clear, consistent
+2. Whitespace
+3. Capitalisation
+4. Remove entirely empty rows and columns
+5. Duplicates
+6. Separate columns
+7. De-identify
+8. Extract numbers from text
+9. Implausible values
+10. Misspelled categories
+11. Date formats (ISO 8601)
+12. Variable classes
+13. Empty strings
+14. Derived variables
+
+## The raw data
+
+```{r}
+#| label: raw-data
+raw_data <- tribble(
+  ~"Name ", ~" Age ", ~"SEX", ~"City ", ~"Height", ~"Weight_kg",
+  ~"Diagnosis_Date", ~"Diagnosis ", ~"  Info  ", ~"Extra info",
+  "Maja Larsson", "23", "Woman", "Stockholm", "165 cm", "65 kg",
+  "01/20/2020", "Asthma ", " Info A ", NA,
+  "Per Gustafsson", "45", "Man", "Gothenburg ", "175 cm", "80 kg",
+  "2020-03-05", "COPD", " Info B ", NA,
+  "Sara Lindberg", "37", "Woman", "Umea", "162 cm", "70 kg",
+  "05/20/20", "DIABETES", " Info C ", NA,
+  "Erik  Mattsson", "29", "Men", " Malmo ", "180 cm", " 75 kg ",
+  "2020-07-15", "Unknown", " Extra Info ", NA,
+  "Johanna Berg", "", "WOMAN", " Halmstad", "168 cm", "60 kg",
+  "07/09/2020", "Asthma", "  ", NA,
+  "Klas Oberg", "66", "Man", " Kalmar ", "174 cm", "90 kg",
+  "2020-12-20", " COPD", " ", NA,
+  "Klas Oberg", "66", "Man", " Kalmar ", "174 cm", "90 kg",
+  "2020-12-20", " COPD", " ", NA,
+  "Asa Holm", "54", "Wooman", "Boras", "170 cm", "3 kg",
+  "2020-11-01", "Broken Foot", "", NA,
+  "Mikael Nilsson", "40", "Man", "  Gavle", "183 cm", "90 kg",
+  "2020-02-14", "Asthma", " Info D ", NA,
+  "Louise Hansen", "18", "Woman", " Sundsvall ", "160 cm", "55 kg",
+  "2019-09-07", "COPD", "ExtraInfo", NA,
+  "Oskar  Dahl", "37", "Man", "Karlstad", "178 cm", "",
+  "09/07/19", "Asthma", "info", NA,
+  "Felicia Bjork", "25 ", "Woman", "Karlstad", "162 cm", "65 kg",
+  "", "Diabetes", "", NA,
+  "Bjorn Karlsson", "55", "Man", "  Orebro ", "190 cm", "105 kg",
+  "2020-03-15", "  ", " Extra ", NA,
+  "Emmy Sandberg", " 40", "Woman", "  Eskilstuna", "164 cm", "70 kg",
+  "2020-03-07", "Asthma", "infoExtra", NA,
+  "Amanda Strom", " ", "Unknown", "   ", "158 cm", "62 kg",
+  "2020-03-07", "Asthma", "N/A", NA,
+  "Ingrid Palsson", "157", "Woman", "Gothenburg", "170 cm", "270 kg",
+  "2021-09-07", "COPD ", "Extra Info", NA,
+  "Viktor Gran", " 25", "Man", "  Lund", "183 cm", "68 kg",
+  "04/01/96", "Asthma", "info G", NA,
+  "Linus Dahlqvist", "17", "Man", "Halmstad ", "170 cm", "80 kg",
+  "2020-11-11", " COPD", " Extra ", NA,
+  "Elin Hellstrom", "55", "Woman", "Orebro", "166 cm", "78 kg",
+  "2019-11-11", "  ", " Extra ", NA,
+  "Cecilia Sand", "33", "Woman", " Sthlm", "168 cm", "",
+  "2020-07-15", "Asthma", "infoExtra", NA,
+  NA, NA, NA, NA, NA, NA, NA, NA, NA, NA
+)
+
+glimpse(raw_data)
+```
+
+Even from `glimpse()` you can see several problems at once: column names with
+spaces and inconsistent case, every column read as character, an entirely empty
+column, and an entirely empty last row.
+
+### Functions for a first look
+
+Several packages give you an overview. Try more than one — they surface
+different things.
+
+```{r}
+#| eval: false
+dplyr::glimpse(data) # types and first values
+skimr::skim(data) # types, missingness, distributions
+base::summary(data) # classic summary
+visdat::vis_dat(data) # visual map of types and missingness
+naniar::gg_miss_var(data) # missingness per variable
+summarytools::dfSummary(data) # a full HTML summary
+```
+
+## 1. Column names
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-1-problem
+colnames(raw_data)
+```
+
+Spaces, capitals, and inconsistent naming. Every one of these requires
+backticks to refer to, and backticks in analysis code are a constant irritation.
+
+## Solution
+
+```{r}
+#| label: clean-1-solution
+data_clean <- raw_data |>
+  janitor::clean_names() |> # to snake_case, no spaces
+  rename(
+    height_cm = height, # add the unit to the name
+    info_extra = extra_info
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-1-confirm
+colnames(data_clean)
+```
+:::
+
+::: {.callout-tip}
+## Put units in the column name
+`height_cm` and `weight_kg` are self-documenting. `height` is not, and every
+person who uses your data later will have to guess or ask. This is the cheapest
+piece of documentation available.
+:::
+
+## 2. Whitespace
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-2-problem
+data_clean |>
+  count(city) |>
+  head(8)
+```
+
+`" Malmo "` and `"Malmo"` are two different values to R.
+
+## Solution
+
+```{r}
+#| label: clean-2-solution
+data_clean <- data_clean |>
+  mutate(
+    # str_squish removes leading, trailing AND repeated internal whitespace
+    across(where(is.character), str_squish)
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-2-confirm
+data_clean |>
+  count(city) |>
+  head(8)
+```
+:::
+
+## 3. Capitalisation
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-3-problem
+data_clean |>
+  count(sex)
+```
+
+## Solution
+
+```{r}
+#| label: clean-3-solution
+data_clean <- data_clean |>
+  mutate(
+    name = str_to_title(name),
+    diagnosis = str_to_title(diagnosis),
+    city = str_to_title(city),
+    sex = str_to_title(sex),
+    info = str_to_lower(info)
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-3-confirm
+data_clean |>
+  count(sex)
+```
+:::
+
+Normalising case collapses `"WOMAN"` and `"Woman"` but leaves `"Wooman"` — a
+real typo needs a real decision, which is step 10.
+
+## 4. Empty rows and columns
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-4-problem
+data_clean |>
+  count(info_extra) # a column with nothing in it
+
+data_clean |>
+  slice_tail(n = 2) # and a completely empty last row
+```
+
+## Solution
+
+```{r}
+#| label: clean-4-solution
+n_before <- nrow(data_clean)
+
+data_clean <- data_clean |>
+  janitor::remove_empty(which = c("rows", "cols"))
+```
+
+## Confirm
+
+```{r}
+#| label: clean-4-confirm
+n_before
+nrow(data_clean) # one empty row removed
+colnames(data_clean) # info_extra is gone
+```
+:::
+
+::: {.callout-warning}
+## `remove_empty()` removes only *entirely* empty rows
+A row with an ID and nothing else is not empty, and it will survive. That is
+correct — such a row is usually a real participant with missing data, not junk.
+Always check `nrow()` before and after so you know exactly what was removed.
+:::
+
+## 5. Duplicates
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-5-problem
+data_clean |>
+  janitor::get_dupes()
+```
+
+## Solution
+
+```{r}
+#| label: clean-5-solution
+data_clean <- data_clean |>
+  distinct(.keep_all = TRUE)
+```
+
+## Confirm
+
+```{r}
+#| label: clean-5-confirm
+data_clean |>
+  janitor::get_dupes()
+
+nrow(data_clean)
+```
+:::
+
+::: {.callout-important}
+## Exact duplicates versus duplicated keys
+`distinct()` removes rows that are identical in every column — almost always a
+data-entry artefact, safe to remove.
+
+A *duplicated ID* with different values in other columns is a different problem
+entirely. That might be two visits for the same person (keep both, and add a
+visit variable), or two people who happen to share an identifier (a serious data
+problem). Check with `get_dupes(data, id)` and never resolve it automatically.
+:::
+
+## 6. Separating columns
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-6-problem
+data_clean |>
+  select(name) |>
+  head(4)
+```
+
+Two variables in one column: first name and surname.
+
+## Solution
+
+```{r}
+#| label: clean-6-solution
+data_clean <- data_clean |>
+  separate_wider_delim(
+    name,
+    delim = " ",
+    names = c("first_name", "last_name"),
+    too_many = "merge" # a middle name is merged into last_name
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-6-confirm
+data_clean |>
+  select(first_name, last_name) |>
+  head(4)
+```
+:::
+
+::: {.callout-note}
+## `separate()` is superseded
+The lecture uses `separate()`, which still works. `separate_wider_delim()` is
+the current function and is better in one important way: it errors when a row
+does not split into the expected number of pieces, instead of silently
+truncating. The `too_many` and `too_few` arguments let you say what should
+happen — which forces you to think about the edge cases.
+:::
+
+## 7. De-identification
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-7-problem
+data_clean |>
+  select(first_name, last_name) |>
+  head(3)
+```
+
+Names are directly identifying and have no analytical value.
+
+## Solution
+
+```{r}
+#| label: clean-7-solution
+data_clean <- data_clean |>
+  mutate(id = row_number()) |>
+  select(id, everything(), -first_name, -last_name)
+```
+
+## Confirm
+
+```{r}
+#| label: clean-7-confirm
+colnames(data_clean)
+```
+:::
+
+::: {.callout-important}
+## De-identify early, and keep the key separate
+Do this as early in the pipeline as you can. Once names are removed, the working
+dataset is far less sensitive, and any figure, table or intermediate file you
+produce cannot leak identities.
+
+If you need to link back to the source later, save the ID-to-name key as a
+separate file, in a separate location, with separate access control — never in
+the analysis folder and never in Git. Also note that a sequential `row_number()`
+is a *pseudonym*, not anonymisation: with the original file, anyone can reverse
+it. Under GDPR, pseudonymised data is still personal data.
+:::
+
+## 8. Extracting numbers from text
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-8-problem
+data_clean |>
+  select(height_cm, weight_kg) |>
+  head(4)
+```
+
+## Solution
+
+```{r}
+#| label: clean-8-solution
+data_clean <- data_clean |>
+  mutate(
+    height_cm = parse_number(height_cm),
+    weight_kg = parse_number(weight_kg)
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-8-confirm
+data_clean |>
+  select(height_cm, weight_kg) |>
+  head(4)
+```
+:::
+
+## 9. Implausible values
+
+If you find values that should not exist, work out **why** before deciding what
+to do. A weight of 3 kg in an adult sample is not a person; it is a typo, a unit
+error, or a stray entry. But a weight of 45 kg is unusual and entirely possible.
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: fig-clean-9-problem
+#| fig-cap: "Two points are clearly impossible for adult humans."
+#| warning: false
+data_clean |>
+  ggplot(aes(height_cm, weight_kg)) +
+  geom_point() +
+  labs(x = "Height (cm)", y = "Weight (kg)") +
+  theme_minimal(base_size = 13)
+```
+
+```{r}
+#| label: clean-9-problem2
+data_clean |>
+  summarise(
+    across(
+      c(age, height_cm, weight_kg),
+      list(
+        min = \(x) min(as.numeric(x), na.rm = TRUE),
+        max = \(x) max(as.numeric(x), na.rm = TRUE)
+      )
+    )
+  ) |>
+  glimpse()
+```
+
+## Solution
+
+```{r}
+#| label: clean-9-solution
+data_clean <- data_clean |>
+  mutate(
+    # values outside physiologically possible ranges for adults are set to
+    # NA rather than deleted, so the individual stays in the dataset
+    weight_kg = if_else(weight_kg <= 35 | weight_kg > 250, NA, weight_kg),
+    height_cm = if_else(height_cm <= 100 | height_cm > 230, NA, height_cm)
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: fig-clean-9-confirm
+#| fig-cap: "After setting implausible values to missing."
+#| warning: false
+data_clean |>
+  ggplot(aes(height_cm, weight_kg)) +
+  geom_point() +
+  labs(x = "Height (cm)", y = "Weight (kg)") +
+  theme_minimal(base_size = 13)
+```
+:::
+
+::: {.callout-important}
+## Set to `NA`, do not delete the row
+The person is still a participant; only one measurement is unusable. Deleting
+the whole row throws away their age, sex, diagnosis and everything else, and
+changes your sample size for reasons that have nothing to do with your research
+question.
+
+Also: document your cut-offs and choose them from external knowledge, not from
+the data. "More than 3 SD from the mean" is a data-dependent rule that removes
+observations *because they are extreme*, which is exactly the kind of value that
+is sometimes real and important.
+:::
+
+## 10. Misspelled categories
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-10-problem
+data_clean |>
+  count(sex)
+
+data_clean |>
+  count(diagnosis)
+```
+
+## Solution
+
+```{r}
+#| label: clean-10-solution
+data_clean <- data_clean |>
+  mutate(
+    sex = case_when(
+      sex %in% c("Man", "Men") ~ "Man",
+      sex %in% c("Woman", "Wooman") ~ "Woman",
+      # "Unknown" is genuinely missing information, not a third category
+      sex == "Unknown" ~ NA_character_,
+      .default = sex
+    ),
+    diagnosis = if_else(diagnosis == "Unknown", NA_character_, diagnosis)
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-10-confirm
+data_clean |>
+  count(sex)
+
+data_clean |>
+  count(diagnosis)
+```
+:::
+
+::: {.callout-tip}
+## `count()` before and after, always
+Recoding is where categories silently disappear. Compare the counts before and
+after: the totals should still add up, and every original category should have
+gone somewhere you intended. A `.default` that catches more than you expected is
+invisible unless you look.
+:::
+
+## 11. Dates
+
+ISO 8601 (`YYYY-MM-DD`) is the international standard, and the only date format
+that sorts correctly as text and is unambiguous between countries.
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-11-problem
+data_clean |>
+  select(diagnosis_date) |>
+  head(8)
+```
+
+Three different formats: ISO, American `MM/DD/YYYY`, and two-digit years.
+
+## Solution
+
+```{r}
+#| label: clean-11-solution
+data_clean <- data_clean |>
+  mutate(
+    # orders = tries each format in turn; put the most likely first
+    diagnosis_date = as.Date(
+      lubridate::parse_date_time(diagnosis_date, orders = c("ymd", "dmy", "mdy"))
+    )
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-11-confirm
+data_clean |>
+  select(diagnosis_date) |>
+  head(8)
+
+class(data_clean$diagnosis_date)
+```
+:::
+
+Alternatives when you know the format is consistent:
+
+- `mutate(date = lubridate::ymd(date))`
+- `janitor::convert_to_date()` for Excel serial numbers
+
+::: {.callout-warning}
+## `01/02/2020` is genuinely ambiguous
+Is that 1 February or 2 January? Nothing in the data can tell you. `orders`
+resolves it by whichever format you list first, which means **you** are making
+the choice, on the basis of where the file came from.
+
+Two-digit years are worse: `parse_date_time` maps `96` to 1996 and `19` to 2019
+using a cut-off rule. Always sanity-check the resulting range — a diagnosis date
+in 2068 tells you the rule guessed wrong.
+:::
+
+## 12. Variable classes
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-12-problem
+glimpse(data_clean)
+```
+
+`age` is still character, and `sex` should be a factor for modelling.
+
+## Solution
+
+```{r}
+#| label: clean-12-solution
+data_clean <- data_clean |>
+  mutate(
+    age = as.numeric(age),
+    sex = as.factor(sex)
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-12-confirm
+glimpse(data_clean)
+```
+:::
+
+## 13. Empty strings
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-13-problem
+data_clean |>
+  count(diagnosis)
+```
+
+An empty string `""` is not `NA`. It is a value of zero length, it does not
+count as missing, and it will not be caught by `is.na()`, `drop_na()` or
+`na.rm = TRUE`.
+
+## Solution
+
+```{r}
+#| label: clean-13-solution
+data_clean <- data_clean |>
+  mutate(across(where(is.character), \(x) na_if(x, "")))
+```
+
+## Confirm
+
+```{r}
+#| label: clean-13-confirm
+data_clean |>
+  count(diagnosis)
+```
+:::
+
+::: {.callout-important}
+## `""` is the most under-detected form of missingness
+It looks empty in every table and print-out, but every summary function treats
+it as a real value. A variable that appears to be 100% complete can be a third
+empty strings. Convert `""` to `NA` early, and check the missingness *after*
+that conversion, not before.
+
+The same applies to sentinel values: `999`, `-1`, `"N/A"`, `"missing"`. Handle
+these at import with the `na =` argument of `read_csv()`.
+:::
+
+## 14. Derived variables
+
+::: {.panel-tabset}
+## Problem
+
+```{r}
+#| label: clean-14-problem
+data_clean |>
+  select(height_cm, weight_kg) |>
+  head(4)
+```
+
+## Solution
+
+```{r}
+#| label: clean-14-solution
+data_clean <- data_clean |>
+  mutate(
+    # BMI in kg/m2; height is in cm so it is divided by 100
+    bmi = weight_kg / ((height_cm / 100)^2),
+    .after = weight_kg
+  )
+```
+
+## Confirm
+
+```{r}
+#| label: clean-14-confirm
+data_clean |>
+  select(height_cm, weight_kg, bmi) |>
+  head(4)
+
+# sanity-check the derived variable against known plausible limits
+data_clean |>
+  summarise(
+    min_bmi = min(bmi, na.rm = TRUE),
+    max_bmi = max(bmi, na.rm = TRUE),
+    n_missing = sum(is.na(bmi))
+  )
+```
+:::
+
+## The whole pipeline
+
+Once each step works, collect them into one readable pipeline. This is what
+belongs in your script — with the exploratory checks kept separately.
+
+```{r}
+#| label: clean-full-pipeline
+data_clean <- raw_data |>
+  # 1. Column names
+  janitor::clean_names() |>
+  rename(
+    height_cm = height,
+    info_extra = extra_info
+  ) |>
+  # 2-3. Whitespace and capitalisation
+  mutate(
+    across(where(is.character), str_squish),
+    name = str_to_title(name),
+    diagnosis = str_to_title(diagnosis),
+    city = str_to_title(city),
+    sex = str_to_title(sex),
+    info = str_to_lower(info)
+  ) |>
+  # 4. Entirely empty rows and columns
+  janitor::remove_empty(which = c("rows", "cols")) |>
+  # 5. Exact duplicate rows
+  distinct(.keep_all = TRUE) |>
+  # 6-7. Split the name, then replace it with a pseudonymous id
+  separate_wider_delim(
+    name,
+    delim = " ",
+    names = c("first_name", "last_name"),
+    too_many = "merge"
+  ) |>
+  mutate(id = row_number()) |>
+  select(id, everything(), -first_name, -last_name) |>
+  mutate(
+    # 8. Numbers out of text
+    weight_kg = parse_number(weight_kg),
+    height_cm = parse_number(height_cm),
+    # 9. Implausible values to NA (limits from adult physiology, not the data)
+    weight_kg = if_else(weight_kg <= 35 | weight_kg > 250, NA, weight_kg),
+    height_cm = if_else(height_cm <= 100 | height_cm > 230, NA, height_cm),
+    # 10. Misspelled categories
+    sex = case_when(
+      sex %in% c("Man", "Men") ~ "Man",
+      sex %in% c("Woman", "Wooman") ~ "Woman",
+      sex == "Unknown" ~ NA_character_,
+      .default = sex
+    ),
+    diagnosis = if_else(diagnosis == "Unknown", NA_character_, diagnosis),
+    # 11. Dates to ISO 8601
+    diagnosis_date = as.Date(
+      parse_date_time(diagnosis_date, orders = c("ymd", "dmy", "mdy"))
+    ),
+    # 12. Classes
+    age = as.numeric(age),
+    sex = as.factor(sex),
+    # 13. Empty strings to NA
+    across(where(is.character), \(x) na_if(x, "")),
+    # 14. Derived variable
+    bmi = weight_kg / ((height_cm / 100)^2)
+  ) |>
+  relocate(bmi, .after = weight_kg)
+
+glimpse(data_clean)
+```
+
+```{r}
+#| label: clean-final-check
+# account for every row: 21 raw rows, 1 empty, 1 exact duplicate
+nrow(raw_data)
+nrow(data_clean)
+```
+
+## A codebook
+
+When the cleaning is done, document what the variables are. Your future self is
+the main beneficiary.
+
+```{r}
+#| label: codebook
+codebook <- tibble(
+  variable = names(data_clean),
+  class = map_chr(data_clean, \(x) class(x)[1]),
+  n_missing = map_int(data_clean, \(x) sum(is.na(x))),
+  n_unique = map_int(data_clean, n_distinct)
+) |>
+  mutate(
+    pct_missing = round(100 * n_missing / nrow(data_clean), 1)
+  )
+
+codebook
+```
+
+For a fuller codebook, the `codebookr` package generates a Word document with
+value labels, ranges and frequencies.
+
+## Saving the cleaned data
+
+```{r}
+#| eval: false
+library(here)
+
+# RDS preserves factor levels and date classes exactly
+saveRDS(data_clean, here("data", "data_clean_2026_09_08.rds"))
+
+# CSV for sharing with people who do not use R
+write_csv(data_clean, here("data", "data_clean_2026_09_08.csv"))
+```
+
+::: {.callout-tip}
+## Date the file, do not overwrite it
+Putting the date in the filename means you can always go back to the version
+your results were based on. Overwriting `data_clean.csv` every time you re-run
+the script means that when a figure changes, you have no way of knowing which
+change caused it.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+An empty string `""` counts as missing to `is.na()`. `r torf(FALSE)`
+
+Which function converts column names to snake_case?
+`r mcq(c("str_to_lower()", answer = "janitor::clean_names()", "rename()", "make.names()"))`
+
+You find an adult with a recorded weight of 3 kg. What should you do?
+`r longmcq(c(
+  "Delete the whole row",
+  "Leave it, since removing data is never justified",
+  answer = "Set the weight to NA, keep the individual, and document the rule you used",
+  "Replace it with the sample mean"
+))`
+
+Which format should dates be stored in?
+`r mcq(c("DD/MM/YYYY", "MM/DD/YYYY", answer = "YYYY-MM-DD", "as text, unchanged"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: clean a small messy dataset
+
+```{r}
+#| label: ex1-clean-data
+messy <- tribble(
+  ~"Study ID", ~"  Group", ~"Baseline Weight", ~"Test date", ~"Notes",
+  "001", "Control ", "72,5 kg", "2023-01-15", " ok ",
+  "002", "control", "68 kg", "15/01/2023", "",
+  "003", "INTERVENTION", "0 kg", "2023-01-16", "NA",
+  "002", "control", "68 kg", "15/01/2023", "",
+  "004", "Intervention ", "81,2 kg", "2023-01-17", "note"
+)
+```
+
+1. Clean the column names.
+2. Fix whitespace and capitalisation in `group`.
+3. Remove the exact duplicate.
+4. Convert weight to a number, handling the decimal comma.
+5. Set the implausible weight to `NA`.
+6. Parse the dates.
+7. Convert `""` and `"NA"` to real missing values.
+8. Report how many rows you started and ended with.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-clean-sol
+clean <- messy |>
+  janitor::clean_names() |>
+  mutate(
+    across(where(is.character), str_squish),
+    group = str_to_title(group)
+  ) |>
+  distinct(.keep_all = TRUE) |>
+  mutate(
+    # the decimal comma has to be replaced before parse_number(),
+    # which otherwise reads 72,5 as 725
+    baseline_weight = parse_number(
+      str_replace(baseline_weight, ",", ".")
+    ),
+    baseline_weight = if_else(baseline_weight <= 20, NA, baseline_weight),
+    test_date = as.Date(parse_date_time(test_date, orders = c("ymd", "dmy"))),
+    across(where(is.character), \(x) na_if(x, "")),
+    across(where(is.character), \(x) na_if(x, "NA")),
+    group = as.factor(group)
+  )
+
+clean
+
+nrow(messy) # 5
+nrow(clean) # 4 - one exact duplicate removed
+```
+
+Two things worth noting. First, `parse_number("72,5")` returns 725, because it
+treats the comma as a thousands separator — a silent tenfold error, and exactly
+the kind of bug that survives to publication. Second, the string `"NA"` is text,
+not missing; `na_if()` has to be told about it explicitly.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: what would you check?
+
+You are handed a dataset of 1,200 participants with accelerometer data and asked
+to analyse it. Before running anything, list the checks you would perform.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+A reasonable checklist:
+
+**Structure**
+
+- `glimpse()` — is every column the class it should be? Numbers stored as text
+  are the single most common import problem.
+- `nrow()` and `n_distinct(id)` — is there one row per participant, or several?
+- `janitor::get_dupes(data, id)` — duplicated identifiers?
+
+**Missingness**
+
+- `naniar::gg_miss_var()` — how much is missing, per variable?
+- Are there sentinel values (`999`, `-1`, `""`, `"N/A"`) masquerading as real
+  data?
+- Is missingness patterned? Missing outcomes concentrated in one group is a very
+  different problem from scattered missingness.
+
+**Values**
+
+- `summary()` on every numeric variable — are the minima and maxima possible?
+- Wear time: does anyone have 26 hours in a day, or 3 minutes?
+- `count()` on every categorical variable — how many distinct levels are there,
+  and are any of them obvious typos or near-duplicates?
+
+**Dates**
+
+- Are all dates in a plausible range? Any dates before the study started or in
+  the future?
+- Is follow-up always after baseline?
+
+**Consistency**
+
+- Does BMI match height and weight where all three exist?
+- Do the group sizes match the study protocol?
+
+The point of the list is that all of this is done **before** any analysis, and
+all of it is code. Anything you find becomes a documented cleaning step; anything
+you cannot explain becomes a question for whoever collected the data.
+:::
+:::
+
+## More information
+
+- [The janitor package](https://sfirke.github.io/janitor/)
+- [The lubridate package](https://lubridate.tidyverse.org/)
+- [R for Data Science: dates and times](https://r4ds.hadley.nz/datetimes)

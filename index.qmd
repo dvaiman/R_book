@@ -2,22 +2,130 @@
 
 ## Welcome {#welcome}
 
-NavigatoR: Plotting Your Course Through R Fundamentals guides you on an explorative journey through the fundamentals of R programming. This book is designed for individuals who are eager to establish a reproducible workflow for their future data science endeavors. From the basics of R to advanced data manipulation and visualization techniques, this resource provides a structured pathway to mastering the essential skills.
+*NavigatoR: Plotting Your Course Through R Fundamentals* guides you on an
+explorative journey through the fundamentals of R programming. This book is
+designed for anyone who wants to establish a reproducible workflow for their
+data science work. From the basics of R to data manipulation and visualisation,
+it provides a structured pathway to the essential skills.
 
-You will start by setting up your R environment and understanding the core concepts of R programming. As you progress, you will learn how to effectively manage projects, organize your data, and perform robust data analyses. Key topics include:
+You will start by setting up your R environment and understanding the core
+concepts of the language. As you progress, you will learn how to manage
+projects, organise data, and carry out robust analyses.
 
--   **Introduction to R**: Understanding the R environment, data types, and basic operations.
--   **Project Setup**: Setting up R projects, managing working directories, and using the `here` package.
--   **Data Manipulation**: Using Tidyverse packages like `dplyr` and `tidyr` for data cleaning and transformation.
--   **Data Visualization**: Creating insightful and aesthetically pleasing visualizations with `ggplot2`.
--   **Troubleshooting**: Troubleshooting with generative AI.
--   **Packages**: Using packages for effective data handling and presentation.
+This book is not an exhaustive manual on every facet of R, nor is it a
+statistics textbook. It is a curated guide, focused on the concepts and
+techniques that matter most for getting real work done. It concentrates on the
+*why* and *how* of setting up a robust workflow in R — the practical insights I
+wish someone had given me when I started programming.
 
-The book is not designed to be an exhaustive manual on every facet of R programming, nor does it serve as a conventional statistics textbook. Instead, this book acts as a carefully curated guide, focusing on the essential concepts and techniques that are most vital for effective R programming. It delves into the ‘why’ and ‘how’ of setting up a robust workflow in R, addressing those critical insights and practical strategies that would have been invaluable when I first embarked on my programming journey.
+## How this book is organised
 
+The book follows the structure of the course
+**R: från datahantering till visualisering** at GIH, so each part corresponds to
+a block of lectures. The book goes into more depth than the slides and adds
+exercises; the two are meant to be used together.
+
+| Part | Chapters | Corresponding lectures |
+|------|----------|------------------------|
+| **Getting started** | Installation, Positron, projects, basics, classes and objects, Quarto, version control | *Introduktion till R*, *Klasser och objekt*, *Quarto* |
+| **Visualising data** | The grammar of graphics with `ggplot2` | *Datavisualisering* |
+| **Getting data in and out** | Importing, exporting, file paths | *Importera och exportera data* |
+| **Data wrangling** | Tidy data, `dplyr` verbs, pivoting, joins, strings and factors, cleaning | *Tidyverse verb*, *Pivoting*, *Joins*, *Städa data* |
+| **Exploring and communicating** | EDA, tables, the full workflow | *Explorativ dataanalys*, *Tabeller* |
+| **Beyond the basics** | Generative AI, writing functions and iteration, useful packages | *AI* |
+
+You do not have to read it in order. If you are stuck on a specific problem, go
+straight to the chapter that covers it — every chapter starts with a note saying
+what it contains.
+
+## How to use this book
+
+::: {.callout-tip}
+## Type the code, do not copy it
+Every chapter is full of runnable code. You will learn considerably more by
+typing it into your own R session, changing something, and seeing what breaks
+than by reading it or pasting it. The typos you make are part of the process:
+learning to read an error message is a skill in itself.
+:::
+
+Two kinds of exercise appear throughout:
+
+**Quick checks** — self-marking questions that appear in boxes like this one:
+
+::: {.webex-check .webex-box}
+Is this a self-marking question? `r webexercises::torf(TRUE)`
+
+What is `2 + 2`? `r webexercises::fitb(4)`
+:::
+
+Type or select an answer and the box tells you whether it is right. They exist
+to catch misunderstandings early, not to be graded.
+
+**Coding exercises** — longer tasks with a solution hidden behind a button:
+
+::: {.callout-note collapse="true"}
+## Exercise: an example
+
+Calculate the mean of the numbers 4, 8 and 15.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+mean(c(4, 8, 15))
+```
+
+Try to write your own answer before opening the solution. Getting it wrong and
+then seeing why is where most of the learning happens; reading the answer first
+mostly produces the feeling of having understood it.
+:::
+:::
+
+## Conventions
+
+- Code uses the **native pipe** `|>` rather than `%>%`. They behave the same in
+  almost all everyday use.
+- Objects are assigned with `<-` and named in `snake_case`.
+- Function names in the text are written as `mean()`, with parentheses.
+- Package names are written as `dplyr`, and `package::function()` is used where
+  it is helpful to show where a function comes from.
+- Comments in code explain **why** a step is there, not what the line does
+  mechanically.
+
+::: {.callout-note}
+## Package versions
+R and the tidyverse move quickly, and this book uses current idioms rather than
+the ones you will find in older tutorials. Where a function is recent, the text
+says which version introduced it — for example `filter_out()` and
+`recode_values()` need **dplyr 1.2.0** (@sec-dplyr).
+
+If a function in this book does not exist on your machine, update the package
+and check with `packageVersion("dplyr")`. If a function in someone else's code
+does not exist any more, `news(package = "dplyr")` will usually tell you what
+replaced it.
+:::
+
+## A note on data
+
+The examples use built-in datasets — mostly `palmerpenguins` — so that every
+piece of code in this book can be run by anyone, without downloading anything.
+
+If you work with registry, clinical or otherwise identifiable data, two rules
+apply from the very first line of code: never commit data files to Git, and
+never paste identifiable data into an AI assistant or any other hosted service.
+De-identify first. @sec-cleaning and @sec-workflow cover this in more detail.
 
 ::: {.callout-important}
 ## Tip
-
-If anything feels unclear in this book, then I would highly recommend using AI to explain or expand on the subject.
+If anything in this book is unclear, using an AI assistant to explain or expand
+on the topic is a good idea — as long as you check what it tells you against the
+documentation. See @sec-ai.
 :::
+
+## Acknowledgements
+
+The illustrations of tidy data are by [Allison
+Horst](https://allisonhorst.com/), who also created the `palmerpenguins`
+package. The web exercises use the
+[`webexercises`](https://psyteachr.github.io/webexercises/) package from the
+psychology teaching team at the University of Glasgow.

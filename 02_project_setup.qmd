@@ -1,4 +1,4 @@
-# Working Directories and the here Package in R
+# Projects and File Paths {#sec-projects}
 
 Managing working directories and file paths is a crucial aspect of data analysis and project organization in R. This section will cover how to set up and manage projects, the difference between absolute and relative paths, and the benefits of using the `here` package.
 

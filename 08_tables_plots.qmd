@@ -1,95 +1,431 @@
-# Tables and Figures
+# Tables {#sec-tables}
 
-Data visualization [Fundamentals of Data Visualization](https://clauswilke.com/dataviz/)\
-[Principles of Effective Data Visualization](https://www.sciencedirect.com/science/article/pii/S2666389920301896?s=09)
-
-
-# Rectangular Data and Table Packages in R
-
-Rectangular data refers to data organized in a tabular format, where rows represent observations and columns represent variables. This is a common structure for datasets in data analysis and statistics.
-
-## Example Dataset
-
-Let's create a simple rectangular dataset using the `data.frame` function in R.
-
-```
-# Creating a rectangular dataset
-data <- data.frame(
-  Name = c("Alice", "Bob", "Charlie", "David"),
-  Age = c(25, 30, 35, 40),
-  Score = c(90, 85, 88, 92)
-)
-
-# Display the dataset
-print(data)
-```
-
-## Table Packages in R
-
-R provides several packages to create and manipulate tables, each with its own advantages. Here, we'll look at four popular table packages: `tinytable`, `flextable`, `DT`, and `gt`.
-
-### 1. `tinytable`
-
-`tinytable` is a lightweight package for creating tables in R. It is simple and easy to use, making it a good choice for basic table needs.
-
-```
-# Using tinytable
-library(tinytable)
-tiny_table <- tinytable::tinytable(data)
-tiny_table
-```
-
-### 2. `flextable`
-
-`flextable` allows you to create complex tables with advanced formatting options. It is particularly useful for creating tables for Word or PowerPoint documents.
-
-```
-# Using flextable
-library(flextable)
-flex_table <- flextable::flextable(data)
-flex_table <- flextable::theme_vanilla(flex_table)
-flex_table
-```
-
-### 3. `DT`
-
-`DT` provides an interface to the JavaScript library DataTables, allowing you to create interactive tables with features like sorting, filtering, and pagination.
-
-```
-# Using DT
-library(DT)
-dt_table <- DT::datatable(data)
-dt_table
-```
-
-### 4. `gt`
-
-`gt` is designed for creating beautiful, publication-quality tables. It is highly customizable and integrates well with other tidyverse packages.
-
-```
-# Using gt
-library(gt)
-gt_table <- gt::gt(data)
-gt_table
-```
-
-::: note
-![Clear off the table](https://static1.squarespace.com/static/56713bf4dc5cb41142f28d1f/t/56fd4c83746fb9261146eed5/1459440776291/ClearOffTheTableMd.gif?s=09)
+::: {.callout-note}
+## What this chapter covers
+This chapter follows the lecture *Tabeller*. It covers building a summary table
+by hand with the tidyverse, the main table packages, and `gtsummary` for
+publication-ready "Table 1" output.
 :::
 
-## Why Use Table Packages?
+```{r}
+#| label: setup-tables
+#| include: false
+library(webexercises)
+```
 
-Table packages in R offer several benefits:
+```{r}
+#| label: tables-libs
+#| message: false
+library(tidyverse)
+library(palmerpenguins)
+library(gt)
+library(gtsummary)
+```
 
-- **Enhanced Presentation**: Improve the visual appeal of your tables with formatting options.
-- **Interactivity**: Enable sorting, filtering, and other interactive features.
-- **Customization**: Tailor the appearance of tables to fit the needs of your analysis or presentation.
-- **Integration**: Seamlessly integrate tables into reports, presentations, and dashboards.
+A table and a figure answer different questions. A **figure** shows shape,
+spread and relationship; a **table** gives exact values that a reader can quote,
+compare or reuse. If a reader needs to know that the mean was 4207 g rather than
+"about 4200", they need a table.
 
-By using these packages, you can create tables that are not only functional but also visually appealing and easy to interpret.
+The first table in almost every health-science paper is the same: sample
+characteristics, by group. It is worth being able to produce it quickly and
+correctly.
 
-## Conclusion
+## Building a table by hand
 
-In this section, we explored the basics of rectangular data and introduced four popular table packages in R. Each package has unique features and advantages, allowing you to choose the best one for your specific needs. Whether you need simple tables or complex, interactive ones, R provides powerful tools to help you achieve your goals.
+You can build any table with `dplyr` and `tidyr`. It is more work than a
+dedicated package, but it is completely transparent, and it is the right
+approach whenever your table does not fit a standard shape.
 
+```{r}
+#| label: table-manual
+continuous_summary <- penguins |>
+  drop_na(sex) |>
+  summarise(
+    across(
+      c(bill_length_mm, flipper_length_mm, body_mass_g),
+      list(
+        mean = \(x) mean(x, na.rm = TRUE),
+        sd = \(x) sd(x, na.rm = TRUE)
+      )
+    ),
+    n = n(),
+    .by = species
+  ) |>
+  # long format makes it easy to combine mean and sd into one cell
+  pivot_longer(
+    cols = !c(species, n),
+    names_to = c("variable", "statistic"),
+    names_pattern = "(.*)_(mean|sd)$"
+  ) |>
+  pivot_wider(names_from = statistic, values_from = value) |>
+  mutate(summary = sprintf("%.1f (%.1f)", mean, sd)) |>
+  select(species, n, variable, summary) |>
+  pivot_wider(names_from = species, values_from = summary)
 
+continuous_summary
+```
+
+::: {.callout-tip}
+## `sprintf()` and `round()` are not the same
+`round(4.20, 1)` prints as `4.2` — R drops the trailing zero, so a column of
+"4.2, 4.25, 4.3" looks ragged. `sprintf("%.1f", ...)` always prints the same
+number of decimals, which is what you want in a table. Alternatively, use the
+`digits` argument of your table package and let it handle formatting.
+:::
+
+Made presentable with `gt`:
+
+```{r}
+#| label: table-manual-gt
+continuous_summary |>
+  select(-n) |>
+  mutate(
+    variable = recode_values(
+      variable,
+      "bill_length_mm" ~ "Bill length (mm)",
+      "flipper_length_mm" ~ "Flipper length (mm)",
+      "body_mass_g" ~ "Body mass (g)"
+    )
+  ) |>
+  gt(rowname_col = "variable") |>
+  tab_header(
+    title = "Penguin measurements by species",
+    subtitle = "Mean (SD); penguins with unknown sex excluded"
+  ) |>
+  tab_source_note("Data: palmerpenguins")
+```
+
+## Table packages
+
+R has several table packages, each with a different emphasis:
+
+| Package | Best for | Output formats |
+|---------|----------|----------------|
+| **gt** | Full control over appearance; the tidyverse-adjacent standard | HTML, LaTeX, RTF, Word |
+| **gtsummary** | Summary and regression tables with almost no code | everything `gt` supports |
+| **flextable** | Word and PowerPoint output | Word, PowerPoint, HTML, PDF |
+| **DT** | Interactive tables the reader can sort and search | HTML only |
+| **knitr::kable** | Quick tables in a report, no dependencies | all |
+| **tinytable** | Lightweight, few dependencies | HTML, LaTeX, Word, Typst |
+
+### `kable()`: the quickest option
+
+```{r}
+#| label: table-kable
+penguins |>
+  summarise(
+    n = n(),
+    mean_mass = round(mean(body_mass_g, na.rm = TRUE), 0),
+    .by = species
+  ) |>
+  knitr::kable(
+    col.names = c("Species", "n", "Mean body mass (g)"),
+    caption = "A quick table with kable()"
+  )
+```
+
+### `gt`: full control
+
+```{r}
+#| label: table-gt
+penguins |>
+  drop_na(sex) |>
+  summarise(
+    n = n(),
+    mean_mass = mean(body_mass_g, na.rm = TRUE),
+    sd_mass = sd(body_mass_g, na.rm = TRUE),
+    .by = c(species, sex)
+  ) |>
+  gt(groupname_col = "species") |>
+  fmt_number(columns = c(mean_mass, sd_mass), decimals = 1) |>
+  cols_label(
+    sex = "Sex",
+    n = "n",
+    mean_mass = "Mean (g)",
+    sd_mass = "SD (g)"
+  ) |>
+  tab_header(title = "Body mass by species and sex") |>
+  tab_options(table.font.size = 13)
+```
+
+### `DT`: interactive
+
+```{r}
+#| label: table-dt
+#| eval: false
+penguins |>
+  select(species, island, sex, body_mass_g) |>
+  DT::datatable(
+    filter = "top",
+    options = list(pageLength = 10)
+  )
+```
+
+Interactive tables are excellent in an HTML report where the reader wants to
+look things up. They do not survive conversion to PDF or Word, so do not build
+your only version of an important table in `DT`.
+
+## `gtsummary`: Table 1 in one line
+
+`tbl_summary()` inspects each variable, picks a sensible summary, and formats
+the result.
+
+```{r}
+#| label: table-gtsummary-basic
+penguins |>
+  select(species, island, sex, bill_length_mm, flipper_length_mm, body_mass_g) |>
+  tbl_summary(by = species)
+```
+
+By default `tbl_summary()` reports the **median (IQR)** for continuous variables
+and **n (%)** for categorical ones, and it counts missing values in an "Unknown"
+row. The median is a deliberate choice: it is robust to skew, and it does not
+mislead the way a mean does when the distribution is asymmetric.
+
+### Customising it
+
+```{r}
+#| label: table-gtsummary-full
+penguins |>
+  select(species, island, sex, bill_length_mm, flipper_length_mm, body_mass_g) |>
+  tbl_summary(
+    by = species,
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    label = list(
+      island ~ "Island",
+      sex ~ "Sex",
+      bill_length_mm ~ "Bill length (mm)",
+      flipper_length_mm ~ "Flipper length (mm)",
+      body_mass_g ~ "Body mass (g)"
+    ),
+    digits = all_continuous() ~ 1,
+    missing_text = "Missing"
+  ) |>
+  add_overall() |>
+  add_n() |>
+  modify_header(label ~ "**Characteristic**") |>
+  modify_caption("**Table 1. Sample characteristics by species**")
+```
+
+### Adding p-values
+
+```{r}
+#| label: table-gtsummary-p
+penguins |>
+  select(species, sex, bill_length_mm, body_mass_g) |>
+  tbl_summary(
+    by = species,
+    statistic = all_continuous() ~ "{mean} ({sd})"
+  ) |>
+  add_p()
+```
+
+::: {.callout-warning}
+## Think before adding `add_p()`
+`add_p()` is one function call, which makes it tempting. But p-values in a Table 1
+are widely criticised, for good reasons:
+
+- In a **randomised trial**, baseline differences are by definition due to
+  chance, so testing them is meaningless — a significant result tells you the
+  randomisation was unlucky, not that anything is wrong.
+- In an **observational study**, the p-value depends on sample size. With
+  100,000 participants, a clinically irrelevant difference of 0.2 kg will be
+  highly significant; with 40, an important difference will not be.
+- A column of p-values invites the reader to scan for stars rather than look at
+  the magnitude of the differences.
+
+What matters is usually the **size** of the difference and whether it is large
+enough to matter clinically. If a journal requires the p-values, add them; do not
+add them by default.
+:::
+
+### Regression tables
+
+```{r}
+#| label: table-gtsummary-reg
+model <- lm(
+  body_mass_g ~ flipper_length_mm + species + sex,
+  data = penguins
+)
+
+model |>
+  tbl_regression(
+    label = list(
+      flipper_length_mm ~ "Flipper length (mm)",
+      species ~ "Species",
+      sex ~ "Sex"
+    )
+  ) |>
+  add_glance_source_note(include = c(r.squared, nobs))
+```
+
+`tbl_regression()` reads the model object directly, so the table cannot drift
+out of sync with the model — a real advantage over copying numbers by hand.
+
+### Exporting
+
+```{r}
+#| eval: false
+tbl <- penguins |>
+  tbl_summary(by = species)
+
+# Word
+tbl |>
+  as_flex_table() |>
+  flextable::save_as_docx(path = here::here("output", "table1.docx"))
+
+# HTML
+tbl |>
+  as_gt() |>
+  gt::gtsave(here::here("output", "table1.html"))
+
+# LaTeX, for a PDF manuscript
+tbl |>
+  as_gt() |>
+  gt::gtsave(here::here("output", "table1.tex"))
+```
+
+::: {.callout-tip}
+## Never retype numbers into Word
+Every manual transcription is a chance to introduce an error, and every change
+to the analysis requires redoing all of it. Export the table from R, and if a
+co-author edits the Word file, make the change in the code and re-export rather
+than patching the document.
+:::
+
+## Table design
+
+- **Round sensibly.** Report the precision you actually have. A mean body mass
+  of 4207.057 g implies a measurement precision that does not exist.
+- **Give units** in the row label, not in every cell.
+- **Report n** for every group, and report missingness explicitly.
+- **Right-align numbers** so that decimal points line up.
+- **Keep lines to a minimum.** Horizontal rules above and below the header and
+  at the foot; vertical rules almost never.
+- **One idea per table.** Two related tables are easier to read than one that
+  does both jobs.
+- **Give the table a caption that stands alone.** A reader who sees only the
+  table should understand what it shows.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which function creates a "Table 1" of sample characteristics by group?
+`r mcq(c("kable()", "gt()", answer = "tbl_summary()", "summary()"))`
+
+By default, `tbl_summary()` reports the mean and standard deviation for
+continuous variables. `r torf(FALSE)`
+
+Which package is the best choice for a table that has to go into a Word
+document?
+`r mcq(c("DT", answer = "flextable", "kableExtra", "tinytable"))`
+
+Why are p-values in a Table 1 of a randomised trial often criticised?
+`r longmcq(c(
+  "Because they are difficult to calculate correctly",
+  answer = "Because any baseline imbalance is by definition due to chance, so testing it answers no useful question",
+  "Because gtsummary computes them incorrectly",
+  "Because they should be Bonferroni corrected"
+))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: build a Table 1
+
+Using `penguins`, produce a table of sample characteristics by **island** that:
+
+1. Reports mean (SD) for continuous variables and n (%) for categorical ones.
+2. Uses readable labels with units.
+3. Includes an overall column.
+4. Excludes the `year` variable.
+5. Has a caption.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-tables-sol
+penguins |>
+  select(-year) |>
+  tbl_summary(
+    by = island,
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    label = list(
+      species ~ "Species",
+      sex ~ "Sex",
+      bill_length_mm ~ "Bill length (mm)",
+      bill_depth_mm ~ "Bill depth (mm)",
+      flipper_length_mm ~ "Flipper length (mm)",
+      body_mass_g ~ "Body mass (g)"
+    ),
+    digits = all_continuous() ~ 1,
+    missing_text = "Missing"
+  ) |>
+  add_overall() |>
+  modify_caption("**Table 1. Penguin characteristics by island**")
+```
+
+Look at the species row. Torgersen and Dream contain only some of the species,
+and Biscoe is 74% Gentoo. Any difference between islands in this table is
+largely a difference between species — the same confounding seen in @sec-eda.
+A table makes this visible only if you read the composition rows, which is a
+good reason to always include them.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: from summary to presentation
+
+1. Calculate, for each combination of species and sex, the number of penguins
+   and the mean and SD of `flipper_length_mm`.
+2. Format it as one cell per group in the form `mean (SD)`.
+3. Present it with species as rows and sex as columns.
+4. Turn it into a `gt` table with a header and a source note.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex2-tables-sol
+penguins |>
+  drop_na(sex, flipper_length_mm) |>
+  summarise(
+    n = n(),
+    mean_flipper = mean(flipper_length_mm),
+    sd_flipper = sd(flipper_length_mm),
+    .by = c(species, sex)
+  ) |>
+  # combine the statistics into a single presentation cell
+  mutate(
+    cell = sprintf("%.1f (%.1f), n = %d", mean_flipper, sd_flipper, n)
+  ) |>
+  select(species, sex, cell) |>
+  pivot_wider(names_from = sex, values_from = cell) |>
+  gt(rowname_col = "species") |>
+  tab_header(
+    title = "Flipper length by species and sex",
+    subtitle = "Mean (SD) in mm"
+  ) |>
+  cols_label(female = "Female", male = "Male") |>
+  tab_source_note("Penguins with unknown sex excluded (n = 11).")
+```
+
+Including `n` in every cell and stating the exclusion in the source note means
+the table can be read without the surrounding text — which is how tables are
+usually read.
+:::
+:::
+
+## More information
+
+- [gtsummary](https://www.danieldsjoberg.com/gtsummary/), including video
+  tutorials
+- [The gt package](https://gt.rstudio.com/)
+- [flextable](https://davidgohel.github.io/flextable/)
