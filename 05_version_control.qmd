@@ -18,13 +18,104 @@ Git is the most widely used version control system today. It is highly flexible 
 
 When working on R projects, integrating version control with your workflow can significantly improve the manageability and reproducibility of your work. RStudio, a popular IDE for R, includes integrated support for Git and Subversion, making it easier to track changes, revert to previous states, and collaborate with others.
 
-### Setting Up Git with RStudio
-1. **Install Git**: Ensure Git is installed on your system and configure it with your user details.
-2. **Initialize a Repository**: Start a new R project in RStudio and initialize it as a Git repository.
-3. **Commit Changes**: As you make changes to your R scripts or data files, commit these changes to track them in Git.
+### Before either IDE: install and configure Git
 
-[Check this for more information on version control in Rstudio](https://docs.posit.co/ide/user/ide/guide/tools/version-control.html).  
-[and here](https://happygitwithr.com/)
+Both editors drive the same Git underneath, so this part is identical.
+
+1. **Install Git** from [git-scm.com](https://git-scm.com/downloads) if you do
+   not already have it. On macOS, running `git --version` in a terminal will
+   offer to install it.
+2. **Tell Git who you are.** This only has to be done once per computer, and the
+   name and email end up in every commit you make:
+
+```{r}
+#| eval: false
+usethis::use_git_config(
+  user.name = "Your Name",
+  user.email = "you@example.com"
+)
+```
+
+3. **Connect to GitHub** if you want a remote copy. The `usethis` package
+   handles the fiddly parts:
+
+```{r}
+#| eval: false
+usethis::create_github_token() # opens GitHub to create a personal access token
+gitcreds::gitcreds_set() # paste the token in when prompted
+```
+
+::: {.callout-tip}
+## `usethis` works the same in both IDEs
+`usethis::use_git()`, `usethis::use_github()` and `usethis::git_sitrep()` are
+plain R functions, so they behave identically in RStudio and Positron. When in
+doubt, `git_sitrep()` prints a diagnosis of your whole Git and GitHub setup and
+tells you what is missing.
+:::
+
+### Setting Up Git with RStudio
+
+1. **Initialise a repository**: in an existing project, run
+   `usethis::use_git()`, or use **Tools → Version Control → Project Setup** and
+   choose Git. RStudio will offer to restart.
+2. **Use the Git pane** that appears in the top-right quadrant. Tick the files
+   you want to include (this is *staging*), click **Commit**, write a message,
+   and commit.
+3. **Push and pull** with the arrows in the same pane.
+4. **View history** with the clock icon, and see what changed in a file with
+   **Diff**.
+
+[More on version control in RStudio](https://docs.posit.co/ide/user/ide/guide/tools/version-control.html)
+
+### Setting Up Git with Positron
+
+Positron inherits VS Code's Git integration, so the concepts are the same but
+the buttons are in different places (@sec-positron).
+
+1. **Open the folder** as a workspace — **File → Open Folder**. Positron detects
+   an existing `.git` directory automatically.
+2. **Initialise a repository** if there is not one yet: open the **Source
+   Control** view in the activity bar on the left (or `Ctrl/Cmd + Shift + G`)
+   and click **Initialize Repository**. `usethis::use_git()` in the console does
+   the same thing and also sets up a sensible `.gitignore`.
+3. **Stage and commit** in the Source Control view. Hover a changed file and
+   click **+** to stage it, type a commit message in the box at the top, and
+   press `Ctrl/Cmd + Enter` to commit.
+4. **Push and pull** from the **...** menu in the Source Control view, or from
+   the sync button in the status bar at the bottom.
+5. **View the diff** by clicking a file name in the Source Control list — it
+   opens a side-by-side comparison, which is one of the things Positron does
+   noticeably better than RStudio.
+
+::: {.callout-note}
+## Differences worth knowing
+- **Staging is explicit.** RStudio's checkbox and Positron's **+** button do the
+  same thing (`git add`), but in Positron you can also stage *part* of a file by
+  selecting lines in the diff view and choosing "Stage Selected Ranges". That is
+  genuinely useful when one editing session produced two unrelated changes.
+- **There is no `.Rproj` to commit** in a Positron-only project. That is fine —
+  `.git` is itself a project root marker, so `here()` still works
+  (@sec-positron).
+- **The terminal is always there.** Anything the interface cannot do,
+  `git` in the terminal can. Positron's integrated terminal opens with
+  `Ctrl + backtick`.
+:::
+
+::: {.callout-important}
+## Add data to `.gitignore` before your first commit
+This matters more than which IDE you use. Removing a file in a later commit does
+**not** remove it from the history — the data is still there for anyone who
+clones the repository.
+
+`usethis::use_git_ignore(c("data/", "data-raw/", "*.csv", "*.sav", "*.rds"))`
+adds the entries, and `usethis::use_git()` sets up a reasonable default
+`.gitignore` when it initialises the repository. Check `git status` before your
+first commit and confirm that no data file is listed.
+:::
+
+[Happy Git and GitHub for the useR](https://happygitwithr.com/) is the standard
+reference for all of this, and it covers both the setup and what to do when it
+goes wrong.
 
 ::: {.callout-tip}  
 # Git and GitHub are not the same.

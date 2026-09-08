@@ -173,6 +173,151 @@ The `cli` package produces nicer versions of all three, and `rlang::abort()` is
 what the tidyverse uses internally.
 :::
 
+## Three ways to write an anonymous function
+
+Not every function needs a name. When you pass a function to `across()`,
+`map()`, `filter()` or `sapply()`, it is often used once and never again — an
+**anonymous function**.
+
+R gives you three ways to write one, and you will meet all three in real code.
+
+```{r}
+#| label: lambda-three-ways
+values <- list(c(1, 2, NA), c(4, 5, 6))
+
+# 1. the classic: function(x)
+map_dbl(values, function(x) mean(x, na.rm = TRUE))
+
+# 2. the backslash shorthand, added in R 4.1 (2021)
+map_dbl(values, \(x) mean(x, na.rm = TRUE))
+
+# 3. the purrr formula, using .x for the argument
+map_dbl(values, ~ mean(.x, na.rm = TRUE))
+```
+
+All three produce the same result. They are not equally good choices.
+
+### `\(x)`: the one to use
+
+`\(x)` is exactly `function(x)` with a shorter spelling. The backslash is
+chosen because it resembles the λ of lambda calculus, where the idea of an
+anonymous function comes from. It is **base R**, so it works everywhere — in
+`sapply()`, in `across()`, in `map()`, in your own functions, in a package.
+
+```{r}
+#| label: lambda-equivalence
+identical(
+  body(\(x) x + 1),
+  body(function(x) x + 1)
+)
+```
+
+This is not a tidyverse feature, and it is not new any more: R 4.1 was released
+in 2021, and `purrr` itself now requires R >= 4.1 specifically so that it can
+rely on the base pipe and this shorthand.
+
+### `~ .x`: the purrr formula
+
+Before R 4.1 there was no short way to write an anonymous function, so `purrr`
+invented one: a one-sided formula, where the argument is `.x` (and `.y` for a
+second argument).
+
+```{r}
+#| label: lambda-formula
+map2_dbl(1:3, 4:6, ~ .x + .y) # formula
+map2_dbl(1:3, 4:6, \(x, y) x + y) # the same thing
+```
+
+It still works, it is not deprecated, and you will see it constantly — in
+Stack Overflow answers, in older tutorials, and in your lecture slides. But it
+has two real drawbacks:
+
+- **It only works inside functions that understand it** — `purrr`, and
+  tidyverse functions built on `rlang::as_function()`. Pass `~ .x + 1` to base
+  R's `sapply()` and you get a formula object, not a function, and a confusing
+  error.
+- **`.x` and `.y` say nothing.** `\(participant, visit)` documents itself;
+  `~ .x + .y` requires the reader to work out what each placeholder refers to.
+
+### When to use which
+
+| Situation | Use |
+|-----------|-----|
+| Any anonymous function, tidyverse or base | `\(x)` |
+| Very short expression where the argument is obvious | `\(x)` is still fine |
+| The function is used more than once, or is longer than a line or two | **Give it a name** |
+| Reading or maintaining older code | Recognise `~ .x`, leave it alone unless you are already editing that line |
+| Writing for R < 4.1 (rare now) | `function(x)` |
+
+::: {.callout-tip}
+## The rule in one line
+**Write `\(x)`. Read `~ .x`.**
+
+New code gets the backslash. Old code that already works gets left alone — a
+mass find-and-replace across a working script is a change with real risk and no
+benefit.
+:::
+
+::: {.callout-warning}
+## Where the difference actually bites
+Two places where the choice is not cosmetic.
+
+**Passing extra arguments to `across()`.** This was the old way, and it is
+deprecated since dplyr 1.1:
+
+```{r}
+#| label: lambda-across-old
+#| eval: false
+# deprecated: passing ... through across()
+penguins |>
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+```
+
+```{r}
+#| label: lambda-across-new
+penguins |>
+  summarise(across(where(is.numeric), \(x) mean(x, na.rm = TRUE))) |>
+  glimpse()
+```
+
+The lambda makes it explicit which function receives `na.rm`, which is exactly
+why the old form was removed: with two nested functions it was genuinely
+ambiguous.
+
+**Base R functions do not understand formulas:**
+
+```{r}
+#| label: lambda-base-fails
+#| error: true
+sapply(list(1:3, 4:6), ~ mean(.x))
+```
+
+```{r}
+#| label: lambda-base-works
+sapply(list(1:3, 4:6), \(x) mean(x))
+```
+:::
+
+### One more shorthand: the extraction shortcut
+
+`purrr` also lets you pass a **string or a number** instead of a function, to
+pull out an element by name or position. This one has no base R equivalent and
+is worth knowing:
+
+```{r}
+#| label: lambda-extract
+records <- list(
+  list(id = 1, score = 88),
+  list(id = 2, score = 92)
+)
+
+map_dbl(records, "score") # by name
+map_dbl(records, 2) # by position
+```
+
+Useful when unpacking the nested lists that come back from an API or a JSON
+file.
+
 ## The tidyverse way: functions that take column names
 
 Base R functions take *values*. Tidyverse verbs take *bare column names* —
