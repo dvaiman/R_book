@@ -52,19 +52,51 @@ continuous_summary <- penguins |>
     n = n(),
     .by = species
   ) |>
+  # fold the group size into the column label, so n does not have to be
+  # carried along as a separate column through the pivots
+  mutate(species_label = sprintf("%s (n = %d)", species, n)) |>
   # long format makes it easy to combine mean and sd into one cell
   pivot_longer(
-    cols = !c(species, n),
+    cols = !c(species, species_label, n),
     names_to = c("variable", "statistic"),
     names_pattern = "(.*)_(mean|sd)$"
   ) |>
   pivot_wider(names_from = statistic, values_from = value) |>
   mutate(summary = sprintf("%.1f (%.1f)", mean, sd)) |>
-  select(species, n, variable, summary) |>
-  pivot_wider(names_from = species, values_from = summary)
+  select(variable, species_label, summary) |>
+  pivot_wider(names_from = species_label, values_from = summary)
 
 continuous_summary
 ```
+
+::: {.callout-warning}
+## Why `n` cannot just come along for the ride
+The step that folds `n` into the label is not cosmetic. If you keep `n` as an
+ordinary column and pivot wider on `species`, `n` becomes part of the row
+identity — and since each species has a different `n`, every species-variable
+combination gets its own row:
+
+```{r}
+#| label: table-manual-broken
+penguins |>
+  drop_na(sex) |>
+  summarise(
+    mean_mass = mean(body_mass_g, na.rm = TRUE),
+    n = n(),
+    .by = species
+  ) |>
+  # n is not named in pivot_wider(), so it silently becomes an id column
+  pivot_wider(names_from = species, values_from = mean_mass)
+```
+
+Three rows where you wanted one, and two thirds of the table is `NA`.
+
+This is the single most common `pivot_wider()` mistake, and it is worth
+recognising the signature: **a mostly empty table is almost never a missing-data
+problem.** It means an unintended column is acting as a row identifier
+(@sec-pivot). Everything not named in `names_from` or `values_from` defines the
+rows, so drop or fold in anything that should not.
+:::
 
 ::: {.callout-tip}
 ## `sprintf()` and `round()` are not the same
@@ -79,7 +111,6 @@ Made presentable with `gt`:
 ```{r}
 #| label: table-manual-gt
 continuous_summary |>
-  select(-n) |>
   mutate(
     variable = recode_values(
       variable,

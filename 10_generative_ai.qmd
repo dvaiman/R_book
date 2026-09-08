@@ -1036,7 +1036,8 @@ The independent check:
 #| label: ex2-ai-check
 penguins |>
   count(species, sex) |>
-  pivot_wider(names_from = sex, values_from = n)
+  # values_fill = 0 because an absent combination means "none", not "unknown"
+  pivot_wider(names_from = sex, values_from = n, values_fill = 0)
 ```
 
 Now you can compute either proportion by hand and see which one the code

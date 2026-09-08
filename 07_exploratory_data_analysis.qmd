@@ -716,7 +716,14 @@ penguins |>
 penguins |>
   mutate(sex_missing = is.na(sex)) |>
   summarise(n = n(), .by = c(species, sex_missing)) |>
-  pivot_wider(names_from = sex_missing, values_from = n, names_prefix = "missing_")
+  pivot_wider(
+    names_from = sex_missing,
+    values_from = n,
+    names_prefix = "missing_",
+    # Chinstrap has no missing-sex penguins, so that combination has no row
+    # at all. Without values_fill it would appear as NA; the true count is 0.
+    values_fill = 0
+  )
 
 # 3
 penguins |>

@@ -12,6 +12,12 @@ R is a programming language and free software environment for statistical comput
 -   **2004**: [The Comprehensive R Archive Network (CRAN)](https://cran.r-project.org/mirrors.html) was established, providing a repository for R packages.
 -   **2009**: RStudio, an integrated development environment (IDE) for R, was founded, making it easier for users to write scripts, manage projects, and visualize data.
 -   **2013**: Revolution Analytics was acquired by Microsoft, which later integrated R into its suite of data analysis tools.
+-   **2021** (May, R 4.1.0): The **native pipe** `|>` and the **lambda shorthand** `\(x)` were added to the language itself. Both had previously required packages; both are used throughout this book (@sec-dplyr, @sec-functions).
+-   **2022** (July): **Quarto** was released, a publishing system that works across R, Python, Julia and Observable, and the successor to R Markdown (@sec-quarto).
+-   **2022** (October): RStudio the company was renamed **Posit**, reflecting a scope wider than R alone.
+-   **2024** (June): **Positron** was released in public beta — a new IDE from Posit, built on Code OSS, with equal support for R and Python (@sec-positron).
+-   **2025** (April, R 4.5.0): The `penguins` dataset was added to base R's `datasets` package, with shorter column names than the `palmerpenguins` version this book uses. Attaching `palmerpenguins` masks it, which is why the column names here are `bill_length_mm` rather than `bill_len`.
+-   **2026**: R continues on a roughly annual major-release cycle, and CRAN holds well over 20,000 packages. Run `nrow(available.packages())` to see the number today.
 
 **Base R** (R code that does not need any packages to run) provides a solid foundation for statistical analysis, data manipulation, and visualization. However, as the complexity and volume of data have increased, the need for more intuitive and efficient tools has grown. This gap was bridged by the introduction of the Tidyverse, a collection of R packages designed to make data science more accessible and powerful.
 
@@ -32,6 +38,49 @@ The Tidyverse is a collection of R packages designed for data science. It was de
 -   **2019**: The `vctrs` package was introduced, enhancing the performance and robustness of Tidyverse operations.
 -   **2020**: New packages like `tidymodels` for machine learning and `tidytext` for text mining further extended the capabilities of the Tidyverse.
 -   **2022**: RStudio was rebranded as Posit, reflecting its expanding focus on open-source data science tools beyond R.
+-   **2023** (January, `dplyr` 1.1.0): A large release. `.by` brought per-operation grouping, removing most of the need for `group_by()`/`ungroup()`; `join_by()` made join keys explicit and enabled inequality and rolling joins; and `reframe()` took over the multi-row cases that `summarise()` used to allow (@sec-dplyr, @sec-joins).
+-   **2024** (February, `ggplot2` 3.5.0): Guides and legends were rewritten, making legend layout far more controllable.
+-   **2025** (January): **`ellmer`** was released, the tidyverse package for calling language models from R with structured output — the basis for using an LLM as an analysis step rather than as coding help (@sec-ai).
+-   **2025** (September, `ggplot2` 4.0.0): The internals moved from S3 to **S7**, geom defaults became settable from the theme, and `theme(panel.widths, panel.heights)` arrived. Existing plotting code largely kept working, but extension packages needed updating.
+-   **2026** (February, `dplyr` 1.2.0): `filter_out()` joined `filter()` so exclusions can be written as exclusions; `when_any()` and `when_all()` replaced nested boolean logic; and the recoding functions were split into a family of four — `case_when()`, `replace_when()`, `recode_values()` and `replace_values()` — with `case_match()` soft-deprecated. `.by` and `reframe()` became stable (@sec-dplyr).
+-   **2026** (July): **Posit Assistant** became the default AI experience in Positron, replacing the earlier separate offerings, and is now available in both RStudio and Positron (@sec-ai).
+
+## What has changed recently, and why it matters here
+
+R moves quickly enough that material more than a couple of years old often
+teaches patterns that are no longer the best available. Three shifts matter for
+how the code in this book is written:
+
+**Grouping.** For most of `dplyr`'s life, a grouped operation meant
+`group_by()` followed by `ungroup()`, and forgetting the second half was a
+reliable source of quiet bugs. Since 2023 the `.by` argument groups a single
+operation and leaves nothing attached. This book uses `.by` by default and
+explains `group_by()` because you will read it constantly (@sec-dplyr).
+
+**Anonymous functions.** `purrr`'s `~ .x` formula existed because base R had no
+short way to write a throwaway function. Since R 4.1 it does: `\(x)`. The
+formula still works and fills older code and tutorials, but new code should use
+the backslash, which works everywhere rather than only inside tidyverse
+functions (@sec-functions).
+
+**Saying what you mean.** The newest additions share a theme: make the intent
+explicit so that mistakes fail loudly. `filter_out()` states an exclusion as an
+exclusion. `case_when(.unmatched = "error")` refuses to invent a silent `NA`.
+`join_by(..., relationship = "one-to-one")` errors when a join would duplicate
+rows instead of doing it quietly. None of these do anything the old code could
+not; they make the wrong thing harder to write by accident.
+
+::: {.callout-tip}
+## Which version introduced what
+Where this book uses something recent, it says which version added it. If a
+function does not exist on your machine, check with `packageVersion("dplyr")`
+and update. If you meet a function in someone else's code that no longer exists,
+`news(package = "dplyr")` will usually say what replaced it.
+
+This also matters when using AI assistants, which are trained on text that
+skews old and common: they will confidently suggest `case_match()`, `%>%` and
+`~ .x` long after better options exist (@sec-ai).
+:::
 
 ## Key Contributions
 
