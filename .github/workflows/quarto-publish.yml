@@ -35,6 +35,9 @@ jobs:
           r-version: release
           use-public-rspm: true
 
+      # downlit and xml2 power `code-link: true` and the inline function
+      # links built by R/build_function_links.R. Without them Quarto renders
+      # the book successfully but emits no links at all.
       - name: Set up R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -42,8 +45,6 @@ jobs:
             any::rmarkdown
             any::knitr
             any::quarto
-            # downlit and xml2 power `code-link: true` and the inline
-            # function links; without them Quarto silently emits no links
             any::downlit
             any::xml2
             any::usethis
