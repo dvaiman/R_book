@@ -245,7 +245,8 @@ document.
 
 ## Rendering
 
-- Click **Render** in RStudio, or press `Ctrl/Cmd + Shift + K`.
+- Click **Render** in RStudio or Positron, or press `Ctrl/Cmd + Shift + K`.
+  Positron needs the Quarto CLI installed separately (@sec-positron).
 - Or run `quarto::quarto_render("my_document.qmd")`.
 
 Rendering runs the document in a **fresh R session**. This is the single most

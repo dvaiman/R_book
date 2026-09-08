@@ -43,7 +43,7 @@ A more modern version of a data frame is a tibble provided by the tibble package
 
 ### Assignment: Understanding Data Types in R
 
-Objective: Run the following R code in your RStudio to demonstrate how to create objects and determine the class of different vectors using the `class()` function. This exercise will help you understand the fundamental data types in R and how they are used in data analysis.
+Objective: Run the following R code in RStudio or Positron to demonstrate how to create objects and determine the class of different vectors using the `class()` function. This exercise will help you understand the fundamental data types in R and how they are used in data analysis.
 
 
 [More reading on different types in R](https://r4ds.hadley.nz/transform)
@@ -115,7 +115,10 @@ class(t7)
 
 ::: {.callout-tip}  
 
-## Useful Keyboard Shortcuts in RStudio
+## Useful Keyboard Shortcuts
+
+These are the same in RStudio and Positron. In Positron you can also reach any
+command by name through the command palette, `Ctrl/Cmd + Shift + P`.
 
 ### TAB
 - **TAB Key (above CAPS LOCK)**: Has multiple functions, such as completing object or function names while typing code, and filling in file paths when reading a file. Known as “TAB-completion”.
@@ -129,7 +132,7 @@ class(t7)
 - **CTRL + SHIFT + ENTER / CMD + SHIFT + ENTER**: Runs an entire code chunk in Quarto. It does not matter where the cursor is located within the chunk.
 
 ### CTRL+SHIFT+M / CMD+SHIFT+M (Mac)
-- **CTRL + SHIFT + M / CMD + SHIFT + M**: Creates a pipe symbol (%>% or |> depending on your RStudio settings).
+- **CTRL + SHIFT + M / CMD + SHIFT + M**: Creates a pipe symbol. Which pipe you get depends on a setting: in RStudio it is *Tools → Global Options → Code → Use native pipe operator*; in Positron it is the `positron.r.pipe` setting.
 
 ### CTRL+ALT+I / OPTION+CMD+I (Mac)
 - **CTRL + ALT + I / OPTION + CMD + I**: Creates a new code chunk in Quarto.
@@ -216,7 +219,7 @@ is.na(a_tibbe_with_na)
 ### Piping in R
 Piping is a powerful feature in R that allows you to forward the output of one function directly into another function, facilitating a more readable and intuitive syntax. This method streamlines code and enhances readability, especially in data analysis workflows.
 
-- **Magrittr Pipe (`%>%`)**: Introduced by the magrittr package, this pipe operator allows for clear and concise chaining of commands. It's commonly used in `dplyr` and other tidyverse packages. The pipe takes the output of one expression and passes it as the first argument to the next expression. Shortcut in RStudio: `Shift + Ctrl + M`.
+- **Magrittr Pipe (`%>%`)**: Introduced by the magrittr package, this pipe operator allows for clear and concise chaining of commands. It's commonly used in `dplyr` and other tidyverse packages. The pipe takes the output of one expression and passes it as the first argument to the next expression. Shortcut in RStudio and Positron: `Shift + Ctrl/Cmd + M`.
 
 - **Base R Pipe (`|>`)**: As of R version 4.1.0, R includes a native pipe operator similar to the one in the magrittr package. While it functions similarly by forwarding values from the left-hand side to the right-hand side, it is slightly less flexible in some advanced cases than the magrittr pipe. However, it is a native feature, and its use is encouraged for new scripts when possible.
 

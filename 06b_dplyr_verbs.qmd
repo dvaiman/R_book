@@ -83,7 +83,8 @@ There are two pipes:
 
 They behave the same way in almost all everyday use. This book uses `|>`,
 because it is part of R itself and needs no package. The keyboard shortcut is
-`Ctrl/Cmd + Shift + M` (which pipe it inserts depends on an RStudio setting).
+`Ctrl/Cmd + Shift + M` in both RStudio and Positron; which pipe it inserts
+depends on a setting in each.
 
 ```{r}
 #| label: pipe-compare

@@ -1,5 +1,16 @@
 # Setting up R and RStudio {#sec-install}
 
+::: {.callout-note}
+## R is the language; the editor is a separate choice
+You install **R** once, and then an editor to write it in. This chapter uses
+**RStudio**, which is what the course assumes and the easiest place to start.
+
+**Positron** is Posit's newer alternative, and it is covered in @sec-positron —
+including what it does differently and how to set it up. You do not need it for
+this course, and everything in this book works identically in either. Install R
+first in both cases: neither editor bundles it.
+:::
+
 ## Introduction to Installing R and RStudio
 
 ### Install R

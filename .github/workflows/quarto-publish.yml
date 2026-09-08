@@ -42,6 +42,11 @@ jobs:
             any::rmarkdown
             any::knitr
             any::quarto
+            # downlit and xml2 power `code-link: true` and the inline
+            # function links; without them Quarto silently emits no links
+            any::downlit
+            any::xml2
+            any::usethis
             any::tidyverse
             any::palmerpenguins
             any::webexercises

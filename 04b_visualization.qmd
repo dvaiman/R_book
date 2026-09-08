@@ -838,7 +838,7 @@ file would be enormous, or when you need to paste into PowerPoint. Never save a
 final figure as JPEG: the compression smears text and thin lines.
 :::
 
-Note also that `ggsave()` does not take a screenshot of the RStudio plot pane —
+Note also that `ggsave()` does not take a screenshot of the plot pane —
 it redraws the figure at the size you asked for. Text does not scale with the
 figure, so a figure saved at 20 cm wide has relatively smaller text than the
 same figure saved at 10 cm. Always check the saved file, not the preview.

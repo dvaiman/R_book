@@ -8,7 +8,67 @@ An R project is a way to organize your work into a self-contained, reproducible,
 
 ### Setting Up a Project
 
-You can create a new R project using RStudio. In RStudio, go to `File > New Project` and follow the prompts.  
+How you create a project depends on your editor, but the *result* is the same: a
+folder that acts as the root of your work, with every path inside it written
+relative to that root.
+
+::: {.panel-tabset}
+## RStudio
+
+Go to **File → New Project** and follow the prompts:
+
+- **New Directory** to create a new folder for the project.
+- **Existing Directory** if you already have one.
+
+RStudio writes an `.Rproj` file into the folder. Opening that file sets the
+working directory to the folder and restores project-specific settings.
+
+## Positron
+
+Positron has no `.Rproj` equivalent. It uses VS Code's **workspace** model: you
+open a *folder*, and that folder is the project.
+
+- **File → Open Folder**, and pick the project directory.
+- The working directory is set to that folder.
+- Nothing is written into the folder unless you change a project-specific
+  setting, in which case Positron creates `.vscode/settings.json`.
+
+**Open the folder, not a file.** Double-clicking a single `.qmd` gives you an
+editor with no project context, and relative paths will not resolve the way you
+expect.
+
+## Either, from the console
+
+`usethis` works identically in both, and does slightly more than the menus do —
+it creates the folder, the `.Rproj` file and a `.gitignore` in one step:
+
+```{r}
+#| eval: false
+usethis::create_project("~/projects/my_study")
+```
+
+To turn a folder you already have into a project:
+
+```{r}
+#| eval: false
+usethis::use_git() # initialise version control
+usethis::use_readme_md() # add a README
+```
+:::
+
+::: {.callout-tip}
+## An `.Rproj` file is not the only project marker
+A folder can be a perfectly good project with no `.Rproj` in it. What matters
+for your code is that `here()` can find the root, and it recognises several
+markers — `.here`, `.Rproj`, `.git`, `.vscode/settings.json`, `_quarto.yml`,
+`renv.lock` and `DESCRIPTION` among others.
+
+So a project created in Positron and put under version control works in both
+editors without anything extra. If a folder has none of those markers, run
+`here::set_here()` once to place an empty `.here` file in the root.
+
+See @sec-positron for the fuller comparison.
+:::
 
 
 ### Benefits of Working in Projects
@@ -105,6 +165,11 @@ A well-organized folder structure helps keep your project files organized and ea
 
 ```
 project/
+├── my_project.Rproj      <- if created in RStudio
+├── .vscode/              <- if you changed a setting in Positron
+│   └── settings.json
+├── .git/                 <- if under version control
+├── .gitignore
 ├── data/
 │   ├── raw/
 │   ├── processed/
@@ -129,7 +194,8 @@ Where:
 
 | File Type | Description |
 |-----------|-------------|
-| `.Rproj`  | R Project file, used by RStudio to manage project settings and files. |
+| `.Rproj`  | R Project file, used by RStudio to manage project settings. Positron ignores it, but `here()` still reads it as a root marker. |
+| `.vscode/settings.json` | Workspace settings written by Positron (and VS Code) when you change a project-specific setting. Also a root marker for `here()`. |
 | `.R`      | R script file, containing R code for data analysis, visualization, and other tasks. |
 | `.Rmd`    | R Markdown file, combining R code and Markdown for dynamic documents, reports, and presentations. |
 | `.qmd`    | Quarto Markdown file, similar to R Markdown but used with the Quarto publishing system for reproducible documents. |

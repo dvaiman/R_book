@@ -30,7 +30,7 @@ problems, and all of them are cheaper to fix here than three steps later.
 
 ### 1. By clicking
 
-RStudio has a graphical import wizard:
+RStudio has a graphical import wizard (Positron does not — see @sec-positron):
 
 - **File → Import Dataset**
 - Choose the file type, for example CSV or Excel.
@@ -174,7 +174,7 @@ data_here <- read_csv(here("data", "my_file.csv"))
 Advantages:
 
 - Readable and reproducible.
-- Integrates with RStudio projects.
+- Integrates with RStudio projects and Positron workspaces alike (@sec-projects).
 - The project can be shared, moved, or synced through OneDrive and still work.
 - You can step out of the project with `".."`, e.g.
   `here("..", "shared_data", "register.csv")`.

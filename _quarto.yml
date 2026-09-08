@@ -1,5 +1,6 @@
 project:
   type: book
+  pre-render: R/build_function_links.R
 
 book:
   cover-image: images/Rtree.png
@@ -60,6 +61,9 @@ format:
     css: include/webex.css
     include-after-body: include/webex.js
     toc-depth: 3
+
+filters:
+  - link-functions.lua
 
 editor: source
 
