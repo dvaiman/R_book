@@ -117,8 +117,15 @@ name, which matters because there are fewer buttons than in RStudio.
 
 ::: {.callout-tip}
 ## Keep the RStudio keybindings
-If your fingers know RStudio, install the **RStudio Keymap** extension in
-Positron. It maps the shortcuts you already have to the equivalent commands.
+If your fingers know RStudio, Positron has a built-in setting for it. Add this
+to your settings (**Preferences → Settings**, then edit the JSON):
+
+``` json
+"workbench.keybindings.rstudioKeybindings": true
+```
+
+Positron's own documentation notes that opting in overwrites some of Positron's
+default keybindings, so you may want to adjust a few afterwards.
 :::
 
 ## Setting up Positron
@@ -133,10 +140,11 @@ Positron. It maps the shortcuts you already have to the equivalent commands.
    context, and relative paths will not behave as you expect.
 4. **Check the interpreter** in the top right. It shows which R version the
    console is running. Click it to switch.
-5. **Install the extensions you want.** The Quarto extension is worth having
-   immediately; the RStudio Keymap extension if you are migrating.
-6. **Install Quarto** separately if you intend to render documents — Positron
-   does not bundle it either.
+5. **Turn on the RStudio keybindings** if you are migrating (see the tip
+   above), and install any other extensions you want.
+6. **Check that Quarto renders.** Positron ships with the Quarto extension. If a
+   render fails complaining that `quarto` cannot be found, install the Quarto
+   CLI from [quarto.org](https://quarto.org/docs/get-started/).
 
 ::: {.callout-warning}
 ## Packages are per R version, not per IDE
@@ -219,9 +227,10 @@ It includes `.here`, `.Rproj`, `.git`, `.vscode/settings.json`, `_quarto.yml`,
   directory, which may not be what you want. `here::set_here()` fixes it by
   creating an empty `.here` file, which takes priority over everything else.
 
-**Step 4**: if rendering fails, the usual cause is that Quarto is not installed
-system-wide. RStudio bundles a copy; Positron expects you to install it from
-[quarto.org](https://quarto.org/docs/get-started/).
+**Step 4**: if rendering fails with an error about `quarto` not being found,
+install the Quarto CLI from [quarto.org](https://quarto.org/docs/get-started/)
+and restart Positron. RStudio ships with its own copy, so this is a step people
+migrating do not expect.
 
 Whatever you conclude, notice what did *not* need to change: not one line of
 your R code. That is the point of writing code that depends on the project
