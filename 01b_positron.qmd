@@ -44,10 +44,17 @@ This is the difference that trips up RStudio users first.
 In RStudio, a project is marked by an `.Rproj` file, and opening it sets the
 working directory and loads project-specific settings.
 
-Positron has no equivalent of `.Rproj`. It uses VS Code's **workspace** model:
-you open a *folder*, and that folder becomes your working directory. There is no
-marker file unless you create project-specific settings, in which case Positron
-writes `.vscode/settings.json`.
+Positron uses VS Code's **workspace** model instead: you open a *folder*, and
+that folder becomes your working directory. There is no marker file unless you
+create project-specific settings, in which case Positron writes
+`.vscode/settings.json`.
+
+Positron does have a project-creation flow — **New Folder from Template**, in
+the **New** menu or via the command **Workspaces: New Folder from Template…**.
+For an R project it lets you choose the R version and optionally set up `renv`,
+and it creates a `.git` directory, a `.gitignore` with R-appropriate patterns,
+and the recommended folder structure. What it does not create is an `.Rproj`
+file, because Positron itself has no use for one.
 
 The practical consequences:
 
@@ -59,6 +66,21 @@ The practical consequences:
   `.vscode/settings.json`, `_quarto.yml`, `renv.lock` and `DESCRIPTION`. If your
   project is under version control — and it should be — `here()` finds the root
   in Positron without you doing anything.
+
+::: {.callout-tip}
+## You can still have an `.Rproj` if you want one
+Nothing prevents a Positron project from containing an `.Rproj` file; Positron
+just will not write one for you. `usethis` will, from either editor:
+
+```{r}
+#| eval: false
+usethis::create_project("~/projects/my_study") # new project, with .Rproj
+usethis::use_rstudio() # add .Rproj to an existing folder
+```
+
+Worth doing when collaborators use RStudio, or when someone expects to
+double-click the `.Rproj` to open the project.
+:::
 
 ::: {.callout-tip}
 ## Add a `.here` file if you need one
@@ -108,7 +130,8 @@ Posit's own comparison lists three:
 | Insert chunk | `Ctrl/Cmd + Alt + I` | `Ctrl/Cmd + Alt + I` |
 | Command palette | `Ctrl/Cmd + Shift + P` | `Ctrl/Cmd + Shift + P` |
 | Restart R | `Ctrl/Cmd + Shift + F10` | Command palette → "Restart R" |
-| Project switching | `.Rproj` files | **File → Open Folder** |
+| New project | **File → New Project** | **New Folder from Template** |
+| Opening a project | Double-click the `.Rproj` | **File → Open Folder** |
 | Environment | Environment pane | Variables pane |
 
 The most useful habit in Positron is the **command palette**
@@ -137,7 +160,8 @@ default keybindings, so you may want to adjust a few afterwards.
    installed R versions; it does not bundle one.
 3. **Open a folder**, not a file: **File → Open Folder**, and pick your project
    directory. Opening a single `.qmd` file gives you an editor with no project
-   context, and relative paths will not behave as you expect.
+   context, and relative paths will not behave as you expect. For a new project,
+   use **New Folder from Template** instead and pick the R template.
 4. **Check the interpreter** in the top right. It shows which R version the
    console is running. Click it to switch.
 5. **Turn on the RStudio keybindings** if you are migrating (see the tip

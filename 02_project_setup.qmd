@@ -25,17 +25,32 @@ working directory to the folder and restores project-specific settings.
 
 ## Positron
 
-Positron has no `.Rproj` equivalent. It uses VS Code's **workspace** model: you
-open a *folder*, and that folder is the project.
+Positron uses VS Code's **workspace** model: a project is simply a folder you
+have opened. There are two ways in.
 
-- **File → Open Folder**, and pick the project directory.
-- The working directory is set to that folder.
-- Nothing is written into the folder unless you change a project-specific
-  setting, in which case Positron creates `.vscode/settings.json`.
+**Open a folder you already have** — **File → Open Folder**. The working
+directory is set to that folder, and nothing is written into it unless you
+change a project-specific setting, in which case Positron creates
+`.vscode/settings.json`.
+
+**Create a new one from a template** — the **New Folder from Template** option
+in the **New** menu (top left) or the workspace switcher (top right), or the
+command **Workspaces: New Folder from Template…** from the command palette.
+Choosing the R template lets you pick the R version and optionally set up
+`renv`, and Positron creates:
+
+- a `.git` directory and a `.gitignore` with sensible patterns for R,
+- the recommended folder structure for the template,
+- a running R session, with a file open and ready.
 
 **Open the folder, not a file.** Double-clicking a single `.qmd` gives you an
 editor with no project context, and relative paths will not resolve the way you
 expect.
+
+What Positron does **not** create is an `.Rproj` file — it has no use for one.
+That is not a problem, because the `.git` directory it does create is itself a
+project-root marker (see the tip below). If you want an `.Rproj` anyway, see the
+next tab.
 
 ## Either, from the console
 
@@ -53,7 +68,17 @@ To turn a folder you already have into a project:
 #| eval: false
 usethis::use_git() # initialise version control
 usethis::use_readme_md() # add a README
+usethis::use_rstudio() # write an .Rproj file into this folder
 ```
+
+`create_project()` writes an `.Rproj` file by default, and `use_rstudio()` adds
+one to a folder that does not have it. Both work from Positron — the `.Rproj`
+file is just a small text file, and nothing stops a Positron project from having
+one.
+
+That is worth doing when you or a collaborator moves between the two editors, or
+when a colleague expects to double-click an `.Rproj` to open the project. Set
+`rstudio = FALSE` in `create_project()` if you would rather not have it.
 :::
 
 ::: {.callout-tip}

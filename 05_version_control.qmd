@@ -93,9 +93,9 @@ the buttons are in different places (@sec-positron).
   same thing (`git add`), but in Positron you can also stage *part* of a file by
   selecting lines in the diff view and choosing "Stage Selected Ranges". That is
   genuinely useful when one editing session produced two unrelated changes.
-- **There is no `.Rproj` to commit** in a Positron-only project. That is fine —
-  `.git` is itself a project root marker, so `here()` still works
-  (@sec-positron).
+- **A Positron-only project has no `.Rproj` to commit**, unless you added one
+  with `usethis::use_rstudio()`. Either way is fine: `.git` is itself a project
+  root marker, so `here()` works regardless (@sec-positron).
 - **The terminal is always there.** Anything the interface cannot do,
   `git` in the terminal can. Positron's integrated terminal opens with
   `Ctrl + backtick`.
