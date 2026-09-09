@@ -400,39 +400,195 @@ model answers your question. That part is yours (@sec-ai).
 
 ## Interpreting the model
 
-Coefficients are often not the quantity you want to report, especially on a
-non-identity link. `marginaleffects` turns a model into the estimates a reader
-actually understands, and it has become the standard tool for this.
+A fitted model can answer three different questions, and most confusion about
+"marginal effects" comes from not noticing which one is being asked.
+
+| Question | Plain English | Function | Reported as |
+|----------|---------------|----------|-------------|
+| **Prediction** | What value do we expect? | `avg_predictions()` | the outcome's own units, or a probability |
+| **Comparison** | How much difference between these two groups? | `avg_comparisons()` | a difference, ratio, odds ratio |
+| **Slope** | How much does the outcome change per unit? | `avg_slopes()` | outcome units per predictor unit |
+
+`marginaleffects` provides all three, and has become the standard tool for this.
 
 ```{r}
-#| label: marginaleffects
+#| label: marginaleffects-setup
 #| message: false
 library(marginaleffects)
-
-# average predicted body mass for each species
-avg_predictions(model, by = "species")
 ```
 
+### What a slope is
+
+A **slope** is the answer to: *if this predictor increased by one unit, how much
+would the outcome change?*
+
 ```{r}
-#| label: marginaleffects-comparisons
-# the average difference between males and females, holding everything else
-# at its observed values
+#| label: slope-basics
+avg_slopes(model, variables = "flipper_length_mm")
+```
+
+Read as: **each additional millimetre of flipper is associated with about 20 g
+more body mass**, holding species and sex constant. The units are always
+"outcome units per predictor unit" — here grams per millimetre.
+
+Three things follow from that definition, and each causes trouble in practice:
+
+**The unit matters more than the number.** A slope of 20 g/mm and a slope of
+20,000 g/m are the same fact. If a coefficient looks absurdly small, it is
+usually because the predictor's unit is small. Report a step people can picture
+— per 10 mm, per 100 g, per standard deviation:
+
+```{r}
+#| label: slope-scaled
+# the effect of a 10 mm difference in flipper length
+avg_comparisons(model, variables = list(flipper_length_mm = 10))
+```
+
+**A slope only exists for a continuous predictor.** "The slope of species" is
+meaningless — species has no units and no in-between values. For a categorical
+predictor you want a *comparison*, not a slope.
+
+**In a non-linear model the slope is not constant.** In logistic regression the
+effect of one more gram on the probability of being male depends on where you
+start, because the curve is steeper in the middle than at the ends. That is the
+whole reason the next section exists.
+
+### When to report which
+
+- **Report a slope** when the predictor is continuous and the relationship is
+  roughly linear over the range that matters. "Each additional 10 mm of flipper
+  is associated with 200 g more mass."
+- **Report a comparison** when the predictor is categorical, or when a specific
+  contrast is the question. "Males were on average 530 g heavier than females."
+  This is what most clinical and epidemiological papers want.
+- **Report predictions** when the absolute level matters, not just the
+  difference — a risk, a predicted score, an expected count. "Predicted
+  probability of the outcome was 12% in the control group and 7% in the
+  treatment group."
+- **Report the coefficient table too**, but as supporting material. In a linear
+  model without interactions it says the same thing; in anything more
+  complicated it does not.
+
+```{r}
+#| label: comparison-basics
+# a comparison: the male-female difference, on the outcome's own scale
 avg_comparisons(model, variables = "sex")
 ```
 
 ```{r}
-#| label: marginaleffects-slopes
-# the average slope: grams per millimetre of flipper
-avg_slopes(model, variables = "flipper_length_mm")
+#| label: prediction-basics
+# predictions: the expected body mass of each species
+avg_predictions(model, by = "species")
 ```
 
-The three verbs cover most needs: **`avg_predictions()`** for predicted values,
-**`avg_comparisons()`** for differences between groups or levels, and
-**`avg_slopes()`** for the effect of a one-unit change in a continuous variable.
-All return data frames, so they go straight into a plot or a table.
+### Averaging over your data, or evaluating at the average
 
-`emmeans` does a related job with a longer history and strong support for
-multiplicity adjustment:
+This is the distinction that trips people up, and it is worth understanding
+because in a non-linear model the two give different answers.
+
+To summarise a model in one number you have to decide **where** to evaluate it:
+
+1. **Average over the data.** Compute the quantity for every penguin you
+   actually observed, then average those. `marginaleffects` does this by
+   default — hence the `avg_` prefix.
+2. **Evaluate at the average.** Build one hypothetical average penguin — mean
+   flipper length, mean body mass — and compute the quantity once, there.
+
+In a **linear** model these are identical, and both equal the coefficient:
+
+```{r}
+#| label: ame-vs-mem-linear
+c(
+  coefficient = unname(coef(model)["flipper_length_mm"]),
+  averaged_over_data = avg_slopes(model, variables = "flipper_length_mm")$estimate,
+  at_the_average = slopes(model, variables = "flipper_length_mm",
+                          newdata = "mean")$estimate
+) |> round(3)
+```
+
+In a **non-linear** model they are not:
+
+```{r}
+#| label: ame-vs-mem-logistic
+sex_model <- penguins |>
+  drop_na() |>
+  glm(sex ~ body_mass_g + flipper_length_mm + species, data = _,
+      family = binomial())
+
+# averaged over the real penguins
+avg_slopes(sex_model, variables = "body_mass_g")
+```
+
+```{r}
+#| label: ame-vs-mem-logistic2
+# evaluated at one hypothetical average penguin
+slopes(sex_model, variables = "body_mass_g", newdata = "mean")
+```
+
+Same model, same data. Averaged over the penguins, an extra gram raises the
+probability of being male by 0.00067 and the result is unambiguous
+(p < 0.001). Evaluated at the average penguin it is 0.000075, nine times
+smaller, and p = 0.06.
+
+::: {.callout-important}
+## Why they differ, and which to report
+The logistic curve is steep in the middle and flat at the ends. The "average
+penguin" here has an average body mass *and* an average flipper length — a
+combination that sits on a flat part of the curve for most species, so the slope
+measured there is small. Averaging over real penguins includes many that sit on
+the steep part, and their larger slopes pull the average up.
+
+The deeper problem is that **the average penguin does not exist**. Watch what
+happens when you ask for predicted probabilities at averaged covariates:
+
+```{r}
+#| label: average-penguin
+predictions(sex_model, newdata = datagrid(species = unique)) |>
+  as_tibble() |>
+  select(species, estimate, conf.low, conf.high) |>
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
+```
+
+A Gentoo of *average* body mass is a very small Gentoo, so the model says it is
+almost certainly female — 0.001. Compare with averaging over the real Gentoos:
+
+```{r}
+#| label: average-penguin2
+avg_predictions(sex_model, by = "species") |>
+  as_tibble() |>
+  select(species, estimate) |>
+  mutate(estimate = round(estimate, 3))
+```
+
+About 0.51, which matches the actual sex ratio. The first answer describes a
+penguin nobody measured; the second describes the sample.
+
+**Default to averaging over your data** — the `avg_*()` functions. Evaluate at
+specific values when you deliberately want a "what if" for a described person,
+and then say which values you fixed.
+:::
+
+::: {.callout-note}
+## The jargon, so you recognise it
+The literature calls the first approach **average marginal effects (AME)** and
+the second **marginal effects at the mean (MEM)**; fixing covariates at chosen
+values gives **marginal effects at representative values (MER)**. "Marginal" is
+borrowed from economics, where it means *incremental* — the effect of one more
+unit — not the everyday sense of "minor".
+
+`marginaleffects` defaults to AME, `emmeans` to MEM, which is one reason the two
+packages can report different numbers for the same model.
+
+Andrew Heiss's [guide to marginal
+effects](https://www.andrewheiss.com/blog/2022/05/20/marginalia/) works through
+this in far more depth than a course book can, and is the reference to reach for
+when the distinction actually bites.
+:::
+
+### emmeans
+
+`emmeans` answers the same kinds of question with a longer history and stronger
+support for multiplicity adjustment:
 
 ```{r}
 #| label: emmeans
@@ -445,8 +601,10 @@ means
 pairs(means)
 ```
 
-Note that `pairs()` applies Tukey adjustment by default — worth knowing you are
-getting it, and worth reporting.
+`pairs()` applies a Tukey adjustment by default — worth knowing you are getting
+it, and worth stating in the methods. Note also that these are estimated at
+fixed covariate values rather than averaged over the data, so they will not
+always match `avg_predictions()`.
 
 ## Many models at once
 
@@ -601,11 +759,34 @@ specifications |>
 ```
 
 The estimate falls from 50.2 to 40.6 once species is adjusted for, and to 20.0
-once sex is added as well — less than half the unadjusted value. That is
-confounding made visible in three lines: most of the apparent relationship
-between flipper length and body mass is explained by the fact that larger
-species have both. Because every model is fitted to the same `model_data`, the
-three estimates are directly comparable.
+once sex is added as well — less than half the unadjusted value. Because every
+model is fitted to the same `model_data`, the three estimates are directly
+comparable.
+
+Why does adjustment change it so much? Because species differs in both
+variables at once:
+
+```{r}
+#| label: confounding-visible
+model_data |>
+  summarise(
+    mean_flipper = round(mean(flipper_length_mm), 0),
+    mean_mass = round(mean(body_mass_g), 0),
+    .by = species
+  ) |>
+  arrange(mean_flipper)
+```
+
+Gentoos have both the longest flippers and the largest mass. Pooled, some of
+what looks like "longer flipper, therefore heavier" is really "Gentoo, therefore
+both". Holding species constant removes that path and leaves the
+within-species association — which @fig-interaction-predictions shows directly:
+the within-species lines are flatter than a line drawn through the whole cloud
+would be.
+
+This is the same phenomenon as Simpson's paradox in @sec-eda, in its milder and
+far more common form: adjustment does not reverse the association here, it
+shrinks it.
 
 ## Interactions
 
@@ -682,8 +863,68 @@ avg_slopes(
 )
 ```
 
-Gentoo differs from both others; Chinstrap and Adelie do not differ from each
-other. That is the interaction, expressed as comparisons you can put in a paper.
+### How to read that, and where to see it
+
+Three rows, and each is a difference between two slopes:
+
+- **Chinstrap − Adelie = 1.88** (95% CI −13.5 to 17.3). The interval comfortably
+  includes zero, so the data are consistent with these two species having the
+  same slope. Note what this does *not* say: it is not evidence that the slopes
+  are equal, only that this sample cannot distinguish them — and the interval is
+  wide enough to contain differences that would matter.
+- **Gentoo − Adelie = 21.5** (7.8 to 35.1) and **Gentoo − Chinstrap = 19.6**
+  (3.6 to 35.6). Both intervals exclude zero, so Gentoo's slope is
+  distinguishable from both.
+
+You can see the same thing in three places, which is a good way to build
+confidence that you have read it correctly.
+
+**In the coefficient table.** Compare the pairwise output with the interaction
+terms from the model above: `flipper_length_mm:speciesGentoo` was 21.5, and
+"(Gentoo) − (Adelie)" is 21.5. They are the same number, because an interaction
+coefficient *is* the difference in slopes against the reference level. What the
+coefficient table cannot give you directly is Gentoo − Chinstrap, since neither
+is the reference — you would have to subtract two coefficients and then work out
+the standard error of that difference. `hypothesis = ~pairwise` does exactly
+that, correctly.
+
+**In the figure.** In @fig-interaction-predictions the Gentoo line is visibly
+steeper than the other two, which run close to parallel. Non-parallel lines are
+a difference in slopes; how confident you can be about it is what the intervals
+above quantify.
+
+**In the slope estimates themselves.**
+
+```{r}
+#| label: interaction-slopes-table
+avg_slopes(interaction_fit, variables = "flipper_length_mm", by = "species") |>
+  as_tibble() |>
+  select(species, estimate, conf.low, conf.high) |>
+  mutate(across(where(is.numeric), \(x) round(x, 1)))
+```
+
+Adelie 32.7, Chinstrap 34.6, Gentoo 54.2 — the first two are close, the third is
+much larger.
+
+::: {.callout-warning}
+## Do not read the difference off two separate intervals
+It is tempting to compare the two confidence intervals above and conclude
+"they overlap, so no difference". That reasoning is wrong, and it is wrong in
+the direction that loses findings: two estimates whose 95% intervals overlap can
+still differ significantly, because the interval for a *difference* is not the
+union of the two individual intervals.
+
+Here the two approaches happen to agree, but they need not. The test of a
+difference is the contrast — the `hypothesis = ~pairwise` output — not a visual
+comparison of error bars. When you want to show the comparison in a figure, plot
+the *differences* with their intervals, not the two groups side by side.
+:::
+
+Written up, this is one sentence: *the association between flipper length and
+body mass was stronger in Gentoo (54.2 g/mm, 95% CI 44.1–64.3) than in Adelie
+(32.7, 23.5–41.9; difference 21.5, 7.8–35.1) or Chinstrap (34.6, 22.2–46.9;
+difference 19.6, 3.6–35.6), while Adelie and Chinstrap did not differ detectably
+(1.9, −13.5–17.3).*
 
 ::: {.callout-note}
 ## `hypothesis` takes a formula
@@ -772,11 +1013,32 @@ avg_comparisons(
 ```
 
 Males are heavier in every species, but by different amounts: about 805 g in
-Gentoo, 675 g in Adelie and 412 g in Chinstrap. The pairwise comparison then
-says which of those gaps are distinguishable from each other. This is the
-"difference in differences" that an interaction coefficient encodes, stated in
-grams rather than as a contrast — and the Chinstrap gap being roughly half the
-Gentoo one is the finding, not the p-value.
+Gentoo, 675 g in Adelie and 412 g in Chinstrap.
+
+The pairwise output then says which of those gaps differ from each other.
+Reading it the same way as before: Chinstrap − Adelie is about −263 g with an
+interval excluding zero, so the sex gap really is smaller in Chinstrap;
+Gentoo − Adelie is about +130 g with an interval that includes zero, so those
+two are not distinguishable. The finding is that **the sex difference is roughly
+half as large in Chinstrap as in the other two species** — a statement about a
+difference between differences, which is what an interaction between two factors
+means.
+
+You can see it directly in the group means, without any model:
+
+```{r}
+#| label: interaction-did-raw
+d_int |>
+  summarise(mean_mass = mean(body_mass_g), .by = c(species, sex)) |>
+  pivot_wider(names_from = sex, values_from = mean_mass) |>
+  mutate(sex_gap = round(male - female, 0))
+```
+
+The `sex_gap` column reproduces the model's comparisons almost exactly, because
+this model is saturated — species, sex and their interaction between them
+describe every cell, so the fitted values *are* the cell means. That will not be
+true once you add covariates, which is when you need the model to do the
+averaging for you.
 
 ::: {.callout-tip}
 ## Centre continuous predictors and the main effects become readable
