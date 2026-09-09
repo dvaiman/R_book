@@ -23,6 +23,158 @@ library(palmerpenguins)
 library(broom)
 ```
 
+## Before you model: shape and types
+
+Two things decide whether a model does what you meant, and both are settled
+before you call `lm()`.
+
+### One row per observation
+
+Modelling functions want **long, tidy data** (@sec-tidy): one row per
+observation, one column per variable.
+
+That matters most with repeated measurements. A wide table with `weight_pre`
+and `weight_post` is convenient to read, but a model cannot use it — there is no
+column that says *when* the measurement was taken.
+
+```{r}
+#| label: shape-wide-long
+wide <- tibble(
+  id = 1:3,
+  group = c("training", "training", "control"),
+  weight_pre = c(72, 68, 80),
+  weight_post = c(70, 67, 81)
+)
+
+wide
+```
+
+```{r}
+#| label: shape-long
+long <- wide |>
+  pivot_longer(
+    starts_with("weight_"),
+    names_to = "time",
+    values_to = "weight_kg",
+    names_prefix = "weight_"
+  ) |>
+  mutate(
+    # an explicit level order makes "pre" the reference, which is what
+    # you almost always want for a before/after comparison
+    time = factor(time, levels = c("pre", "post")),
+    id = factor(id)
+  )
+
+long
+```
+
+Now `weight_kg ~ time * group + (1 | id)` is expressible. In the wide form it is
+not.
+
+The exception is a **change score**: `post - pre` as a single outcome needs the
+wide form. That is why you move between the two (@sec-pivot) — wide to compute
+the difference, long to model the repeated measurements.
+
+### Variable types
+
+The class of a column decides how the model treats it, silently.
+
+| Class | How a model treats it | Use it when |
+|-------|----------------------|-------------|
+| `numeric` / `integer` | continuous; one coefficient per unit | the variable really is a quantity |
+| `factor` | categorical; one coefficient per level, against the first | ordinary categorical variables |
+| `ordered` factor | **polynomial contrasts** — usually not what you want | rarely; see the warning below |
+| `character` | converted to a factor on the fly, levels alphabetical | works, but you lose control of the reference |
+| `logical` | `FALSE` = 0, `TRUE` = 1 | binary indicators |
+
+Character and unordered factor give **identical fits** — R converts on the way
+in:
+
+```{r}
+#| label: types-chr-vs-fct
+d_types <- penguins |> drop_na(body_mass_g, species)
+
+chr_fit <- lm(body_mass_g ~ as.character(species), data = d_types)
+fct_fit <- lm(body_mass_g ~ species, data = d_types)
+
+all.equal(unname(fitted(chr_fit)), unname(fitted(fct_fit)))
+```
+
+The difference is control. A character column orders its levels alphabetically,
+so the reference group is whichever category comes first in the alphabet — a
+decision made by spelling rather than by you. Convert to a factor and set the
+reference deliberately (@sec-strings-factors).
+
+::: {.callout-warning}
+## Ordered factors do something you probably did not ask for
+An ordered factor gets **polynomial contrasts**, not the level-by-level
+comparisons everyone expects:
+
+```{r}
+#| label: types-ordered
+d_types |>
+  mutate(species_ord = factor(species, ordered = TRUE)) |>
+  lm(body_mass_g ~ species_ord, data = _) |>
+  tidy() |>
+  select(term, estimate)
+```
+
+`.L` and `.Q` are the linear and quadratic trends across the levels, and the
+intercept is the grand mean rather than a reference group. That is a sensible
+default for a genuinely ordered dose — low, medium, high — where a trend is the
+question. It is nonsense for species, and the output gives no warning that you
+have asked for something unusual.
+
+Since `ordered = TRUE` is exactly what you *should* use for sorting and plotting
+(@sec-classes), it is easy to arrive here by accident. If you want ordinary
+comparisons, drop the ordering for the model:
+
+```{r}
+#| label: types-ordered-fix
+#| eval: false
+data |> mutate(dose = factor(dose, ordered = FALSE))
+```
+
+Or set the contrasts explicitly with
+`contrasts(data$dose) <- contr.treatment(3)`.
+:::
+
+::: {.callout-warning}
+## A coded categorical is the silent one
+If a categorical variable arrives from SPSS or a register as `1`, `2`, `3`, R
+has no way to know it is not a quantity:
+
+```{r}
+#| label: types-numeric-code
+d_types |>
+  mutate(species_code = as.numeric(species)) |>
+  lm(body_mass_g ~ species_code, data = _) |>
+  tidy() |>
+  select(term, estimate)
+```
+
+One coefficient instead of two, and it claims that going from species 1 to 2 has
+the same effect as going from 2 to 3 — an assumption nobody made deliberately.
+Nothing errors, nothing warns.
+
+Check every categorical variable's class before modelling. `glimpse()` takes a
+second, and `haven::as_factor()` converts labelled SPSS columns properly
+(@sec-import).
+:::
+
+### A quick checklist
+
+```{r}
+#| label: types-check
+penguins |>
+  select(species, island, sex, body_mass_g, year) |>
+  map_chr(\(x) class(x)[1])
+```
+
+Before fitting, confirm: is every categorical variable a factor with the
+reference level you want, is every quantity numeric, and is the data long enough
+that each observation has its own row?
+
 ## The problem broom solves
 
 R's modelling functions are older than the tidyverse, and they return objects
@@ -311,7 +463,10 @@ by_species <- penguins |>
   # nest() collapses each species' rows into a data frame in a list column
   nest(.by = species)
 
-by_species
+# print() rather than plain `by_species`: this book prints data frames as
+# formatted tables, which would try to flatten the whole nested data frame
+# into a cell. The tibble print method abbreviates it instead.
+print(by_species)
 ```
 
 `data` is a **list column**: each cell holds an entire data frame. That is legal
@@ -326,7 +481,7 @@ results <- by_species |>
     fit = map(model, glance)
   )
 
-results
+print(results)
 ```
 
 Three models, each sitting next to its own data and its own label. Nothing can
@@ -451,6 +606,214 @@ confounding made visible in three lines: most of the apparent relationship
 between flipper length and body mass is explained by the fact that larger
 species have both. Because every model is fitted to the same `model_data`, the
 three estimates are directly comparable.
+
+## Interactions
+
+An interaction says that the effect of one variable **depends on** another: the
+slope differs between groups, or a treatment works better for some people than
+others. It is the formal version of the stratified analysis above.
+
+### Writing one
+
+```{r}
+#| label: interaction-syntax
+#| eval: false
+# a * b expands to a + b + a:b - both main effects and the interaction
+lm(body_mass_g ~ flipper_length_mm * species, data = d)
+
+# a:b is the interaction term only. Almost always a mistake on its own:
+# an interaction without its main effects is very hard to interpret
+lm(body_mass_g ~ flipper_length_mm:species, data = d)
+```
+
+Use `*`. Reach for `:` only when you have a specific reason and can say what the
+model means without the main effects.
+
+### Why the coefficients are hard to read
+
+```{r}
+#| label: interaction-coefs
+d_int <- penguins |> drop_na(body_mass_g, flipper_length_mm, species, sex)
+
+interaction_fit <- lm(body_mass_g ~ flipper_length_mm * species, data = d_int)
+
+tidy(interaction_fit) |>
+  select(term, estimate, p.value) |>
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
+```
+
+Read that carefully and notice how little it tells you directly:
+
+- `flipper_length_mm` (32.7) is **not** the effect of flipper length. It is the
+  slope **for Adelie only** — the reference level.
+- `speciesGentoo` (-4166) is **not** how much heavier Gentoos are. It is the
+  difference in intercepts at `flipper_length_mm = 0`, a flipper length no
+  penguin has. The number is large and negative and means almost nothing on its
+  own.
+- `flipper_length_mm:speciesGentoo` (21.5) is the *difference in slopes* between
+  Gentoo and Adelie. To get the Gentoo slope you add: 32.7 + 21.5 = 54.2.
+
+This is why interaction models get misreported. Every coefficient is conditional
+on the others being zero, and "zero" is often impossible.
+
+### The easy way: ask for the quantity you want
+
+Rather than adding coefficients by hand, ask `marginaleffects` directly.
+
+**The slope in each group:**
+
+```{r}
+#| label: interaction-slopes
+avg_slopes(interaction_fit, variables = "flipper_length_mm", by = "species")
+```
+
+54.2 for Gentoo, matching the hand calculation — with a correct standard error,
+which adding coefficients would not have given you.
+
+**Do the slopes actually differ?**
+
+```{r}
+#| label: interaction-hypothesis
+avg_slopes(
+  interaction_fit,
+  variables = "flipper_length_mm",
+  by = "species",
+  hypothesis = ~pairwise
+)
+```
+
+Gentoo differs from both others; Chinstrap and Adelie do not differ from each
+other. That is the interaction, expressed as comparisons you can put in a paper.
+
+::: {.callout-note}
+## `hypothesis` takes a formula
+In older code and tutorials you will see `hypothesis = "pairwise"` as a string.
+Current `marginaleffects` wants a formula: `~pairwise`, `~reference` (each level
+against the first) or `~sequential` (each against the previous). The string form
+errors, and the message is not obvious — worth recognising when you meet old
+code.
+:::
+
+### Plot it
+
+For an interaction, a figure is almost always clearer than a table.
+
+```{r}
+#| label: fig-interaction-predictions
+#| fig-cap: "Predicted body mass across flipper length, one line per species."
+#| fig-height: 3.6
+plot_predictions(
+  interaction_fit,
+  condition = c("flipper_length_mm", "species")
+) +
+  labs(x = "Flipper length (mm)", y = "Predicted body mass (g)") +
+  theme_minimal(base_size = 13)
+```
+
+Non-parallel lines *are* the interaction. If the lines were parallel, the
+interaction term would be near zero.
+
+`plot_predictions()` returns a `ggplot` object, so you can add layers, labels
+and themes to it like any other figure — including the raw data underneath:
+
+```{r}
+#| label: fig-interaction-with-data
+#| fig-cap: "The same predictions with the observations behind them."
+#| fig-height: 3.6
+plot_predictions(
+  interaction_fit,
+  condition = c("flipper_length_mm", "species"),
+  points = 0.4
+) +
+  labs(x = "Flipper length (mm)", y = "Body mass (g)") +
+  theme_minimal(base_size = 13)
+```
+
+`plot_slopes()` shows the effect itself rather than the prediction, which
+answers "how much does the slope differ, and is the difference distinguishable
+from zero?" directly:
+
+```{r}
+#| label: fig-interaction-slopes
+#| fig-cap: "The slope of body mass on flipper length, per species, with 95% intervals."
+#| fig-height: 3
+plot_slopes(
+  interaction_fit,
+  variables = "flipper_length_mm",
+  condition = "species"
+) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey50") +
+  labs(x = NULL, y = "Slope (g per mm)") +
+  theme_minimal(base_size = 13)
+```
+
+### Categorical by categorical
+
+The same tools handle a two-factor interaction, where the question is usually
+whether a group difference is itself different between groups.
+
+```{r}
+#| label: interaction-cat
+cat_fit <- lm(body_mass_g ~ species * sex, data = d_int)
+
+# the male - female difference, within each species
+avg_comparisons(cat_fit, variables = "sex", by = "species")
+```
+
+```{r}
+#| label: interaction-did
+# and whether those differences differ: a difference in differences
+avg_comparisons(
+  cat_fit,
+  variables = "sex",
+  by = "species",
+  hypothesis = ~pairwise
+)
+```
+
+Males are heavier in every species, but by different amounts: about 805 g in
+Gentoo, 675 g in Adelie and 412 g in Chinstrap. The pairwise comparison then
+says which of those gaps are distinguishable from each other. This is the
+"difference in differences" that an interaction coefficient encodes, stated in
+grams rather than as a contrast — and the Chinstrap gap being roughly half the
+Gentoo one is the finding, not the p-value.
+
+::: {.callout-tip}
+## Centre continuous predictors and the main effects become readable
+The `speciesGentoo` coefficient was uninterpretable because it described a
+penguin with a 0 mm flipper. Centre the predictor and it describes a penguin of
+average flipper length instead:
+
+```{r}
+#| label: interaction-centred
+d_int |>
+  mutate(flipper_c = flipper_length_mm - mean(flipper_length_mm)) |>
+  lm(body_mass_g ~ flipper_c * species, data = _) |>
+  tidy() |>
+  select(term, estimate) |>
+  mutate(estimate = round(estimate, 1))
+```
+
+The intercept is now the predicted mass of an average-flippered Adelie, and
+`speciesGentoo` is the Gentoo–Adelie difference at average flipper length — both
+quantities that exist. The fit, the predictions and the interaction term are
+completely unchanged; only the parameterisation is easier to read.
+:::
+
+::: {.callout-warning}
+## Interactions need much more data than main effects
+Detecting an interaction reliably takes roughly **four times** the sample size
+needed for a main effect of the same magnitude. Two consequences:
+
+- A non-significant interaction is weak evidence of no interaction. Report the
+  estimate and its interval, not just the p-value.
+- A *significant* interaction found by testing many subgroups is very likely
+  noise. Pre-specify the interactions you will test, and treat the rest as
+  exploratory (@sec-eda).
+
+The tools above make it easy to fit an interaction for every variable you have.
+That ease is not evidence that you should.
+:::
 
 ## Bootstrapping
 
