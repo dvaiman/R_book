@@ -69,8 +69,7 @@ in @sec-cleaning.
 
 ## The five common problems
 
-According to [Hadley Wickham](https://www.jstatsoft.org/article/view/v059i10/),
-there are five problems you will meet repeatedly:
+According to @wickham2014, there are five problems you will meet repeatedly:
 
 1. **Column headers are values, not variable names.**
    `2019`, `2020`, `2021` as column names; the variable is *year*.
@@ -371,7 +370,7 @@ becomes visible.
 
 ## More information
 
-- [Tidy Data (Wickham 2014)](https://www.jstatsoft.org/article/view/v059i10)
+- @wickham2014, the paper that defined the term
 - [The tidyr tidy-data vignette](https://tidyr.tidyverse.org/articles/tidy-data.html)
 - [R for Data Science: data tidying](https://r4ds.hadley.nz/data-tidy)
 - [Notes on the tidyverse](https://jessesadler.github.io/notes-tidyverse/)

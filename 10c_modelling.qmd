@@ -1,0 +1,852 @@
+# Statistics and Modelling {#sec-modelling}
+
+::: {.callout-note}
+## What this chapter covers
+How to fit models and get their results back as tidy data you can filter, plot
+and tabulate — starting from a single `lm()` and building up to fitting many
+models at once and keeping them in list columns. This is not a statistics
+course: it assumes you know which model you want and shows you how to run it
+without losing control of the output.
+:::
+
+```{r}
+#| label: setup-modelling
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: modelling-libs
+#| message: false
+library(tidyverse)
+library(palmerpenguins)
+library(broom)
+```
+
+## The problem broom solves
+
+R's modelling functions are older than the tidyverse, and they return objects
+designed to be *printed*, not manipulated.
+
+```{r}
+#| label: model-print
+model <- lm(body_mass_g ~ flipper_length_mm + species + sex, data = penguins)
+
+summary(model)
+```
+
+That output is readable and almost useless programmatically. You cannot filter
+it, plot it, join it to anything, or put it in a table without copying numbers
+by hand — which is how wrong numbers reach manuscripts.
+
+`broom` converts model objects into data frames. Three verbs cover nearly
+everything.
+
+### `tidy()`: one row per term
+
+```{r}
+#| label: broom-tidy
+tidy(model, conf.int = TRUE)
+```
+
+Now it is a tibble. It can be filtered, arranged, plotted and joined like any
+other data.
+
+```{r}
+#| label: fig-coef-plot
+#| fig-cap: "A coefficient plot, straight from tidy() output."
+#| fig-height: 3
+tidy(model, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(estimate, fct_rev(term))) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  labs(x = "Estimate (g)", y = NULL) +
+  theme_minimal(base_size = 13)
+```
+
+For models on a log scale — logistic, Poisson, Cox — `exponentiate = TRUE` gives
+you odds ratios, rate ratios or hazard ratios, with the confidence interval
+exponentiated too:
+
+```{r}
+#| label: broom-exponentiate
+penguins |>
+  drop_na() |>
+  glm(sex ~ body_mass_g + species, data = _, family = binomial()) |>
+  tidy(exponentiate = TRUE, conf.int = TRUE) |>
+  filter(term != "(Intercept)")
+```
+
+::: {.callout-note}
+## The `_` placeholder
+`data = _` passes the piped value to a named argument rather than the first one.
+`glm()` takes the formula first and the data second, so the plain pipe would put
+the penguins in the wrong slot. The placeholder needs a *named* argument — this
+is one of the few places the base pipe is stricter than `%>%`, which uses `.`.
+:::
+
+### `glance()`: one row per model
+
+```{r}
+#| label: broom-glance
+glance(model)
+```
+
+Model-level statistics: R², AIC, BIC, residual degrees of freedom, and `nobs` —
+the number of observations actually used, which matters more than people expect
+(see the warning below).
+
+### `augment()`: one row per observation
+
+```{r}
+#| label: broom-augment
+augment(model) |>
+  select(body_mass_g, .fitted, .resid, .std.resid, .cooksd) |>
+  head(4)
+```
+
+`augment()` adds fitted values, residuals, leverage and Cook's distance to the
+data. Since the result is a data frame, diagnostics become ordinary `ggplot2`:
+
+```{r}
+#| label: fig-resid
+#| fig-cap: "Residuals against fitted values, drawn with ggplot2."
+#| fig-height: 3.2
+augment(model) |>
+  ggplot(aes(.fitted, .resid)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_smooth(method = "loess", formula = y ~ x, se = FALSE) +
+  labs(x = "Fitted (g)", y = "Residual (g)") +
+  theme_minimal(base_size = 13)
+```
+
+### It works on hypothesis tests too
+
+`tidy()` is not only for regression. Most `htest` objects tidy as well, which is
+handy when you want a t-test result in a table rather than on screen:
+
+```{r}
+#| label: broom-htest
+d <- penguins |> drop_na(body_mass_g, sex)
+
+tidy(t.test(body_mass_g ~ sex, data = d))
+
+tidy(cor.test(d$body_mass_g, d$flipper_length_mm))
+```
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which broom verb returns one row per model term?
+`r mcq(c(answer = "tidy()", "glance()", "augment()", "summary()"))`
+
+To get odds ratios from a logistic regression you add
+`r mcq(c("family = binomial()", answer = "exponentiate = TRUE", "log = FALSE", "conf.int = TRUE"))`
+
+`augment()` returns one row per
+`r mcq(c("model term", "model", answer = "observation", "group"))`
+:::
+
+## Two gotchas worth knowing early
+
+::: {.callout-warning}
+## Models silently drop rows with missing values
+`lm()` and friends default to `na.action = na.omit`: any row with a missing
+value in *any* variable in the formula is dropped, without a message.
+
+```{r}
+#| label: na-drop
+m1 <- lm(body_mass_g ~ flipper_length_mm, data = penguins)
+m2 <- lm(body_mass_g ~ flipper_length_mm + sex, data = penguins)
+
+nrow(penguins)
+nobs(m1)
+nobs(m2)
+```
+
+344 rows in, 342 in the first model, 333 in the second — because adding `sex`
+brought its 11 missing values into the formula.
+
+This has a consequence people miss: **`m1` and `m2` are fitted to different
+data, so their AIC, BIC and R² are not comparable.** To compare models, fit them
+all to the same complete-case set:
+
+```{r}
+#| label: na-drop-fix
+model_data <- penguins |>
+  drop_na(body_mass_g, flipper_length_mm, sex)
+
+m1 <- lm(body_mass_g ~ flipper_length_mm, data = model_data)
+m2 <- lm(body_mass_g ~ flipper_length_mm + sex, data = model_data)
+
+c(nobs(m1), nobs(m2))
+```
+
+Always report `nobs()`, and always say how missing data was handled.
+:::
+
+::: {.callout-warning}
+## The reference level is the first factor level
+A categorical predictor is coded relative to its first level, so every
+coefficient is a comparison *against that level*. Change the level order and the
+whole table changes meaning:
+
+```{r}
+#| label: reference-level
+d <- penguins |> drop_na()
+
+# default: Adelie is the reference, because it is the first level
+lm(body_mass_g ~ species, data = d) |>
+  tidy() |>
+  select(term, estimate)
+
+# make Gentoo the reference instead
+d |>
+  mutate(species = fct_relevel(species, "Gentoo")) |>
+  lm(body_mass_g ~ species, data = _) |>
+  tidy() |>
+  select(term, estimate)
+```
+
+Both are the same model — the fit, the predictions and the R² are identical —
+but the numbers you would report are completely different. Set the reference
+level deliberately with `fct_relevel()` (@sec-strings-factors), choosing the
+group that makes clinical sense as the comparator, and say in the text which it
+is.
+:::
+
+## Checking the model
+
+`performance` runs the standard diagnostics and returns them as one figure:
+
+```{r}
+#| label: fig-check-model
+#| fig-cap: "Diagnostic plots from performance::check_model()."
+#| fig-width: 9
+#| fig-height: 8
+#| message: false
+#| warning: false
+performance::check_model(model)
+```
+
+```{r}
+#| label: performance-numbers
+performance::model_performance(model)
+
+performance::check_collinearity(model)
+```
+
+::: {.callout-important}
+## A diagnostic plot cannot tell you the model was appropriate
+`check_model()` will happily draw six panels for a model that should never have
+been fitted — one that ignores clustering, or that adjusts for a variable on the
+causal pathway. It checks the model's *internal* assumptions, not whether the
+model answers your question. That part is yours (@sec-ai).
+:::
+
+## Interpreting the model
+
+Coefficients are often not the quantity you want to report, especially on a
+non-identity link. `marginaleffects` turns a model into the estimates a reader
+actually understands, and it has become the standard tool for this.
+
+```{r}
+#| label: marginaleffects
+#| message: false
+library(marginaleffects)
+
+# average predicted body mass for each species
+avg_predictions(model, by = "species")
+```
+
+```{r}
+#| label: marginaleffects-comparisons
+# the average difference between males and females, holding everything else
+# at its observed values
+avg_comparisons(model, variables = "sex")
+```
+
+```{r}
+#| label: marginaleffects-slopes
+# the average slope: grams per millimetre of flipper
+avg_slopes(model, variables = "flipper_length_mm")
+```
+
+The three verbs cover most needs: **`avg_predictions()`** for predicted values,
+**`avg_comparisons()`** for differences between groups or levels, and
+**`avg_slopes()`** for the effect of a one-unit change in a continuous variable.
+All return data frames, so they go straight into a plot or a table.
+
+`emmeans` does a related job with a longer history and strong support for
+multiplicity adjustment:
+
+```{r}
+#| label: emmeans
+#| message: false
+library(emmeans)
+
+means <- emmeans(model, ~species)
+means
+
+pairs(means)
+```
+
+Note that `pairs()` applies Tukey adjustment by default — worth knowing you are
+getting it, and worth reporting.
+
+## Many models at once
+
+This is where list columns earn their place. The pattern from @sec-functions —
+`nest()`, `map()`, `unnest()` — is the tidyverse answer to "fit this model
+separately for every group".
+
+### The pattern
+
+```{r}
+#| label: many-models
+by_species <- penguins |>
+  drop_na(body_mass_g, flipper_length_mm) |>
+  # nest() collapses each species' rows into a data frame in a list column
+  nest(.by = species)
+
+by_species
+```
+
+`data` is a **list column**: each cell holds an entire data frame. That is legal
+because a tibble column is a list, and a list can hold anything.
+
+```{r}
+#| label: many-models-fit
+results <- by_species |>
+  mutate(
+    model = map(data, \(d) lm(body_mass_g ~ flipper_length_mm, data = d)),
+    coefficients = map(model, \(m) tidy(m, conf.int = TRUE)),
+    fit = map(model, glance)
+  )
+
+results
+```
+
+Three models, each sitting next to its own data and its own label. Nothing can
+get out of order, because the model and the group name are in the same row —
+which is the real advantage over keeping a separate list of models and a
+separate vector of names.
+
+Then unnest whichever part you want:
+
+```{r}
+#| label: many-models-coefs
+results |>
+  select(species, coefficients) |>
+  unnest(coefficients) |>
+  filter(term == "flipper_length_mm") |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+```{r}
+#| label: many-models-fit-stats
+results |>
+  select(species, fit) |>
+  unnest(fit) |>
+  select(species, r.squared, sigma, nobs)
+```
+
+::: {.callout-important}
+## Three separate models are not one model with an interaction
+The slopes above differ between species, which looks like an interaction — and
+it is tempting to treat it as one. But the two analyses are not the same:
+
+- **Three separate models** each estimate their own residual variance from their
+  own species only.
+- **One interaction model** pools the residual variance across all species and
+  gives you a formal test of whether the slopes differ.
+
+```{r}
+#| label: interaction-model
+interaction_model <- penguins |>
+  drop_na(body_mass_g, flipper_length_mm) |>
+  lm(body_mass_g ~ flipper_length_mm * species, data = _)
+
+tidy(interaction_model) |>
+  filter(str_detect(term, ":")) |>
+  select(term, estimate, p.value)
+```
+
+Which you want depends on your question. Stratified models suit "describe each
+group separately"; the interaction model suits "do these groups differ?". Only
+the second gives you a p-value for the difference. `map()` makes both equally
+easy to produce, which is exactly why you have to decide deliberately.
+:::
+
+### Several outcomes at once
+
+The same pattern, rotated: instead of one model per group, one model per
+outcome.
+
+```{r}
+#| label: many-outcomes
+outcomes <- c("body_mass_g", "flipper_length_mm", "bill_length_mm")
+
+outcome_results <- tibble(outcome = outcomes) |>
+  mutate(
+    model = map(outcome, \(y) {
+      # reformulate() builds a formula from strings
+      lm(reformulate(c("species", "sex"), response = y), data = penguins)
+    }),
+    coefficients = map(model, \(m) tidy(m, conf.int = TRUE))
+  ) |>
+  select(outcome, coefficients) |>
+  unnest(coefficients) |>
+  filter(term == "sexmale")
+
+outcome_results |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+::: {.callout-warning}
+## Many models means many p-values
+Fitting a model per outcome, or per subgroup, multiplies your tests. With twenty
+outcomes at the 0.05 level you expect one "significant" result from noise alone.
+
+If the analyses were pre-specified, adjust for multiplicity or report them as a
+set. If they were not, describe them as exploratory and say so. The `map()`
+pattern makes it trivially easy to fit fifty models; the responsibility for what
+that does to your error rate is unchanged.
+:::
+
+### Unadjusted and adjusted side by side
+
+A staple of epidemiological papers, and a natural fit for list columns:
+
+```{r}
+#| label: adjusted-unadjusted
+model_data <- penguins |> drop_na()
+
+specifications <- tibble(
+  label = c("Unadjusted", "Adjusted for species", "Adjusted for species and sex"),
+  formula = c(
+    "body_mass_g ~ flipper_length_mm",
+    "body_mass_g ~ flipper_length_mm + species",
+    "body_mass_g ~ flipper_length_mm + species + sex"
+  )
+)
+
+specifications |>
+  mutate(
+    model = map(formula, \(f) lm(as.formula(f), data = model_data)),
+    coefficients = map(model, \(m) tidy(m, conf.int = TRUE))
+  ) |>
+  select(label, coefficients) |>
+  unnest(coefficients) |>
+  filter(term == "flipper_length_mm") |>
+  select(label, estimate, conf.low, conf.high) |>
+  mutate(across(where(is.numeric), \(x) round(x, 1)))
+```
+
+The estimate falls from 50.2 to 40.6 once species is adjusted for, and to 20.0
+once sex is added as well — less than half the unadjusted value. That is
+confounding made visible in three lines: most of the apparent relationship
+between flipper length and body mass is explained by the fact that larger
+species have both. Because every model is fitted to the same `model_data`, the
+three estimates are directly comparable.
+
+## Bootstrapping
+
+`rsample` handles resampling, and the results are — again — list columns.
+
+```{r}
+#| label: bootstrap
+#| message: false
+library(rsample)
+
+set.seed(2026)
+
+boot_results <- model_data |>
+  bootstraps(times = 200) |>
+  mutate(
+    coefficients = map(splits, \(s) {
+      lm(body_mass_g ~ flipper_length_mm, data = analysis(s)) |> tidy()
+    })
+  ) |>
+  select(id, coefficients) |>
+  unnest(coefficients) |>
+  filter(term == "flipper_length_mm")
+
+# the percentile bootstrap interval
+quantile(boot_results$estimate, c(0.025, 0.5, 0.975)) |> round(2)
+```
+
+```{r}
+#| label: fig-bootstrap
+#| fig-cap: "The bootstrap distribution of the slope."
+#| fig-height: 3
+boot_results |>
+  ggplot(aes(estimate)) +
+  geom_histogram(bins = 30, fill = "steelblue", colour = "white") +
+  labs(x = "Slope (g per mm)", y = "Bootstrap replicates") +
+  theme_minimal(base_size = 13)
+```
+
+`analysis(s)` extracts the resampled data from a split; `assessment(s)` gives
+the rows left out. Useful when a standard error is hard to derive analytically —
+a median, a ratio of coefficients, a complicated derived statistic.
+
+## Reporting the model
+
+`gtsummary` (@sec-tables) builds the table directly from the model object, so
+the numbers cannot drift out of sync with the analysis:
+
+```{r}
+#| label: tbl-regression
+#| message: false
+library(gtsummary)
+
+unadjusted <- lm(body_mass_g ~ flipper_length_mm, data = model_data) |>
+  tbl_regression()
+
+adjusted <- lm(
+  body_mass_g ~ flipper_length_mm + species + sex,
+  data = model_data
+) |>
+  tbl_regression()
+
+tbl_merge(
+  list(unadjusted, adjusted),
+  tab_spanner = c("**Unadjusted**", "**Adjusted**")
+)
+```
+
+## Mixed models
+
+Repeated measurements on the same participant violate independence. `lme4`
+fits mixed models, and `broom.mixed` tidies them:
+
+```{r}
+#| label: mixed-model
+#| message: false
+library(lme4)
+
+# a random intercept per species: each species gets its own baseline,
+# and the slope is shared
+mixed <- lmer(body_mass_g ~ flipper_length_mm + (1 | species), data = model_data)
+
+broom.mixed::tidy(mixed, effects = "fixed", conf.int = TRUE)
+```
+
+```{r}
+#| label: mixed-model-random
+broom.mixed::tidy(mixed, effects = "ran_pars")
+```
+
+`glmmTMB` handles the cases `lme4` cannot — zero inflation, negative binomial,
+beta responses — with a similar formula interface.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+`m1` uses 342 observations and `m2` uses 333, because `m2` has an extra
+predictor with missing values. Can you compare their AIC?
+`r mcq(c("Yes, AIC is always comparable", answer = "No, they are fitted to different data", "Only if the R2 is similar", "Only for linear models"))`
+
+A list column holds
+`r mcq(c("only numbers", "only strings", answer = "any R object, including data frames and models", "nothing; tibbles cannot do this"))`
+
+Which function gives the average difference between two groups from a fitted
+model?
+`r mcq(c("avg_predictions()", answer = "avg_comparisons()", "avg_slopes()", "glance()"))`
+
+Fitting one model per group is the same analysis as one model with an
+interaction. `r torf(FALSE)`
+
+Changing the reference level of a factor changes the model's predictions.
+`r torf(FALSE)`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: from model to table
+
+Using `penguins`:
+
+1. Fit a model of `bill_length_mm` on `body_mass_g`, `species` and `sex`.
+2. Report the coefficients with confidence intervals, rounded sensibly.
+3. How many observations did the model actually use, and why is that not 344?
+4. Make a coefficient plot.
+5. Report the average difference between males and females.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-model-sol
+model_ex <- lm(
+  bill_length_mm ~ body_mass_g + species + sex,
+  data = penguins
+)
+
+tidy(model_ex, conf.int = TRUE) |>
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
+
+nobs(model_ex)
+```
+
+333, not 344: two penguins have no bill measurement and eleven have no recorded
+sex, and `lm()` drops any row missing any variable in the formula.
+
+```{r}
+#| label: fig-ex1-model
+#| fig-cap: "Coefficients with 95% confidence intervals."
+#| fig-height: 3
+tidy(model_ex, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(estimate, fct_rev(term))) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  labs(x = "Estimate (mm)", y = NULL) +
+  theme_minimal(base_size = 13)
+```
+
+```{r}
+#| label: ex1-model-sol2
+avg_comparisons(model_ex, variables = "sex")
+```
+
+Note the coefficient for `body_mass_g` is tiny — but the unit is one gram. An
+effect per 100 g or per kilogram is far more readable, which is a good argument
+for scaling predictors before fitting, or for using `avg_comparisons()` with an
+explicit contrast.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: many models
+
+1. Fit the model from Exercise 1 separately for each island.
+2. Produce a table of the `sexmale` coefficient with its confidence interval,
+   one row per island, alongside the number of observations.
+3. Plot the estimates with their intervals.
+4. Which island has the least precise estimate? Check whether the obvious
+   explanation is the right one.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex2-model-sol
+island_models <- penguins |>
+  drop_na(bill_length_mm, body_mass_g, sex) |>
+  nest(.by = island) |>
+  mutate(
+    model = map(data, \(d) lm(bill_length_mm ~ body_mass_g + sex, data = d)),
+    coefficients = map(model, \(m) tidy(m, conf.int = TRUE)),
+    n = map_int(data, nrow)
+  )
+
+island_estimates <- island_models |>
+  select(island, n, coefficients) |>
+  unnest(coefficients) |>
+  filter(term == "sexmale") |>
+  select(island, n, estimate, conf.low, conf.high) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+
+island_estimates
+```
+
+```{r}
+#| label: fig-ex2-model
+#| fig-cap: "Sex difference in bill length by island, with 95% intervals."
+#| fig-height: 2.8
+island_estimates |>
+  ggplot(aes(estimate, island)) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  labs(x = "Male - female (mm)", y = NULL) +
+  theme_minimal(base_size = 13)
+```
+
+The obvious guess is Torgersen, which has by far the fewest penguins (47 against
+123 and 163). It is wrong: **Dream** has the widest interval.
+
+```{r}
+#| label: ex2-model-width
+island_estimates |>
+  mutate(width = conf.high - conf.low) |>
+  arrange(desc(width)) |>
+  select(island, n, width)
+```
+
+Precision depends on the residual variance and the spread of the predictors, not
+only on the sample size. Dream holds two species, Adelie and Chinstrap, whose
+bills differ markedly — and this model does not adjust for species, so that
+between-species variation lands in the residual and widens the interval.
+Torgersen is Adelie only, so it is far more homogeneous and gets more precision
+from fewer birds.
+
+Two lessons. First, sample size belongs *in* the table, because three separate
+models produce three estimates that look equally solid on a plot. Second, a
+stratified analysis inherits whatever the model omits: stratifying by island did
+not remove the species confounding, it just hid it inside one stratum.
+
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: does it matter which species is the reference?
+
+1. Fit `body_mass_g ~ species` and note the coefficients.
+2. Refit with Chinstrap as the reference level.
+3. Compare the two tables. What changed, and what did not?
+4. Confirm your answer by comparing the fitted values from both models.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex3-model-sol
+d3 <- penguins |> drop_na(body_mass_g)
+
+fit_a <- lm(body_mass_g ~ species, data = d3)
+fit_b <- d3 |>
+  mutate(species = fct_relevel(species, "Chinstrap")) |>
+  lm(body_mass_g ~ species, data = _)
+
+tidy(fit_a) |> select(term, estimate)
+tidy(fit_b) |> select(term, estimate)
+```
+
+The coefficients change completely, because they are comparisons against a
+different group. What does **not** change:
+
+```{r}
+#| label: ex3-model-check
+# identical fit
+c(glance(fit_a)$r.squared, glance(fit_b)$r.squared)
+
+# identical predictions, to within floating-point noise
+all.equal(unname(fitted(fit_a)), unname(fitted(fit_b)))
+```
+
+Same model, same fit, same predictions — only the parameterisation differs. The
+practical lesson: choose the reference level so that the comparisons in your
+table are the ones you actually want to discuss, and state it in the methods.
+Readers cannot tell from the table alone which group is the comparator unless
+you say.
+:::
+:::
+
+## Predictive modelling with tidymodels
+
+Everything above is **inference**: what is the effect, and how certain are we?
+`tidymodels` is built for a different question — **prediction**: how well does
+this generalise to data it has not seen?
+
+::: {.callout-warning}
+## Load tidymodels last, and qualify your data
+`tidymodels` attaches `modeldata`, which contains its own `penguins`. After
+`library(tidymodels)`, a bare `penguins` silently resolves to
+`modeldata::penguins` rather than the one you have been using:
+
+```{r}
+#| label: penguins-masking
+#| message: false
+library(tidymodels)
+
+utils::getAnywhere("penguins")$where[1]
+
+setdiff(names(palmerpenguins::penguins), names(penguins))
+```
+
+Same column names, but no `year` — a different data frame, chosen for you
+without a word. Since R 4.5 there is a third `penguins` in `datasets`, with
+shorter column names again (@sec-classes).
+
+Two defences. Write `palmerpenguins::penguins` explicitly, which is what this
+section does. Or call `tidymodels_prefer()`, which activates `conflicted` and
+converts silent masking into a loud error:
+
+```{r}
+#| label: conflict-demo
+#| eval: false
+tidymodels_prefer()
+
+penguins |> drop_na()
+#> Error: [conflicted] penguins found in 3 packages.
+#> Either pick the one you want with `::`:
+#> * modeldata::penguins
+#> * palmerpenguins::penguins
+#> * datasets::penguins
+```
+
+An error is the better outcome. This section is placed at the end of the chapter
+precisely because attaching `tidymodels` changes what later code means.
+:::
+
+```{r}
+#| label: tidymodels
+#| message: false
+penguins_tm <- palmerpenguins::penguins |> drop_na()
+
+set.seed(123)
+split <- initial_split(penguins_tm, prop = 0.75, strata = species)
+
+recipe_spec <- recipe(
+  body_mass_g ~ flipper_length_mm + species + sex,
+  data = training(split)
+) |>
+  step_dummy(all_nominal_predictors())
+
+workflow_spec <- workflow() |>
+  add_recipe(recipe_spec) |>
+  add_model(linear_reg() |> set_engine("lm"))
+
+fitted_wf <- fit(workflow_spec, data = training(split))
+
+# performance on data the model has never seen
+augment(fitted_wf, new_data = testing(split)) |>
+  metrics(truth = body_mass_g, estimate = .pred)
+```
+
+Cross-validation, in three lines:
+
+```{r}
+#| label: tidymodels-cv
+#| message: false
+set.seed(42)
+
+fit_resamples(workflow_spec, vfold_cv(training(split), v = 5)) |>
+  collect_metrics() |>
+  select(.metric, mean, n, std_err)
+```
+
+The pieces: **`rsample`** splits the data, **`recipes`** defines the
+preprocessing, **`parsnip`** specifies the model independently of which engine
+fits it, **`workflows`** binds preprocessing and model together so both are
+applied identically to every resample, and **`yardstick`** computes the metrics.
+
+::: {.callout-tip}
+## Which framework?
+Use **`lm()`/`glm()` + `broom` + `marginaleffects`** when you want to estimate
+and report an effect — almost all epidemiological and clinical research.
+
+Use **`tidymodels`** when the goal is prediction and you need resampling, tuning
+and honest out-of-sample performance.
+
+The two are not competitors, and using a predictive framework for an inferential
+question is a common mistake: a cross-validated R² does not tell you whether an
+exposure causes an outcome.
+:::
+
+## More information
+
+- [broom](https://broom.tidymodels.org/) and its
+  [vignette on many models](https://broom.tidymodels.org/articles/broom.html)
+- [R for Data Science: many models with list columns](https://r4ds.hadley.nz/rectangling)
+- [marginaleffects](https://marginaleffects.com/) — the accompanying book is the
+  best available explanation of predictions, comparisons and slopes
+- [emmeans vignettes](https://rvlenth.github.io/emmeans/articles/)
+- [easystats](https://easystats.github.io/easystats/) — `performance`,
+  `parameters`, `effectsize`, `report`
+- [Tidy Modeling with R](https://www.tmwr.org/) — the tidymodels book
+- [Regression and Other Stories](https://avehtari.github.io/ROS-Examples/) — for
+  the statistics rather than the code

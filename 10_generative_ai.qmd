@@ -192,7 +192,7 @@ reviewing after the fact rather than following each step.
 
 ### Fast and slow
 
-Kahneman described two modes of thinking. **System 1** is fast, automatic and
+@kahneman2011 described two modes of thinking. **System 1** is fast, automatic and
 almost free. **System 2** is slow, deliberate and effortful — it is when you
 actually check. System 1 fires first, and System 2 is lazy and inclined to
 approve what System 1 already liked.
@@ -202,9 +202,9 @@ well-written, and it looks reasonable. Everything about the experience tells
 System 1: this is right, move on. The work then becomes a series of accept
 clicks instead of thinking.
 
-Shaw and Nave call this **"System 3"** — artificial cognition happening outside
-the head — and warn about *cognitive surrender*: accepting AI output with
-minimal scrutiny. They measured it in pre-registered experiments with 1,372
+@shaw2025 call this **"System 3"** — artificial cognition happening outside the
+head — and warn about *cognitive surrender*: accepting AI output with minimal
+scrutiny. They measured it in pre-registered experiments with 1,372
 participants. When the AI was right, accuracy rose by **25 percentage points**.
 When it was wrong, accuracy fell by **15**. People followed it in both
 directions.
@@ -248,7 +248,7 @@ There is an uncomfortable paradox: the more AI does for you, the less you learn.
 
 ### Desirable difficulties
 
-Research on learning (Bjork) shows that some difficulties feel slow and
+Research on learning [@bjork2011] shows that some difficulties feel slow and
 unpleasant *now* but produce deeper, more durable knowledge *later*. AI that
 removes the difficulty can remove the learning with it. "Fast and easy" *feels*
 like progress without being it.
@@ -324,9 +324,9 @@ expertise, and it gives you the most control.
 
 | Finding | What it corresponds to |
 |---|---|
-| **80%** of developers use AI, but only **29%** trust its correctness (Stack Overflow 2025) | Using without trusting: **verification is the norm** |
+| **80%** of developers use AI, but only **29%** trust its correctness [@stackoverflow2025] | Using without trusting: **verification is the norm** |
 | The most common frustration (45%): code that is **"almost right"**; 66% spend more time fixing it | The jagged edge, in survey form |
-| Developers *believed* they were 20% faster with AI. They were **19% slower** (METR 2025) | The System 1 feeling of progress misleads |
+| Developers *believed* they were 20% faster with AI. They were **19% slower** [@metr2025] | The System 1 feeling of progress misleads |
 | **57%** of researchers have used AI help with writing in the past two years (Nature survey 2025) | Transparency and documentation are urgent, not theoretical |
 
 The METR figure deserves a caveat: it studied 16 experienced developers working
@@ -350,7 +350,7 @@ Nobody knows what the tools look like in two years. But some abilities become
 
 ::: {.callout-note}
 ## Programming as theory building
-In 1985 Peter Naur argued that a program is not its source code. The program is
+In 1985 Peter Naur argued that a program is not its source code [@naur1985]. The program is
 the **theory in the head** of the person who built it: the understanding of why
 the code looks as it does and how it relates to the problem. The code is only an
 incomplete record. If the theory disappears, the program dies, however much code

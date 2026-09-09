@@ -16,7 +16,9 @@ library(webexercises)
 ## Reproducible research
 
 Using Quarto for your analyses puts code, results and documentation in a single
-document. The numbers in your text are computed from your data every time the
+document. The idea goes back to Donald Knuth's *literate programming*
+[@knuth1984]: a program written primarily to be read by humans, with the code
+embedded in the explanation rather than the other way round. The numbers in your text are computed from your data every time the
 document is rendered, so they cannot drift out of date. This is the practical
 core of reproducibility: not that you *could* reproduce the analysis, but that
 you do so automatically on every render.

@@ -70,6 +70,15 @@ jobs:
             any::readxl
             any::haven
             any::writexl
+            any::marginaleffects
+            any::emmeans
+            any::performance
+            any::see
+            any::parameters
+            any::lme4
+            any::broom.mixed
+            any::tidymodels
+            any::reprex
 
       - name: Render Quarto project
         run: quarto render

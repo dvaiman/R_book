@@ -1,4 +1,7 @@
 # References {.unnumbered}
 
+Works cited in the text. Everything else — packages, blogs, books to read next —
+is in @sec-packages.
+
 ::: {#refs}
 :::

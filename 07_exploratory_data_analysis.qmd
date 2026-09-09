@@ -17,26 +17,25 @@ library(webexercises)
 ## What EDA is
 
 John Tukey, often regarded as the father of exploratory data analysis,
-introduced the idea in *Exploratory Data Analysis* (1977). EDA is related to
+introduced the idea in *Exploratory Data Analysis* [@tukey1977]. EDA is related to
 data cleaning but serves a different purpose. Cleaning prepares the data —
 handling missing values, correcting errors, ensuring consistency. EDA is about
 *understanding* the data's structure through visual and statistical methods. In
 practice the two are iterative: EDA reveals what still needs cleaning.
 
-To describe EDA I borrow a paragraph from
-[Jebb et al.](https://www.sciencedirect.com/science/article/abs/pii/S1053482216300353):
+To describe EDA I borrow a paragraph from @jebb2017:
 
 > Putting all these perspectives together, EDA is best described as an
 > overarching analytic attitude characterized as "detective work designed to
-> reveal the structure or patterns in the data" (Haig, 2005, p. 375; Tukey,
-> 1980). Put simply, when confronted with a data set, EDA tries to answer the
-> simple question, "What is going on here?" (Behrens, 1997, p. 132) and aims to
+> reveal the structure or patterns in the data" [@haig2005, p. 375; see also
+> @tukey1977]. Put simply, when confronted with a data set, EDA tries to answer the
+> simple question, "What is going on here?" [@behrens1997, p. 132] and aims to
 > build a rich mental model of the data. The goal is simply to understand the
 > structure of the data, and this understanding goes on to serve all kinds of
 > analytic goals: **indicating whether statistical assumptions are met,
 > identifying outliers, suggesting future hypotheses, uncovering empirical
 > relationships, identifying potential transformations, and suggesting
-> appropriate models for the data** (Behrens, 1997). In this way, **EDA is the
+> appropriate models for the data** [@behrens1997]. In this way, **EDA is the
 > statistical embodiment of inductive research; through its visualization and
 > quantitative techniques**, EDA comprises the research practices that allow
 > researchers to detect empirical phenomena.
@@ -754,4 +753,4 @@ the field protocol can.
 
 - [R for Data Science: EDA](https://r4ds.hadley.nz/eda)
 - [The interactive missingness explorer](https://allisonhorst.shinyapps.io/missingexplorer/)
-- Tukey, J. W. (1977). *Exploratory Data Analysis.*
+- @tukey1977, the book that named the field

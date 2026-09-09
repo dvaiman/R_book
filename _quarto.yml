@@ -45,6 +45,7 @@ book:
       chapters:
         - 10_generative_ai.qmd
         - 10b_functions_iteration.qmd
+        - 10c_modelling.qmd
         - 11_usefull_packages.qmd
     - references.qmd
 

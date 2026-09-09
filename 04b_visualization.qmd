@@ -35,8 +35,7 @@ Three questions, every time:
 
 ## The grammar of graphics
 
-The grammar of graphics was formulated by [Leland
-Wilkinson](https://en.wikipedia.org/wiki/Leland_Wilkinson) in 1999 and
+The grammar of graphics was formulated by Leland Wilkinson [@wilkinson2005] and
 implemented in R by [Hadley Wickham](https://en.wikipedia.org/wiki/Hadley_Wickham)
 in 2005 as `ggplot2`. The core idea is that any statistical graphic can be
 decomposed into independent components. Instead of choosing from a fixed menu of
@@ -990,7 +989,7 @@ ggplot(penguins, aes(body_mass_g, species, fill = species)) +
 
 - **400 examples with code**: [R Graph Gallery](https://r-graph-gallery.com/)
 - **The `ggplot2` book**: [ggplot2-book.org](https://ggplot2-book.org/)
-- **Concepts**: Wilke, C. O. (2019). *Fundamentals of Data Visualization*
+- **Concepts**: @wilke2019, *Fundamentals of Data Visualization*
   ([free online](https://clauswilke.com/dataviz/))
 - **People to learn from**: [Cedric Scherer](https://cedricscherer.netlify.app),
   [Georgios Karamanis](https://karaman.is/),

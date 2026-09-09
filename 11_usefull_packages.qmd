@@ -404,15 +404,43 @@ sentence tells you what you actually needed.
 - [Fundamentals of Data Visualization](https://clauswilke.com/dataviz/) — the
   concepts behind good figures
 - [Advanced R](https://adv-r.hadley.nz/) — how the language actually works
+- [R Packages](https://r-pkgs.org/) — when your functions outgrow a script and
+  should become a package
+- [Tidy Modeling with R](https://www.tmwr.org/) — the tidymodels book
+  (@sec-modelling)
+- [Happy Git and GitHub for the useR](https://happygitwithr.com/) — the
+  reference for @sec-git, including what to do when Git goes wrong
 - [Reporting with R](https://utdata.github.io/rwdir/) — data journalism, with a
   strong practical workflow
 - [AI TutoR](https://psyteachr.github.io/AITutoR/) — coding with generative AI
+- [The Big Book of R](https://www.bigbookofr.com/) — a catalogue of several
+  hundred free R books, sorted by topic. Start here when you need something this
+  list does not cover.
 
-**Reference and news**
+**Blogs worth following**
 
-- [The tidyverse blog](https://www.tidyverse.org/blog/) — where new features are
-  announced. Worth skimming a few times a year, and the fastest way to notice
-  that a function you use has been superseded.
+- [Hadley Wickham's Substack, *Tidy Design*](https://tidydesign.substack.com/) —
+  the thinking behind tidyverse design decisions, and lately a lot on what AI
+  changes about writing code. His personal site is [hadley.nz](https://hadley.nz/).
+- [The tidyverse blog](https://www.tidyverse.org/blog/) — where new features and
+  breaking changes are announced. Worth skimming a few times a year, and the
+  fastest way to notice that a function you use has been superseded.
+- [The Posit blog](https://posit.co/blog/) — releases and announcements for
+  RStudio, Positron and Quarto.
+- [R Weekly](https://rweekly.org/) — a weekly roundup of R news, blog posts and
+  new packages. One page a week is a good way to stay current without effort.
+- [Julia Silge's blog](https://juliasilge.com/) — screencasts working through a
+  real analysis end to end, mostly with tidymodels.
+- [Simon Willison's blog](https://simonwillison.net/) — not R, but the clearest
+  writing on how LLM tools actually work (@sec-ai).
+- [R-bloggers](https://www.r-bloggers.com/) — an aggregator of several hundred R
+  blogs. High volume, variable quality, good for stumbling on things.
+
+**Reference**
+
+- [Posit cheatsheets](https://posit.co/resources/cheatsheets/) — one-page
+  summaries of `dplyr`, `ggplot2`, `tidyr`, `stringr`, `forcats` and more. Print
+  the ones you use.
 - [Notes on the tidyverse](https://jessesadler.github.io/notes-tidyverse/)
 - [Data wrangling functions wiki](https://github.com/Cghlewis/data-wrangling-functions/wiki)
   — a task-oriented index: "how do I do X"
@@ -420,11 +448,34 @@ sentence tells you what you actually needed.
 - [Posit IDE documentation](https://docs.posit.co/ide/user/) and
   [Positron documentation](https://positron.posit.co/)
 
-**Visual**
+**Visual and practical**
 
-- [Data Science Box](https://datasciencebox.org/) — course materials with videos
 - [R Graph Gallery](https://r-graph-gallery.com/) — several hundred chart
   examples with code
+- [Data Science Box](https://datasciencebox.org/) — course materials with videos
+- [posit::conf talks](https://www.youtube.com/@PositPBC) — conference
+  presentations, many of them short and specific
+- [TidyTuesday](https://github.com/rfordatascience/tidytuesday) — a new dataset
+  every week, with a community that posts their code. The single best way to
+  practise once you have finished a course: real messy data, no grade, and
+  hundreds of worked solutions to compare yourself against.
+
+**Getting unstuck**
+
+- [Posit Community](https://forum.posit.co/) — friendly, and the tidyverse
+  developers read it
+- [Stack Overflow, `r` tag](https://stackoverflow.com/questions/tagged/r) — most
+  questions have already been asked
+- A **reprex** — a minimal reproducible example — gets you an answer far faster
+  than a description. The `reprex` package formats one for pasting:
+
+```{r}
+#| eval: false
+reprex::reprex({
+  library(dplyr)
+  starwars |> summarise(mean_height = mean(height))
+})
+```
 
 **Staying current**
 
