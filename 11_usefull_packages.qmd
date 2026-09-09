@@ -1,78 +1,438 @@
 # Useful Packages {#sec-packages}
 
-R offers a diverse ecosystem of packages that extend its capabilities in various domains. Below is a curated list of packages categorized by their primary functions, along with brief descriptions and links for further exploration. Tidyverse packages are excluded from this list.
+::: {.callout-note}
+## What this chapter covers
+A curated map of the R package ecosystem, organised by the stage of the workflow
+where you would reach for each one, plus how to judge whether an unfamiliar
+package is worth adopting. Tidyverse packages are mostly left out, since the
+rest of the book covers them.
+:::
 
-### Data Import and Management
+```{r}
+#| label: setup-packages
+#| include: false
+library(webexercises)
+```
 
-- **`haven`**: Simplifies the import and export of data between R and statistical software packages like SPSS, Stata, and SAS, enabling easier data integration in mixed software environments. [Learn more](https://haven.tidyverse.org/).
-- **`openxlsx`** Reading and writing excel documents.  
-- **`here`**: Helps manage file paths in an R project, making it easier to work with files without worrying about the working directory. [Learn more](https://here.r-lib.org/).
-### Data summaries and missing values
+There are nearly 25,000 packages on CRAN — run `nrow(available.packages())` to
+see the number today. That is the great strength of R and also a real problem:
+for any task there are five plausible packages, three of them abandoned. This
+chapter is a starting point, not a complete list.
 
-- **`skimr`**: Provides compact and flexible summaries of data which makes it easier to start the data analysis with a clear overview. [Learn more](https://docs.ropensci.org/skimr/).
-- **`mice`**: Provides methods for dealing with missing data, specifically through multiple imputation, enhancing the robustness of statistical inferences from incomplete data sets. [Learn more](https://amices.org/mice/).
-- **`naniar`** provides principled, tidy ways to summarise, visualise, and manipulate missing data with minimal deviations from the workflows in ggplot2 and tidy data [Learn more](https://naniar.njtierney.com/index.html).
+Packages marked **[used in this book]** appear in the code you have already run,
+so you can see them working in context.
 
-### Tables
+::: {.callout-tip}
+## Installing several at once
+```{r}
+#| eval: false
+install.packages(c("janitor", "skimr", "naniar", "gtsummary"))
+```
 
-- **`flextable`**: Provides a flexible way to create beautiful tables for reporting and publication, with advanced functions for formatting and displaying tables in multiple document formats such as HTML, Word, and PDF. [Learn more](https://davidgohel.github.io/flextable/).
-- **`tinytable`**: Small but powerful R package to draw beautiful tables in a variety of formats: HTML, LaTeX, Word, PDF, PNG, Markdown, and Typst. The user interface is minimalist and easy to learn, while giving users access to powerful frameworks to create endlessly customizable tables. [Learn more](https://vincentarelbundock.github.io/tinytable/).
-- **`janitor`**: Offers simple functions for examining and cleaning dirty data, making it easier to reformat data and get quick summaries. [Learn more](https://sfirke.github.io/janitor/).
-- **`DT`** HTML-tables, provides filtering, pagination, sorting, and many other features [Learn more](https://rstudio.github.io/DT/).    
-- **`GT`** HTML, LaTeX, and RTF output formats [Learn more](https://gt.rstudio.com/).   
+You only install a package once per R version, but you load it with `library()`
+in every session. If a package is used once in a script, `package::function()`
+is often clearer than attaching the whole thing (@sec-import).
+:::
 
+## Getting data in and out
 
-### Model object summaries
+- **`haven`** — import and export SPSS, Stata and SAS files, preserving value
+  labels. [Site](https://haven.tidyverse.org/) **[used in this book]**
+- **`readxl`** — read Excel files without any external dependency.
+  [Site](https://readxl.tidyverse.org/) **[used in this book]**
+- **`writexl`** — write Excel files, quickly and without Java.
+  [Site](https://docs.ropensci.org/writexl/)
+- **`openxlsx`** — read *and* write Excel, with control over formatting,
+  formulas and multiple sheets. Heavier than the two above, and worth it when
+  you must produce a formatted workbook.
+  [Site](https://ycphs.github.io/openxlsx/)
+- **`here`** — build file paths from the project root so they work on any
+  machine. [Site](https://here.r-lib.org/) **[used in this book]**
+- **`fs`** — a consistent, cross-platform replacement for base R's file
+  functions (`file.path()`, `list.files()`, `dir.create()`).
+  [Site](https://fs.r-lib.org/)
+- **`arrow`** — read and write Parquet and Feather. Parquet keeps column types,
+  compresses well, and is read by both R and Python — a good format for a
+  cleaned dataset that is too large for CSV.
+  [Site](https://arrow.apache.org/docs/r/)
 
-- **`Broom`**: Simplifies the process of turning statistical analysis objects from R into tidy format, making it easier to work with model outputs. [Learn more](https://broom.tidymodels.org/).
-- **`modelsummary`**: Allows for easy creation of beautiful, customizable tables summarizing statistical models using a wide array of model types. [Learn more](https://vincentarelbundock.github.io/modelsummary/).
-- **`parameters`**: Provides utilities for processing the parameters of various statistical models, aiding in model diagnostics and summaries. [Learn more](https://easystats.github.io/parameters/).
-- **`gtsummary`** The {gtsummary} package provides an elegant and flexible way to create publication-ready analytical and summary tables using the R programming language. [Learn more](https://www.danieldsjoberg.com/gtsummary/index.html).
-- **`sjPlot`** Collection of plotting and table output functions for data visualization. [Learn more](https://strengejacke.github.io/sjPlot/index.html)  
-- marginaleffects[Learn more](https://marginaleffects.com/)
+## Cleaning and validating
 
-### Data Manipulation
+- **`janitor`** — `clean_names()`, `get_dupes()`, `remove_empty()`,
+  `tabyl()`. The first package to install after the tidyverse.
+  [Site](https://sfirke.github.io/janitor/) **[used in this book]**
+- **`naniar`** — explore and visualise missing data: `gg_miss_var()`,
+  `gg_miss_upset()`, `mcar_test()`.
+  [Site](https://naniar.njtierney.com/) **[used in this book]**
+- **`visdat`** — `vis_dat()` draws a picture of your whole data frame: types and
+  missingness at a glance. [Site](https://docs.ropensci.org/visdat/)
+- **`labelled`** — work with variable and value labels, which is how SPSS and
+  Stata files arrive via `haven`.
+  [Site](https://larmarange.github.io/labelled/)
+- **`mice`** — multiple imputation for missing data. Powerful, and requires you
+  to understand the missingness mechanism first (@sec-eda).
+  [Site](https://amices.org/mice/)
+- **`validate`** and **`pointblank`** — write down the rules your data must
+  satisfy (age between 18 and 100, no duplicate IDs) and check them
+  automatically. [validate](https://github.com/data-cleaning/validate) ·
+  [pointblank](https://rstudio.github.io/pointblank/)
+- **`dtrackr`** — tracks what your `dplyr` pipeline does to the data and draws
+  the participant flow diagram from it. Solves a genuinely tedious problem:
+  keeping the numbers in your flow chart in sync with your code.
+  [Site](https://terminological.github.io/dtrackr/)
+- **`flowchart`** — draws participant flow diagrams from a data frame, in
+  tidyverse style. [Site](https://bruigtp.github.io/flowchart/)
+- **`codebookr`** — generates a Word codebook documenting every variable in a
+  dataset. [Site](https://brad-cannell.github.io/codebookr/)
 
-- **`dtracker`**: A package designed for tracking data changes and manipulations within an R workflow, enhancing data management and reproducibility, creates flow charts of your data manipulations. [Learn more](https://github.com/PredictiveEcology/dtracker).
-- **`Flowchart`** a package for drawing participant flow diagrams directly from a dataframe using tidyverse. [Learn more](https://bruigtp.github.io/flowchart/ )
-- **`data.table`**: Provides an alternative to R's data.frame with syntax and feature enhancements for ease of use, convenience and programming speed. [Learn more](https://rdatatable.gitlab.io/data.table/).
-- **`janitor`**: Facilitates data cleaning tasks, such as cleaning column names and examining data distributions, making it easier to prepare data for analysis.
+::: {.callout-tip}
+## Documenting your data pays for itself
+`dtrackr` and `codebookr` solve the same problem from two directions: the flow
+diagram and the codebook are the two documents a reviewer asks for, and both are
+tedious to maintain by hand. Generating them from the code means they cannot
+drift out of date. See also the data dictionary discussion in @sec-ai.
+:::
 
-### Data Visualization
+## Exploring and summarising
 
-- **`patchwork`**: A package designed to simplify the process of arranging ggplot2 plots into a composite plot, enhancing the presentation of complex data visualizations. [Learn more](https://patchwork.data-imaginist.com/).
-- **`scales`**: Provides tools for scaling data for visualization, such as creating custom scales and formatting numbers for human readability. [Learn more](https://scales.r-lib.org/).  
-- **`ggforce`**:  
-- **`ggtext`**:  
+- **`skimr`** — `skim()` gives types, missingness, quartiles and a sparkline
+  histogram for every column at once.
+  [Site](https://docs.ropensci.org/skimr/) **[used in this book]**
+- **`summarytools`** — `dfSummary()` produces a fuller HTML overview.
+  [Site](https://github.com/dcomtois/summarytools)
+- **`DataExplorer`** — `create_report()` writes an entire exploratory report as
+  an HTML file. Useful as a first pass; no substitute for looking yourself.
+  [Site](https://boxuancui.github.io/DataExplorer/)
+- **`GGally`** — `ggpairs()` draws every pairwise relationship in one figure.
+  [Site](https://ggobi.github.io/ggally/) **[used in this book]**
 
-### Colors
+## Tables
 
-[Learn more](https://r-graph-gallery.com/color-palette-finder?s=09  )
-[Learn more](https://x.com/nrennie35/status/1804233883023741374?t=7ndc-McgfyKLJAEfBC6s-Q&s=09)
+- **`gt`** — the most control over appearance, and the engine behind
+  `gtsummary`. HTML, LaTeX, RTF and Word.
+  [Site](https://gt.rstudio.com/) **[used in this book]**
+- **`gtsummary`** — publication-ready summary and regression tables with almost
+  no code. The fastest route to a Table 1 (@sec-tables).
+  [Site](https://www.danieldsjoberg.com/gtsummary/) **[used in this book]**
+- **`flextable`** — the best choice when the destination is Word or PowerPoint.
+  [Site](https://davidgohel.github.io/flextable/)
+- **`tinytable`** — small, few dependencies, outputs HTML, LaTeX, Word, PDF,
+  Markdown and Typst. [Site](https://vincentarelbundock.github.io/tinytable/)
+- **`DT`** — interactive HTML tables the reader can sort, filter and search.
+  HTML only. [Site](https://rstudio.github.io/DT/)
+- **`reactable`** — interactive tables with more layout control than `DT`,
+  including expandable rows and nested tables.
+  [Site](https://glin.github.io/reactable/)
+- **`kableExtra`** — extends `knitr::kable()` with styling, grouped headers and
+  footnotes. [Site](https://haozhu233.github.io/kableExtra/)
 
+## Visualisation
 
+Extensions to `ggplot2` (@sec-visualisation):
 
-### Statistical Modeling and Analysis
+- **`patchwork`** — combine several plots into one figure with `+`, `|` and `/`.
+  [Site](https://patchwork.data-imaginist.com/) **[used in this book]**
+- **`scales`** — format axis labels as percentages, currency or dates, and
+  control breaks and transformations. [Site](https://scales.r-lib.org/)
+- **`ggrepel`** — text labels that push each other apart instead of overlapping.
+  Indispensable for labelled scatterplots.
+  [Site](https://ggrepel.slowkow.com/)
+- **`ggtext`** — Markdown and HTML in plot text, so you can put **bold** or
+  coloured words in a title and drop the legend.
+  [Site](https://wilkelab.org/ggtext/)
+- **`ggforce`** — extra geoms and a set of tools for annotating: circle or
+  outline groups of points, zoom into a facet, draw arcs and links.
+  [Site](https://ggforce.data-imaginist.com/)
+- **`ggdist`** — visualise distributions and uncertainty properly: rain-cloud
+  plots, gradient intervals, dot plots. Well suited to showing an effect with
+  its uncertainty rather than a bar with an error bar.
+  [Site](https://mjskay.github.io/ggdist/)
+- **`ggridges`** — ridgeline plots, for comparing many distributions at once.
+  [Site](https://wilkelab.org/ggridges/)
+- **`ggbeeswarm`** — points offset so none overlap, more readable than jitter
+  for modest sample sizes. [Site](https://github.com/eclarke/ggbeeswarm)
+- **`ggsurvfit`** — publication-ready Kaplan-Meier curves with risk tables, from
+  the `gtsummary` author. [Site](https://www.danieldsjoberg.com/ggsurvfit/)
+- **`plotly`** — turn a `ggplot2` figure interactive with `ggplotly()`.
+  [Site](https://plotly.com/r/)
+- **`gganimate`** — animate a plot over a variable, usually time.
+  [Site](https://gganimate.com/)
 
-- **`tidymodels`**: A collection of packages for modeling and statistical analysis that share the underlying design philosophy, grammar, and data structures of the tidyverse. [Learn more](https://www.tidymodels.org/).
-- **`easystats`**: A suite of packages that aims to make statistical analysis in R easy, providing a consistent and easy-to-use framework. [Learn more](https://easystats.github.io/easystats/).
+### Colour
 
-### Miscellaneous
+- **`viridis`** — perceptually uniform palettes that survive greyscale printing
+  and colour vision deficiency. A safe default.
+  [Site](https://sjmgarnier.github.io/viridis/)
+- **`colorspace`** — build and inspect palettes, and simulate how yours looks to
+  a colour-blind reader. [Site](https://colorspace.r-forge.r-project.org/)
+- **`paletteer`** — one interface to several thousand palettes from dozens of
+  packages. [Site](https://emilhvitfeldt.github.io/paletteer/)
+- **`scico`** and **`MetBrewer`** — scientific and museum-derived palettes.
+  [scico](https://github.com/thomasp85/scico) ·
+  [MetBrewer](https://github.com/BlakeRMills/MetBrewer)
+- [R Graph Gallery palette finder](https://r-graph-gallery.com/color-palette-finder)
+  — browse palettes visually.
 
-### Learning
+## Modelling and model output
 
-- **`datasciencebox`**: Videos of tidyverse functions [Learn more](https://datasciencebox.org/02-exploring-data)
-https://r4ds.hadley.nz/
-https://psyteachr.github.io/AITutoR/
-https://github.com/Cghlewis/data-wrangling-functions/wiki/File-System?s=09
-https://github.com/pgmj/RstudioQuartoIntro?tab=readme-
-https://tidyr.tidyverse.org/index.html
-https://bookdown.org/daniel_dauber_io/r4np_book/
-https://jessesadler.github.io/notes-tidyverse/
-https://www.tidyverse.org/blog/
-https://support.posit.co/hc/en-us/articles/200549016-Customizing-the-RStudio-IDE
-https://docs.posit.co/ide/user/
-https://utdata.github.io/rwdir/
-https://allisonhorst.com/r-packages-functions
+- **`broom`** — turn a model object into a tidy data frame with `tidy()`,
+  `glance()` and `augment()`. The bridge between modelling and everything else.
+  [Site](https://broom.tidymodels.org/) **[used in this book]**
+- **`marginaleffects`** — predictions, comparisons, contrasts and marginal
+  effects from almost any model, on the scale you actually want to report.
+  Increasingly the standard way to interpret a model.
+  [Site](https://marginaleffects.com/)
+- **`emmeans`** — estimated marginal means and pairwise contrasts, with
+  multiplicity adjustment. [Site](https://rvlenth.github.io/emmeans/)
+- **`modelsummary`** — regression and summary tables for many models side by
+  side. [Site](https://modelsummary.com/)
+- **`easystats`** — a family of packages with a consistent interface:
+  `parameters` (coefficients), `performance` (model checks and R²),
+  `effectsize` (standardised effects), `see` (diagnostic plots), `report`
+  (a written summary of a model). [Site](https://easystats.github.io/easystats/)
+- **`sjPlot`** — plots and tables for regression models, popular in the social
+  and health sciences. [Site](https://strengejacke.github.io/sjPlot/)
+- **`tidymodels`** — a tidyverse-consistent framework for predictive modelling:
+  resampling, tuning, workflows. For prediction rather than inference.
+  [Site](https://www.tidymodels.org/)
 
-tidychatmodels
+::: {.callout-important}
+## A package does not choose the analysis for you
+`performance::check_model()` will draw six diagnostic plots for any model you
+give it, including one that should never have been fitted. These packages make
+it much faster to do the right analysis and no harder to do the wrong one. The
+statistical decision — which model, which comparison, which adjustment — is
+still yours, and it is the part a reviewer will ask about.
+:::
+
+## Health and sport science
+
+Packages that come up repeatedly in this field:
+
+- **`survival`** — the reference implementation for time-to-event analysis,
+  Cox models included. [CRAN](https://cran.r-project.org/package=survival)
+- **`ggsurvfit`** / **`survminer`** — survival curves worth publishing.
+  [ggsurvfit](https://www.danieldsjoberg.com/ggsurvfit/) ·
+  [survminer](https://rpkgs.datanovia.com/survminer/)
+- **`lme4`**, **`nlme`**, **`glmmTMB`** — mixed-effects models, for repeated
+  measurements and clustered data. `glmmTMB` handles zero inflation and a wider
+  range of distributions. [glmmTMB](https://glmmTMB.github.io/glmmTMB/)
+- **`mgcv`** — generalised additive models, for relationships that are clearly
+  not linear. [CRAN](https://cran.r-project.org/package=mgcv)
+- **`epiR`** and **`epitools`** — epidemiological measures: risk ratios, odds
+  ratios, standardised rates, sample size.
+  [epiR](https://cran.r-project.org/package=epiR)
+- **`tableone`** — the classic Table 1 package, still widely used in
+  epidemiology. `gtsummary` is the more flexible modern option.
+  [CRAN](https://cran.r-project.org/package=tableone)
+- **`GGIR`** — processes raw accelerometer files (ActiGraph, GENEActiv, Axivity)
+  into physical activity and sleep outcomes. The standard tool in the field.
+  [Site](https://wadpac.github.io/GGIR/)
+- **`slider`** and **`zoo`** — rolling windows and moving averages, which is
+  what most wearable-data processing comes down to once the files are read.
+  [slider](https://slider.r-lib.org/)
+- **`lubridate`**, **`hms`** and **`clock`** — dates, times of day, and
+  timezone-safe arithmetic. Essential for anything with a timestamp.
+  [lubridate](https://lubridate.tidyverse.org/) **[used in this book]**
+
+## Larger data
+
+When your data stops fitting comfortably in memory, you do not have to abandon
+`dplyr` syntax:
+
+- **`data.table`** — very fast, very memory-efficient, with its own concise
+  syntax. The long-standing alternative to `dplyr`.
+  [Site](https://rdatatable.gitlab.io/data.table/)
+- **`dtplyr`** — write `dplyr` code, execute it as `data.table`.
+  [Site](https://dtplyr.tidyverse.org/)
+- **`duckplyr`** — a drop-in `dplyr` backend powered by DuckDB, which spills to
+  disk when the data does not fit in memory.
+  [Site](https://duckplyr.tidyverse.org/)
+- **`arrow`** — query Parquet files larger than memory with `dplyr` verbs.
+  [Site](https://arrow.apache.org/docs/r/)
+- **`collapse`** — very fast grouped statistics.
+  [Site](https://sebkrantz.github.io/collapse/)
+
+::: {.callout-tip}
+## Try the boring fix first
+Before reaching for any of these, check whether you actually need every column
+and every row. `select()` on import and filtering early often solves the problem
+outright, and keeps your code readable.
+:::
+
+## Reproducibility and project hygiene
+
+- **`renv`** — records the exact package versions your project uses in a
+  `renv.lock` file, so it can be restored later or on another machine. The
+  single most effective step for long-term reproducibility.
+  [Site](https://rstudio.github.io/renv/)
+- **`targets`** — a pipeline tool: define the steps, and it re-runs only what
+  the change affects. Worth it once a full re-run takes more than a few minutes.
+  [Site](https://docs.ropensci.org/targets/)
+- **`usethis`** — automates project setup: `use_git()`, `use_readme_md()`,
+  `use_git_ignore()`, `create_project()` (@sec-git).
+  [Site](https://usethis.r-lib.org/)
+- **`testthat`** — write checks that fail loudly when an assumption breaks. Not
+  only for package developers: a handful of `expect_equal()` calls on a cleaning
+  script catches a lot (@sec-ai). [Site](https://testthat.r-lib.org/)
+- **`quarto`** — render Quarto documents from R.
+  [Site](https://quarto-dev.github.io/quarto-r/) **[used in this book]**
+- **`glue`** — string interpolation: `glue("n = {nrow(data)}")`.
+  [Site](https://glue.tidyverse.org/) **[used in this book]**
+
+## AI from R
+
+Covered in @sec-ai:
+
+- **`ellmer`** — call language models from R, with structured output and tool
+  calling. [Site](https://ellmer.tidyverse.org/)
+- **`mall`** — run LLM predictions row-wise over a data frame.
+  [Site](https://mlverse.github.io/mall/)
+- **`btw`** — describe your R environment to an assistant so it can answer
+  questions about your actual objects.
+  [Site](https://posit-dev.github.io/btw/)
+- **`chattr`** — a chat interface inside the RStudio IDE.
+  [Site](https://mlverse.github.io/chattr/)
+
+## How to judge a package
+
+You will constantly meet packages that are not on this list. A quick assessment:
+
+**Is it maintained?** Look at the CRAN page: when was it last updated? A package
+untouched for five years may be finished, or abandoned — check the GitHub issues
+to see which.
+
+**Is it documented?** A pkgdown website with vignettes and a reference index is
+a strong signal. A CRAN page with no examples is a weak one.
+
+**Who uses it?** Reverse dependencies on CRAN, and whether papers in your field
+cite it.
+
+**How many dependencies does it add?** A package pulling in forty others is
+forty more things that can break your project in two years. Check with:
+
+```{r}
+#| eval: false
+tools::package_dependencies("gtsummary", recursive = TRUE)
+```
+
+**Does it fit how you already work?** A package that takes and returns data
+frames drops into your pipeline. One that requires its own object type means
+converting in and out at every step.
+
+::: {.callout-warning}
+## Do not add a dependency for one function
+If you need one small thing, consider writing it yourself (@sec-functions) or
+calling it once with `package::function()`. Every attached package is a
+potential name conflict — `MASS::select()` masking `dplyr::select()` is a
+classic afternoon lost — and a potential future breakage.
+
+This cuts both ways. Do not reimplement `janitor::clean_names()` either. The
+question is whether the package earns its place, not whether dependencies are
+bad.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Which package would you use to make a Table 1 for a paper?
+`r mcq(c("janitor", "skimr", answer = "gtsummary", "broom"))`
+
+Which package records the exact package versions a project uses?
+`r mcq(c("targets", answer = "renv", "usethis", "here"))`
+
+You need a table in a Word document. The best starting point is
+`r mcq(c("DT", "reactable", answer = "flextable", "kableExtra"))`
+
+Which turns a model object into a tidy data frame?
+`r mcq(c("modelsummary", answer = "broom", "performance", "emmeans"))`
+
+Attaching many packages is harmless because R resolves conflicts automatically.
+`r torf(FALSE)`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise: assess a package you have not used
+
+Pick a package from this chapter that is new to you and relevant to your work.
+
+1. Open its website. Is there a "Get started" vignette?
+2. When was it last updated on CRAN?
+3. How many recursive dependencies does it have?
+4. Find one example in its documentation and run it.
+5. Would you use it? Write one sentence saying why or why not.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+There is no single right answer, but here is how to get the facts:
+
+```{r}
+#| eval: false
+# 1 and 2: the CRAN page and the pkgdown site
+utils::browseURL("https://cran.r-project.org/package=naniar")
+
+# how many packages does it drag in?
+length(tools::package_dependencies("naniar", recursive = TRUE)[[1]])
+
+# what vignettes ship with it, once installed?
+vignette(package = "naniar")
+
+# and the function index
+help(package = "naniar")
+```
+
+Step 4 is the one people skip and the one that matters. Documentation examples
+are run by CRAN on every submission, so they are guaranteed to work — which
+makes them the fastest honest test of whether the package does what you thought
+it did.
+
+A useful habit: when you adopt a package, note in your project README *why* you
+chose it. In two years, when it is abandoned and you have to replace it, that
+sentence tells you what you actually needed.
+:::
+:::
+
+## Where to learn more
+
+**Books**
+
+- [R for Data Science (2nd ed.)](https://r4ds.hadley.nz/) — the standard
+  reference for everything in this book
+- [R for Non-Programmers](https://bookdown.org/daniel_dauber_io/r4np_book/) — a
+  gentler introduction
+- [Fundamentals of Data Visualization](https://clauswilke.com/dataviz/) — the
+  concepts behind good figures
+- [Advanced R](https://adv-r.hadley.nz/) — how the language actually works
+- [Reporting with R](https://utdata.github.io/rwdir/) — data journalism, with a
+  strong practical workflow
+- [AI TutoR](https://psyteachr.github.io/AITutoR/) — coding with generative AI
+
+**Reference and news**
+
+- [The tidyverse blog](https://www.tidyverse.org/blog/) — where new features are
+  announced. Worth skimming a few times a year, and the fastest way to notice
+  that a function you use has been superseded.
+- [Notes on the tidyverse](https://jessesadler.github.io/notes-tidyverse/)
+- [Data wrangling functions wiki](https://github.com/Cghlewis/data-wrangling-functions/wiki)
+  — a task-oriented index: "how do I do X"
+- [Allison Horst's illustrated packages and functions](https://allisonhorst.com/r-packages-functions)
+- [Posit IDE documentation](https://docs.posit.co/ide/user/) and
+  [Positron documentation](https://positron.posit.co/)
+
+**Visual**
+
+- [Data Science Box](https://datasciencebox.org/) — course materials with videos
+- [R Graph Gallery](https://r-graph-gallery.com/) — several hundred chart
+  examples with code
+
+**Staying current**
+
+Package documentation is the authority, and it is the thing language models are
+worst at (@sec-ai). Two commands are worth the habit:
+
+```{r}
+#| eval: false
+packageVersion("dplyr") # what am I actually running?
+news(package = "dplyr") # what changed, and what was superseded?
+```
