@@ -22,13 +22,19 @@ suppressPackageStartupMessages({
   library(gt)
   library(gtsummary)
   library(webexercises)
+  library(marginaleffects)
+  library(targets)
 })
 
 # GGally and Hmisc are used but not attached in the book, so look them up
 # without attaching them and disturbing the search path above
 optional_packages <- c(
   "GGally", "Hmisc", "broom", "testthat", "DT", "flextable",
-  "usethis", "readxl", "haven", "writexl", "rprojroot", "knitr", "quarto"
+  "usethis", "readxl", "haven", "writexl", "rprojroot", "knitr", "quarto",
+  "marginaleffects", "emmeans", "performance", "parameters", "lme4",
+  "broom.mixed", "rsample", "targets", "tarchetypes", "renv",
+  "dagitty", "ggdag", "EValue", "MatchIt", "cobalt", "reprex", "summarytools",
+  "tidymodels", "recipes", "parsnip", "workflows", "yardstick"
 )
 
 qmd_files <- list.files(".", pattern = "\\.qmd$", full.names = TRUE)

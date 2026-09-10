@@ -1,0 +1,753 @@
+# Causal Analysis and Advanced Models {#sec-causal}
+
+::: {.callout-note}
+## What this chapter covers
+@sec-modelling was about fitting a model and reporting it. This chapter is about
+the harder questions that come after: what the model is *for*, what to do when
+the observations are not independent, how to get a confidence interval when no
+formula exists, and where predictive modelling fits in.
+
+It assumes the previous chapter — `broom`, `marginaleffects` and list columns —
+and continues with the same `penguins` data.
+:::
+
+```{r}
+#| label: setup-causal
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: causal-libs
+#| message: false
+library(tidyverse)
+library(palmerpenguins)
+library(broom)
+library(marginaleffects)
+
+model_data <- penguins |> drop_na()
+
+d_int <- penguins |>
+  drop_na(body_mass_g, flipper_length_mm, species, sex)
+```
+
+## Causal analysis
+
+Everything so far has been about *fitting* models. This section is about a
+question you have to answer before fitting anything: **what is the model for?**
+
+### Three different jobs
+
+| Job | Question | What matters |
+|-----|----------|--------------|
+| **Description** | What does this population look like? | Representative sample, honest summaries |
+| **Prediction** | What is the likely outcome for a new case? | Out-of-sample accuracy; whether a predictor is "causal" is irrelevant |
+| **Causal inference** | What would happen if we intervened? | The right adjustment set, and assumptions you must state |
+
+The same `lm()` call serves all three, which is exactly why they get confused.
+A variable that improves prediction can wreck a causal estimate, and vice versa.
+Decide which job you are doing before you choose variables.
+
+::: {.callout-important}
+## "We are not claiming causality" does not make a model descriptive
+An adjusted regression *is* a causal analysis in intent. Nobody adjusts for
+confounders to describe a population; they do it to isolate an effect. Writing
+"associations should not be interpreted causally" in the discussion while
+having selected covariates on causal grounds is having it both ways.
+
+The honest version is to state the causal question, state the assumptions it
+rests on, and say plainly that those assumptions are untestable. That is
+stronger than a disclaimer, not weaker.
+:::
+
+### Define the estimand first
+
+Say what you are estimating before touching the outcome:
+
+- **ATE** — the average treatment effect if *everyone* were treated versus no
+  one.
+- **ATT** — the effect among those who *actually received* the treatment. Often
+  the policy-relevant one, and what matching usually targets.
+
+A useful discipline is the **target trial**: what randomised trial would this
+analysis emulate? Answering it forces you to be explicit about eligibility, when
+follow-up starts (time zero) and what is being compared — which is how
+immortal-time and selection bias get caught before they happen.
+
+### Choose covariates from a causal model, not by algorithm
+
+Stepwise selection, "everything that was significant at p < 0.20", and "adjust
+for everything available" are all ways of choosing covariates without a causal
+argument. They can each make the estimate worse.
+
+A **DAG** — a directed acyclic graph — writes down what you believe causes what,
+so the adjustment set follows from the assumptions rather than from the data.
+
+```{r}
+#| label: dag-setup
+#| message: false
+library(dagitty)
+library(ggdag)
+
+dag <- dagitty('dag {
+  training -> fitness
+  age -> training
+  age -> fitness
+  motivation -> training
+  motivation -> fitness
+}')
+
+# which variables must be adjusted for to identify training -> fitness?
+adjustmentSets(dag, exposure = "training", outcome = "fitness")
+```
+
+```{r}
+#| label: fig-dag
+#| fig-cap: "A causal diagram. Age and motivation cause both the exposure and the outcome."
+#| fig-height: 3.2
+#| message: false
+ggdag(dag, text_size = 3) +
+  theme_dag()
+```
+
+Three roles a third variable can play, and they demand opposite treatment:
+
+- A **confounder** causes both exposure and outcome. **Adjust for it** — leaving
+  it out biases the estimate.
+- A **mediator** sits on the path from exposure to outcome. **Do not adjust for
+  it** if you want the total effect; adjusting removes the part of the effect
+  that travels through it.
+- A **collider** is caused by both exposure and outcome (or by two variables of
+  interest). **Do not adjust for it** — adjusting *creates* an association that
+  does not exist.
+
+### What happens if you get it wrong
+
+Because we can simulate data where the truth is known, we can watch each mistake
+happen. Here the true effect of training on fitness is exactly **3**.
+
+```{r}
+#| label: causal-sim
+set.seed(5)
+
+n <- 4000
+
+sim <- tibble(
+  age = rnorm(n, 45, 12),
+  motivation = rnorm(n),
+  # both age and motivation influence how much people train ...
+  training = 2 * motivation - 0.05 * age + rnorm(n),
+  # ... and both also influence fitness directly. True training effect = 3.
+  fitness = 3 * training + 1.5 * motivation - 0.2 * age + rnorm(n, 0, 3)
+) |>
+  # gym membership is caused by BOTH training and fitness: a collider
+  mutate(gym_member = as.numeric(scale(training + fitness + rnorm(n))) > 0)
+```
+
+```{r}
+#| label: causal-compare
+models <- list(
+  "Unadjusted"            = fitness ~ training,
+  "Adjusted (correct)"    = fitness ~ training + motivation + age,
+  "Also adjusted for the collider" = fitness ~ training + motivation + age + gym_member
+)
+
+map(models, \(f) lm(f, data = sim) |> tidy(conf.int = TRUE)) |>
+  list_rbind(names_to = "model") |>
+  filter(term == "training") |>
+  select(model, estimate, conf.low, conf.high) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+Read the three rows against the truth of 3.00:
+
+- **Unadjusted: 3.84.** Too high. Motivated people both train more and are
+  fitter anyway, so some of motivation's effect is being credited to training.
+  This is ordinary confounding.
+- **Correctly adjusted: 3.00.** Right, because the adjustment set from the DAG
+  closes both back-door paths.
+- **With the collider added: 2.58.** Wrong again — and note the direction. This
+  model adjusts for *more* variables than the correct one, and is *further* from
+  the truth. Gym membership is a consequence of training and fitness, and
+  conditioning on it induces a spurious negative association between them.
+
+That third row is the whole argument against "adjust for everything you have".
+None of the three models warns you; all three have narrow confidence intervals;
+only the DAG tells you which is right.
+
+### Mediators remove part of the effect
+
+```{r}
+#| label: causal-mediator
+set.seed(11)
+
+med <- tibble(
+  training = rnorm(2000),
+  # training builds muscle ...
+  muscle = 2 * training + rnorm(2000),
+  # ... and both training and muscle improve fitness
+  fitness = 1.5 * training + 1.0 * muscle + rnorm(2000, 0, 2)
+)
+
+# total effect: 1.5 direct + (2 x 1.0) through muscle = 3.5
+lm(fitness ~ training, data = med) |> tidy() |> filter(term == "training")
+
+# adjusting for the mediator leaves only the direct effect, 1.5
+lm(fitness ~ training + muscle, data = med) |> tidy() |> filter(term == "training")
+```
+
+Neither is wrong — they answer different questions. The first is "how much does
+training improve fitness, by any route", the second "how much does training
+improve fitness *other than* by building muscle". Decide which you want, and say
+which you report. Adjusting for a mediator by accident, because it was in the
+dataset and seemed relevant, is a common way to make a real effect disappear.
+
+::: {.callout-warning}
+## The Table 2 fallacy
+When you fit `outcome ~ exposure + age + sex + smoking`, only the exposure
+coefficient has been designed to be interpretable. The adjustment set was chosen
+to identify the *exposure* effect, not the effect of age, and not the effect of
+smoking — each of those would need its own DAG and its own adjustment set.
+
+Presenting the full coefficient table as though every row were an effect
+estimate is the **Table 2 fallacy** (Westreich and Greenland). It is extremely
+common in published papers.
+
+The fix is presentational and easy: report the exposure effect as the result,
+and either omit the covariate coefficients or label them explicitly as
+adjustment terms that should not be interpreted.
+:::
+
+### Design before outcome
+
+For a serious causal analysis, the recommended order is to build and check the
+design *before* looking at the outcome, so balance is judged blind to the
+effect. In outline:
+
+```{r}
+#| label: causal-design
+#| eval: false
+library(MatchIt)
+library(cobalt)
+
+matched_design <- matchit(
+  treat ~ age + sex + bmi + comorbidity,
+  data = cohort,
+  method = "full",
+  estimand = "ATT"
+)
+
+# check balance BEFORE estimating anything
+bal.tab(matched_design, un = TRUE)
+love.plot(matched_design, thresholds = c(m = 0.1)) # aim for |SMD| < 0.1
+
+matched <- match.data(matched_design)
+```
+
+Then estimate on the balanced design, combining weights with an outcome model —
+which is **doubly robust**, meaning the estimate stays consistent if *either*
+the propensity model or the outcome model is right:
+
+```{r}
+#| label: causal-estimate
+#| eval: false
+fit <- glm(outcome ~ treat + age + sex + bmi,
+  data = matched, weights = weights, family = binomial()
+)
+
+avg_comparisons(
+  fit,
+  variables = "treat",
+  wts = "weights",
+  vcov = ~subclass # cluster on the matched sets
+)
+```
+
+`WeightIt` does the weighting equivalent (IPTW, entropy balancing) and can
+target the ATE as well as the ATT.
+
+### How fragile is the conclusion?
+
+Every observational estimate rests on **no unmeasured confounding**, which is
+untestable. You cannot prove it holds; you can quantify how much it would take
+to overturn your result.
+
+```{r}
+#| label: causal-evalue
+#| message: false
+# how strong would an unmeasured confounder have to be, with both the
+# exposure and the outcome, to explain away this estimate?
+EValue::evalues.OLS(
+  est = 3.0,
+  se = 0.1,
+  sd = sd(sim$fitness)
+)
+```
+
+The E-value is the minimum association an unmeasured confounder would need with
+*both* exposure and outcome to explain the effect away. A large E-value means
+the finding is robust; a small one means a modest unmeasured confounder would
+suffice — and you should say so plainly. `tipr` does the same job as a
+tipping-point analysis across a range of plausible confounders.
+
+::: {.callout-note}
+## A reporting checklist
+For a causal analysis, report in this order:
+
+1. The **estimand** — ATE or ATT, and the target trial it emulates.
+2. The **assumed DAG** and the adjustment set that follows from it.
+3. The **design method** and which estimand it targets.
+4. **Balance** before and after, with the threshold you used.
+5. The **effect estimate** with a confidence interval, and how the standard
+   errors were computed.
+6. A **sensitivity analysis** for unmeasured confounding.
+
+And state the no-unmeasured-confounding assumption as a limitation, in those
+words. We estimate effects under stated assumptions; we do not prove causation.
+:::
+
+::: {.callout-tip}
+## Going further
+This is an orientation, not a course. For the real thing:
+
+- [Causal Inference: What If](https://miguelhernan.org/whatifbook) — Hernán and
+  Robins, free online, the standard reference
+- [Causal Inference in R](https://www.r-causal.org/) — the same ideas worked
+  through in R with `ggdag`, `MatchIt` and `WeightIt`
+- [dagitty.net](https://dagitty.net/) — draw a DAG in the browser and get the
+  adjustment set
+:::
+
+## Bootstrapping
+
+### When and why
+
+Every confidence interval so far came from a formula. Those formulas exist for
+means, regression coefficients and a handful of other quantities, and they rely
+on assumptions — usually that the estimate is approximately normally distributed
+in repeated sampling.
+
+The **bootstrap** replaces the formula with brute force: resample your data with
+replacement many times, recompute the statistic each time, and use the spread of
+those values as the sampling distribution.
+
+Reach for it when:
+
+- **There is no standard error formula** for what you computed — a median, a
+  ratio of two coefficients, the difference between two correlations, a value
+  derived through several steps.
+- **The formula exists but its assumptions look shaky** — small samples, badly
+  skewed outcomes, heavy tails.
+- **Your quantity comes out of a multi-step pipeline**, so analytic propagation
+  of uncertainty would be painful. Bootstrap the whole pipeline instead.
+
+::: {.callout-warning}
+## What the bootstrap does not fix
+- **It does not remove bias.** If your estimate is systematically wrong,
+  resampling reproduces that bias faithfully in every replicate.
+- **It does not fix dependence.** If your data has repeated measures or
+  clustering, resampling individual *rows* breaks the clustering and gives
+  intervals that are too narrow. Resample the **clusters** instead —
+  `rsample::group_bootstraps(group = id)`.
+- **It needs a reasonable sample.** With 12 observations the bootstrap can only
+  reshuffle 12 values; it cannot invent information that is not there.
+- **It is not required for ordinary regression.** For a linear model with
+  well-behaved residuals, the textbook interval is fine and faster.
+:::
+
+`rsample` handles the resampling, and the results are — again — list columns.
+
+```{r}
+#| label: bootstrap
+#| message: false
+library(rsample)
+
+set.seed(2026)
+
+boot_results <- model_data |>
+  bootstraps(times = 200) |>
+  mutate(
+    coefficients = map(splits, \(s) {
+      lm(body_mass_g ~ flipper_length_mm, data = analysis(s)) |> tidy()
+    })
+  ) |>
+  select(id, coefficients) |>
+  unnest(coefficients) |>
+  filter(term == "flipper_length_mm")
+
+# the percentile bootstrap interval
+quantile(boot_results$estimate, c(0.025, 0.5, 0.975)) |> round(2)
+```
+
+```{r}
+#| label: fig-bootstrap
+#| fig-cap: "The bootstrap distribution of the slope."
+#| fig-height: 3
+boot_results |>
+  ggplot(aes(estimate)) +
+  geom_histogram(bins = 30, fill = "steelblue", colour = "white") +
+  labs(x = "Slope (g per mm)", y = "Bootstrap replicates") +
+  theme_minimal(base_size = 13)
+```
+
+`analysis(s)` extracts the resampled data from a split; `assessment(s)` gives
+the rows left out. Useful when a standard error is hard to derive analytically —
+a median, a ratio of coefficients, a complicated derived statistic.
+
+## Mixed models
+
+### When and why
+
+Every model so far assumed the observations are **independent** — that knowing
+one participant's outcome tells you nothing about another's. That assumption
+fails whenever the data has structure:
+
+- **Repeated measurements** on the same person: baseline and follow-up, a
+  weekly diary, an accelerometer worn over seven days.
+- **Clustering**: patients within clinics, pupils within schools, athletes
+  within teams, siblings within families.
+- **Crossed structures**: participants each rating several items.
+
+Why it matters: two measurements from the same person carry less information
+than two measurements from two people, because they resemble each other. Fit an
+ordinary `lm()` to such data and it counts every row as fresh evidence, so the
+standard errors come out **too small**, the confidence intervals too narrow and
+the p-values too small. The estimate may be fine; the uncertainty is wrong, in
+the direction that produces false positives.
+
+A mixed model handles this by giving each cluster its own **random** intercept
+(and optionally slope), drawn from a distribution:
+
+- `(1 | id)` — each person gets their own baseline level.
+- `(1 + time | id)` — each person gets their own baseline *and* their own slope
+  over time.
+
+::: {.callout-tip}
+## The alternatives, and when they are enough
+Mixed models are not the only answer to clustering:
+
+- **Cluster-robust standard errors** — keep the `lm()` and correct only the
+  uncertainty (`sandwich`/`clubSandwich`, or `vcov = ~id` in `marginaleffects`).
+  Simpler, and often sufficient when the clustering is a nuisance rather than
+  something you want to describe. Needs a reasonable number of clusters.
+- **GEE** (`geepack`) — population-average effects rather than
+  cluster-specific ones, which is sometimes the quantity you actually want.
+- **Aggregate first** — one summary value per person, then an ordinary model.
+  Crude, but honest and easy to explain, and hard to beat for a simple
+  pre/post comparison.
+
+Choose a mixed model when the variation *between* clusters is itself of
+interest, when clusters have different numbers of observations, or when you
+need person-specific predictions.
+:::
+
+`lme4` fits mixed models, and `broom.mixed` tidies them:
+
+```{r}
+#| label: mixed-model
+#| message: false
+library(lme4)
+
+# a random intercept per species: each species gets its own baseline,
+# and the slope is shared
+mixed <- lmer(body_mass_g ~ flipper_length_mm + (1 | species), data = model_data)
+
+broom.mixed::tidy(mixed, effects = "fixed", conf.int = TRUE)
+```
+
+```{r}
+#| label: mixed-model-random
+broom.mixed::tidy(mixed, effects = "ran_pars")
+```
+
+`glmmTMB` handles the cases `lme4` cannot — zero inflation, negative binomial,
+beta responses — with a similar formula interface.
+
+## Predictive modelling with tidymodels
+
+Everything above is **inference**: what is the effect, and how certain are we?
+`tidymodels` is built for a different question — **prediction**: how well does
+this generalise to data it has not seen?
+
+::: {.callout-warning}
+## Load tidymodels last, and qualify your data
+`tidymodels` attaches `modeldata`, which contains its own `penguins`. After
+`library(tidymodels)`, a bare `penguins` silently resolves to
+`modeldata::penguins` rather than the one you have been using:
+
+```{r}
+#| label: penguins-masking
+#| message: false
+library(tidymodels)
+
+utils::getAnywhere("penguins")$where[1]
+
+setdiff(names(palmerpenguins::penguins), names(penguins))
+```
+
+Same column names, but no `year` — a different data frame, chosen for you
+without a word. Since R 4.5 there is a third `penguins` in `datasets`, with
+shorter column names again (@sec-classes).
+
+Two defences. Write `palmerpenguins::penguins` explicitly, which is what this
+section does. Or call `tidymodels_prefer()`, which activates `conflicted` and
+converts silent masking into a loud error:
+
+```{r}
+#| label: conflict-demo
+#| eval: false
+tidymodels_prefer()
+
+penguins |> drop_na()
+#> Error: [conflicted] penguins found in 3 packages.
+#> Either pick the one you want with `::`:
+#> * modeldata::penguins
+#> * palmerpenguins::penguins
+#> * datasets::penguins
+```
+
+An error is the better outcome. This section is placed at the end of the chapter
+precisely because attaching `tidymodels` changes what later code means.
+:::
+
+```{r}
+#| label: tidymodels
+#| message: false
+penguins_tm <- palmerpenguins::penguins |> drop_na()
+
+set.seed(123)
+split <- initial_split(penguins_tm, prop = 0.75, strata = species)
+
+recipe_spec <- recipe(
+  body_mass_g ~ flipper_length_mm + species + sex,
+  data = training(split)
+) |>
+  step_dummy(all_nominal_predictors())
+
+workflow_spec <- workflow() |>
+  add_recipe(recipe_spec) |>
+  add_model(linear_reg() |> set_engine("lm"))
+
+fitted_wf <- fit(workflow_spec, data = training(split))
+
+# performance on data the model has never seen
+augment(fitted_wf, new_data = testing(split)) |>
+  metrics(truth = body_mass_g, estimate = .pred)
+```
+
+Cross-validation, in three lines:
+
+```{r}
+#| label: tidymodels-cv
+#| message: false
+set.seed(42)
+
+fit_resamples(workflow_spec, vfold_cv(training(split), v = 5)) |>
+  collect_metrics() |>
+  select(.metric, mean, n, std_err)
+```
+
+The pieces: **`rsample`** splits the data, **`recipes`** defines the
+preprocessing, **`parsnip`** specifies the model independently of which engine
+fits it, **`workflows`** binds preprocessing and model together so both are
+applied identically to every resample, and **`yardstick`** computes the metrics.
+
+::: {.callout-tip}
+## Which framework?
+Use **`lm()`/`glm()` + `broom` + `marginaleffects`** when you want to estimate
+and report an effect — almost all epidemiological and clinical research.
+
+Use **`tidymodels`** when the goal is prediction and you need resampling, tuning
+and honest out-of-sample performance.
+
+The two are not competitors, and using a predictive framework for an inferential
+question is a common mistake: a cross-validated R² does not tell you whether an
+exposure causes an outcome.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Adjusting for a collider
+`r longmcq(c(
+  "reduces bias, like adjusting for a confounder",
+  "has no effect either way",
+  answer = "introduces bias, by creating an association that was not there",
+  "is required whenever the variable predicts the outcome"
+))`
+
+Adjusting for a mediator gives you the total effect of the exposure.
+`r torf(FALSE)`
+
+Which quantity says how strong an unmeasured confounder would have to be to
+explain away your result?
+`r mcq(c("the p-value", "the R squared", answer = "the E-value", "the variance inflation factor"))`
+
+Ignoring clustering in the data usually makes confidence intervals
+`r mcq(c("too wide", answer = "too narrow", "unbiased", "impossible to compute"))`
+
+The bootstrap corrects a biased estimate. `r torf(FALSE)`
+
+In `(1 + time | id)`, what varies between participants?
+`r mcq(c("only the intercept", "only the residual variance", answer = "both the intercept and the slope over time", "nothing; it is a fixed effect"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: draw the DAG first
+
+You want to estimate the effect of **regular training** on **resting heart
+rate** in an observational cohort. You have age, sex, smoking, BMI, VO2max and
+whether the person owns a fitness watch.
+
+1. Write down which variables you think are confounders, which are mediators,
+   and which might be colliders.
+2. Build the DAG with `dagitty` and ask it for the adjustment set.
+3. Does the answer match your intuition? Where does it differ?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+One defensible reading — yours may differ, and that is the point, because the
+DAG makes the disagreement explicit rather than hiding it in a variable list:
+
+```{r}
+#| label: ex1-causal-sol
+#| message: false
+library(dagitty)
+
+hr_dag <- dagitty('dag {
+  training -> heart_rate
+  age -> training
+  age -> heart_rate
+  sex -> training
+  sex -> heart_rate
+  smoking -> training
+  smoking -> heart_rate
+  training -> vo2max
+  vo2max -> heart_rate
+  training -> watch
+  heart_rate -> watch
+}')
+
+adjustmentSets(hr_dag, exposure = "training", outcome = "heart_rate")
+```
+
+- **Age, sex and smoking** are confounders: they influence both training and
+  heart rate. Adjust.
+- **VO2max is a mediator** — training improves fitness, which lowers heart rate.
+  Adjusting for it would remove most of the effect you are trying to measure.
+- **Owning a fitness watch is a collider**: people who train buy watches, and so
+  do people worried about their heart rate. Adjusting for it induces bias.
+- **BMI** is the genuinely ambiguous one. Confounder, mediator, or both,
+  depending on the time ordering you assume. Say which you assumed.
+
+Note that `adjustmentSets()` returns the *minimal sufficient* set given your
+assumptions. It cannot tell you the assumptions are right — it only works out
+their consequences correctly, which is still a great deal more than a variable
+list does.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: does clustering change your answer?
+
+Simulate a study with 20 clinics, 20 patients each, where the outcome varies
+between clinics but the treatment effect is zero.
+
+1. Fit an ordinary `lm()` ignoring clinic. How often is the treatment
+   "significant"?
+2. Fit a mixed model with `(1 | clinic)`. How does the standard error change?
+3. What does this tell you about analysing clustered data as if it were
+   independent?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex2-causal-sol
+#| message: false
+library(lme4)
+
+set.seed(99)
+
+simulate_once <- function() {
+  clinics <- tibble(
+    clinic = factor(1:20),
+    # clinics genuinely differ in their average outcome
+    clinic_effect = rnorm(20, 0, 5)
+  )
+
+  tibble(
+    clinic = rep(factor(1:20), each = 20),
+    treated = rep(c(0, 1), length.out = 400)
+  ) |>
+    left_join(clinics, by = "clinic") |>
+    # note: NO treatment effect in the data-generating process
+    mutate(outcome = clinic_effect + rnorm(400, 0, 3))
+}
+
+one <- simulate_once()
+
+# ignoring the clinics
+tidy(lm(outcome ~ treated, data = one)) |> filter(term == "treated")
+
+# accounting for them
+broom.mixed::tidy(
+  lmer(outcome ~ treated + (1 | clinic), data = one),
+  effects = "fixed"
+) |>
+  filter(term == "treated")
+```
+
+In this particular draw both give a similar answer, because the treatment was
+balanced *within* every clinic — which is exactly the design that protects you.
+The damage appears when treatment is unbalanced across clusters:
+
+```{r}
+#| label: ex2-causal-sol2
+set.seed(3)
+
+unbalanced <- simulate_once() |>
+  # now whole clinics tend to be treated or not
+  mutate(treated = as.numeric(as.integer(clinic) > 10))
+
+tidy(lm(outcome ~ treated, data = unbalanced)) |>
+  filter(term == "treated") |>
+  select(estimate, std.error, p.value)
+
+broom.mixed::tidy(
+  lmer(outcome ~ treated + (1 | clinic), data = unbalanced),
+  effects = "fixed"
+) |>
+  filter(term == "treated") |>
+  select(estimate, std.error)
+```
+
+The estimates agree exactly (−0.84 both) and the **standard errors do not**:
+0.48 from the `lm()` against 1.74 from the mixed model, nearly **four times
+larger**. Ignoring the clustering treats 400 patients as 400 independent pieces
+of evidence, when the treatment really varies across only 20 clinics — so the
+effective sample size is closer to 20 than 400. The mixed model's larger
+standard error is the honest one.
+
+Notice what that does to a p-value. The same estimate, divided by a standard
+error four times too small, gives a t statistic four times too large.
+
+That is the general lesson: clustering rarely biases the estimate much, but it
+routinely makes the uncertainty look smaller than it is — and a p-value computed
+from a standard error that is too small is a false positive waiting to happen.
+:::
+:::
+
+## More information
+
+- [Causal Inference: What If](https://miguelhernan.org/whatifbook) — Hernán and
+  Robins, free online
+- [Causal Inference in R](https://www.r-causal.org/) — the same ideas in R
+- [dagitty.net](https://dagitty.net/) — draw a DAG and get the adjustment set
+- [marginaleffects](https://marginaleffects.com/) — including the chapters on
+  g-computation and causal estimands
+- [Tidy Modeling with R](https://www.tmwr.org/) — the tidymodels book
+- [rsample](https://rsample.tidymodels.org/) and
+  [lme4](https://github.com/lme4/lme4) documentation
+

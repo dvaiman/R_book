@@ -2,11 +2,13 @@
 
 ::: {.callout-note}
 ## What this chapter covers
-How to fit models and get their results back as tidy data you can filter, plot
-and tabulate — starting from a single `lm()` and building up to fitting many
-models at once and keeping them in list columns. This is not a statistics
-course: it assumes you know which model you want and shows you how to run it
-without losing control of the output.
+How to fit a model and get its results back as tidy data you can filter, plot
+and tabulate — from a single `lm()` through interpreting it on the scale your
+reader needs, to fitting many models at once and keeping them in list columns.
+This is not a statistics course: it assumes you know which model you want and
+shows you how to run it without losing control of the output.
+
+Causal analysis, clustered data and prediction are in @sec-causal.
 :::
 
 ```{r}
@@ -501,6 +503,162 @@ avg_comparisons(model, variables = "sex")
 # predictions: the expected body mass of each species
 avg_predictions(model, by = "species")
 ```
+
+### Relative and absolute effects
+
+For a binary outcome the same model can be reported on several scales, and they
+tell different stories. This matters more than almost anything else in this
+chapter, because the choice of scale changes how important a result looks.
+
+```{r}
+#| label: rel-abs-data
+set.seed(7)
+
+n <- 3000
+
+trial <- tibble(
+  treated = rbinom(n, 1, 0.5),
+  age = rnorm(n, 60, 10),
+  # true risk depends on treatment and age
+  risk = plogis(-3.2 + 0.9 * (1 - treated) + 0.03 * (age - 60)),
+  outcome = rbinom(n, 1, risk)
+)
+
+risk_model <- glm(outcome ~ treated + age, data = trial, family = binomial())
+```
+
+**Absolute risk in each arm** — what actually happens to people:
+
+```{r}
+#| label: rel-abs-predictions
+avg_predictions(risk_model, variables = "treated")
+```
+
+About 9.6% of untreated and 5.4% of treated had the outcome.
+
+**Absolute difference (risk difference)** — the default `avg_comparisons()`:
+
+```{r}
+#| label: rel-abs-difference
+avg_comparisons(risk_model, variables = "treated")
+```
+
+−0.042: treatment lowers the risk by **4.2 percentage points**.
+
+**Relative difference (risk ratio)**:
+
+```{r}
+#| label: rel-abs-ratio
+avg_comparisons(
+  risk_model,
+  variables = "treated",
+  comparison = "lnratioavg",
+  transform = exp
+)
+```
+
+0.56: treatment leaves **56% of the risk**, a 44% relative reduction.
+
+**Odds ratio** — what the exponentiated coefficient gives you:
+
+```{r}
+#| label: rel-abs-or
+tidy(risk_model, exponentiate = TRUE, conf.int = TRUE) |>
+  filter(term == "treated") |>
+  select(term, estimate, conf.low, conf.high)
+```
+
+Four numbers, one model, all correct:
+
+| Measure | Value | Reads as |
+|---------|-------|----------|
+| Risks | 9.6% vs 5.4% | what happens in each arm |
+| Risk difference | −4.2 percentage points | absolute benefit |
+| Risk ratio | 0.56 | 44% relative reduction |
+| Odds ratio | 0.53 | not a risk reduction at all |
+
+::: {.callout-important}
+## Report both, and never a relative measure alone
+A relative measure with no absolute anchor is uninterpretable, and reliably
+overstates importance. "Halves the risk" describes a drop from 80% to 40% and a
+drop from 0.002% to 0.001% equally well.
+
+The **number needed to treat** puts the absolute effect in human terms — one
+over the risk difference:
+
+```{r}
+#| label: rel-abs-nnt
+rd <- avg_comparisons(risk_model, variables = "treated")
+
+c(
+  risk_difference = round(rd$estimate, 4),
+  NNT = round(1 / abs(rd$estimate), 1)
+)
+```
+
+About 24 people must be treated for one to avoid the outcome. That is the same
+finding as "44% relative reduction", and it is the one a clinician can act on.
+
+Report the absolute risks, the absolute difference, and the relative measure —
+all three. CONSORT and STROBE both ask for it.
+:::
+
+::: {.callout-warning}
+## The odds ratio is not a risk ratio when the outcome is common
+Above, the odds ratio (0.53) and risk ratio (0.56) were close, because the
+outcome was uncommon — under 10%. Make the outcome common and they diverge
+badly:
+
+```{r}
+#| label: rel-abs-common
+set.seed(7)
+
+common <- tibble(
+  treated = rbinom(n, 1, 0.5),
+  age = rnorm(n, 60, 10),
+  # baseline risk now around 78% rather than 10%
+  risk = plogis(0.4 + 0.9 * (1 - treated) + 0.03 * (age - 60)),
+  outcome = rbinom(n, 1, risk)
+)
+
+common_model <- glm(outcome ~ treated + age, data = common, family = binomial())
+
+c(
+  odds_ratio = tidy(common_model, exponentiate = TRUE)$estimate[2],
+  risk_ratio = avg_comparisons(common_model, variables = "treated",
+                               comparison = "lnratioavg", transform = exp)$estimate,
+  risk_difference = avg_comparisons(common_model, variables = "treated")$estimate
+) |> round(3)
+```
+
+The odds ratio is **0.41** and the risk ratio is **0.77**. Read as a risk
+reduction, the odds ratio suggests a 59% drop; the actual relative reduction is
+23%, and the absolute drop is 18 percentage points, from 78% to 60%.
+
+Logistic regression naturally produces odds ratios, so this misreading is
+everywhere. If your outcome is common and you want a relative measure, get the
+risk ratio from `avg_comparisons()` rather than exponentiating a coefficient.
+:::
+
+::: {.callout-tip}
+## The same idea on a continuous outcome
+Nothing here is specific to binary outcomes. For a continuous outcome the
+absolute effect is the mean difference in the outcome's own units, and the
+relative version is a ratio or a percentage change:
+
+```{r}
+#| label: rel-abs-continuous
+# absolute: grams
+avg_comparisons(model, variables = "sex")
+
+# relative: proportion of the female mean
+avg_comparisons(model, variables = "sex", comparison = "lnratioavg",
+                transform = exp)
+```
+
+530 g heavier, or 1.13 times as heavy — a 13% difference. Report the units;
+"14% heavier" without them invites the reader to imagine the wrong quantity.
+:::
 
 ### Averaging over your data, or evaluating at the average
 
@@ -1098,369 +1256,6 @@ The tools above make it easy to fit an interaction for every variable you have.
 That ease is not evidence that you should.
 :::
 
-## Causal analysis
-
-Everything so far has been about *fitting* models. This section is about a
-question you have to answer before fitting anything: **what is the model for?**
-
-### Three different jobs
-
-| Job | Question | What matters |
-|-----|----------|--------------|
-| **Description** | What does this population look like? | Representative sample, honest summaries |
-| **Prediction** | What is the likely outcome for a new case? | Out-of-sample accuracy; whether a predictor is "causal" is irrelevant |
-| **Causal inference** | What would happen if we intervened? | The right adjustment set, and assumptions you must state |
-
-The same `lm()` call serves all three, which is exactly why they get confused.
-A variable that improves prediction can wreck a causal estimate, and vice versa.
-Decide which job you are doing before you choose variables.
-
-::: {.callout-important}
-## "We are not claiming causality" does not make a model descriptive
-An adjusted regression *is* a causal analysis in intent. Nobody adjusts for
-confounders to describe a population; they do it to isolate an effect. Writing
-"associations should not be interpreted causally" in the discussion while
-having selected covariates on causal grounds is having it both ways.
-
-The honest version is to state the causal question, state the assumptions it
-rests on, and say plainly that those assumptions are untestable. That is
-stronger than a disclaimer, not weaker.
-:::
-
-### Define the estimand first
-
-Say what you are estimating before touching the outcome:
-
-- **ATE** — the average treatment effect if *everyone* were treated versus no
-  one.
-- **ATT** — the effect among those who *actually received* the treatment. Often
-  the policy-relevant one, and what matching usually targets.
-
-A useful discipline is the **target trial**: what randomised trial would this
-analysis emulate? Answering it forces you to be explicit about eligibility, when
-follow-up starts (time zero) and what is being compared — which is how
-immortal-time and selection bias get caught before they happen.
-
-### Choose covariates from a causal model, not by algorithm
-
-Stepwise selection, "everything that was significant at p < 0.20", and "adjust
-for everything available" are all ways of choosing covariates without a causal
-argument. They can each make the estimate worse.
-
-A **DAG** — a directed acyclic graph — writes down what you believe causes what,
-so the adjustment set follows from the assumptions rather than from the data.
-
-```{r}
-#| label: dag-setup
-#| message: false
-library(dagitty)
-library(ggdag)
-
-dag <- dagitty('dag {
-  training -> fitness
-  age -> training
-  age -> fitness
-  motivation -> training
-  motivation -> fitness
-}')
-
-# which variables must be adjusted for to identify training -> fitness?
-adjustmentSets(dag, exposure = "training", outcome = "fitness")
-```
-
-```{r}
-#| label: fig-dag
-#| fig-cap: "A causal diagram. Age and motivation cause both the exposure and the outcome."
-#| fig-height: 3.2
-#| message: false
-ggdag(dag, text_size = 3) +
-  theme_dag()
-```
-
-Three roles a third variable can play, and they demand opposite treatment:
-
-- A **confounder** causes both exposure and outcome. **Adjust for it** — leaving
-  it out biases the estimate.
-- A **mediator** sits on the path from exposure to outcome. **Do not adjust for
-  it** if you want the total effect; adjusting removes the part of the effect
-  that travels through it.
-- A **collider** is caused by both exposure and outcome (or by two variables of
-  interest). **Do not adjust for it** — adjusting *creates* an association that
-  does not exist.
-
-### What happens if you get it wrong
-
-Because we can simulate data where the truth is known, we can watch each mistake
-happen. Here the true effect of training on fitness is exactly **3**.
-
-```{r}
-#| label: causal-sim
-set.seed(5)
-
-n <- 4000
-
-sim <- tibble(
-  age = rnorm(n, 45, 12),
-  motivation = rnorm(n),
-  # both age and motivation influence how much people train ...
-  training = 2 * motivation - 0.05 * age + rnorm(n),
-  # ... and both also influence fitness directly. True training effect = 3.
-  fitness = 3 * training + 1.5 * motivation - 0.2 * age + rnorm(n, 0, 3)
-) |>
-  # gym membership is caused by BOTH training and fitness: a collider
-  mutate(gym_member = as.numeric(scale(training + fitness + rnorm(n))) > 0)
-```
-
-```{r}
-#| label: causal-compare
-models <- list(
-  "Unadjusted"            = fitness ~ training,
-  "Adjusted (correct)"    = fitness ~ training + motivation + age,
-  "Also adjusted for the collider" = fitness ~ training + motivation + age + gym_member
-)
-
-map(models, \(f) lm(f, data = sim) |> tidy(conf.int = TRUE)) |>
-  list_rbind(names_to = "model") |>
-  filter(term == "training") |>
-  select(model, estimate, conf.low, conf.high) |>
-  mutate(across(where(is.numeric), \(x) round(x, 2)))
-```
-
-Read the three rows against the truth of 3.00:
-
-- **Unadjusted: 3.84.** Too high. Motivated people both train more and are
-  fitter anyway, so some of motivation's effect is being credited to training.
-  This is ordinary confounding.
-- **Correctly adjusted: 3.00.** Right, because the adjustment set from the DAG
-  closes both back-door paths.
-- **With the collider added: 2.58.** Wrong again — and note the direction. This
-  model adjusts for *more* variables than the correct one, and is *further* from
-  the truth. Gym membership is a consequence of training and fitness, and
-  conditioning on it induces a spurious negative association between them.
-
-That third row is the whole argument against "adjust for everything you have".
-None of the three models warns you; all three have narrow confidence intervals;
-only the DAG tells you which is right.
-
-### Mediators remove part of the effect
-
-```{r}
-#| label: causal-mediator
-set.seed(11)
-
-med <- tibble(
-  training = rnorm(2000),
-  # training builds muscle ...
-  muscle = 2 * training + rnorm(2000),
-  # ... and both training and muscle improve fitness
-  fitness = 1.5 * training + 1.0 * muscle + rnorm(2000, 0, 2)
-)
-
-# total effect: 1.5 direct + (2 x 1.0) through muscle = 3.5
-lm(fitness ~ training, data = med) |> tidy() |> filter(term == "training")
-
-# adjusting for the mediator leaves only the direct effect, 1.5
-lm(fitness ~ training + muscle, data = med) |> tidy() |> filter(term == "training")
-```
-
-Neither is wrong — they answer different questions. The first is "how much does
-training improve fitness, by any route", the second "how much does training
-improve fitness *other than* by building muscle". Decide which you want, and say
-which you report. Adjusting for a mediator by accident, because it was in the
-dataset and seemed relevant, is a common way to make a real effect disappear.
-
-::: {.callout-warning}
-## The Table 2 fallacy
-When you fit `outcome ~ exposure + age + sex + smoking`, only the exposure
-coefficient has been designed to be interpretable. The adjustment set was chosen
-to identify the *exposure* effect, not the effect of age, and not the effect of
-smoking — each of those would need its own DAG and its own adjustment set.
-
-Presenting the full coefficient table as though every row were an effect
-estimate is the **Table 2 fallacy** (Westreich and Greenland). It is extremely
-common in published papers.
-
-The fix is presentational and easy: report the exposure effect as the result,
-and either omit the covariate coefficients or label them explicitly as
-adjustment terms that should not be interpreted.
-:::
-
-### Design before outcome
-
-For a serious causal analysis, the recommended order is to build and check the
-design *before* looking at the outcome, so balance is judged blind to the
-effect. In outline:
-
-```{r}
-#| label: causal-design
-#| eval: false
-library(MatchIt)
-library(cobalt)
-
-matched_design <- matchit(
-  treat ~ age + sex + bmi + comorbidity,
-  data = cohort,
-  method = "full",
-  estimand = "ATT"
-)
-
-# check balance BEFORE estimating anything
-bal.tab(matched_design, un = TRUE)
-love.plot(matched_design, thresholds = c(m = 0.1)) # aim for |SMD| < 0.1
-
-matched <- match.data(matched_design)
-```
-
-Then estimate on the balanced design, combining weights with an outcome model —
-which is **doubly robust**, meaning the estimate stays consistent if *either*
-the propensity model or the outcome model is right:
-
-```{r}
-#| label: causal-estimate
-#| eval: false
-fit <- glm(outcome ~ treat + age + sex + bmi,
-  data = matched, weights = weights, family = binomial()
-)
-
-avg_comparisons(
-  fit,
-  variables = "treat",
-  wts = "weights",
-  vcov = ~subclass # cluster on the matched sets
-)
-```
-
-`WeightIt` does the weighting equivalent (IPTW, entropy balancing) and can
-target the ATE as well as the ATT.
-
-### How fragile is the conclusion?
-
-Every observational estimate rests on **no unmeasured confounding**, which is
-untestable. You cannot prove it holds; you can quantify how much it would take
-to overturn your result.
-
-```{r}
-#| label: causal-evalue
-#| message: false
-# how strong would an unmeasured confounder have to be, with both the
-# exposure and the outcome, to explain away this estimate?
-EValue::evalues.OLS(
-  est = 3.0,
-  se = 0.1,
-  sd = sd(sim$fitness)
-)
-```
-
-The E-value is the minimum association an unmeasured confounder would need with
-*both* exposure and outcome to explain the effect away. A large E-value means
-the finding is robust; a small one means a modest unmeasured confounder would
-suffice — and you should say so plainly. `tipr` does the same job as a
-tipping-point analysis across a range of plausible confounders.
-
-::: {.callout-note}
-## A reporting checklist
-For a causal analysis, report in this order:
-
-1. The **estimand** — ATE or ATT, and the target trial it emulates.
-2. The **assumed DAG** and the adjustment set that follows from it.
-3. The **design method** and which estimand it targets.
-4. **Balance** before and after, with the threshold you used.
-5. The **effect estimate** with a confidence interval, and how the standard
-   errors were computed.
-6. A **sensitivity analysis** for unmeasured confounding.
-
-And state the no-unmeasured-confounding assumption as a limitation, in those
-words. We estimate effects under stated assumptions; we do not prove causation.
-:::
-
-::: {.callout-tip}
-## Going further
-This is an orientation, not a course. For the real thing:
-
-- [Causal Inference: What If](https://miguelhernan.org/whatifbook) — Hernán and
-  Robins, free online, the standard reference
-- [Causal Inference in R](https://www.r-causal.org/) — the same ideas worked
-  through in R with `ggdag`, `MatchIt` and `WeightIt`
-- [dagitty.net](https://dagitty.net/) — draw a DAG in the browser and get the
-  adjustment set
-:::
-
-## Bootstrapping
-
-### When and why
-
-Every confidence interval so far came from a formula. Those formulas exist for
-means, regression coefficients and a handful of other quantities, and they rely
-on assumptions — usually that the estimate is approximately normally distributed
-in repeated sampling.
-
-The **bootstrap** replaces the formula with brute force: resample your data with
-replacement many times, recompute the statistic each time, and use the spread of
-those values as the sampling distribution.
-
-Reach for it when:
-
-- **There is no standard error formula** for what you computed — a median, a
-  ratio of two coefficients, the difference between two correlations, a value
-  derived through several steps.
-- **The formula exists but its assumptions look shaky** — small samples, badly
-  skewed outcomes, heavy tails.
-- **Your quantity comes out of a multi-step pipeline**, so analytic propagation
-  of uncertainty would be painful. Bootstrap the whole pipeline instead.
-
-::: {.callout-warning}
-## What the bootstrap does not fix
-- **It does not remove bias.** If your estimate is systematically wrong,
-  resampling reproduces that bias faithfully in every replicate.
-- **It does not fix dependence.** If your data has repeated measures or
-  clustering, resampling individual *rows* breaks the clustering and gives
-  intervals that are too narrow. Resample the **clusters** instead —
-  `rsample::group_bootstraps(group = id)`.
-- **It needs a reasonable sample.** With 12 observations the bootstrap can only
-  reshuffle 12 values; it cannot invent information that is not there.
-- **It is not required for ordinary regression.** For a linear model with
-  well-behaved residuals, the textbook interval is fine and faster.
-:::
-
-`rsample` handles the resampling, and the results are — again — list columns.
-
-```{r}
-#| label: bootstrap
-#| message: false
-library(rsample)
-
-set.seed(2026)
-
-boot_results <- model_data |>
-  bootstraps(times = 200) |>
-  mutate(
-    coefficients = map(splits, \(s) {
-      lm(body_mass_g ~ flipper_length_mm, data = analysis(s)) |> tidy()
-    })
-  ) |>
-  select(id, coefficients) |>
-  unnest(coefficients) |>
-  filter(term == "flipper_length_mm")
-
-# the percentile bootstrap interval
-quantile(boot_results$estimate, c(0.025, 0.5, 0.975)) |> round(2)
-```
-
-```{r}
-#| label: fig-bootstrap
-#| fig-cap: "The bootstrap distribution of the slope."
-#| fig-height: 3
-boot_results |>
-  ggplot(aes(estimate)) +
-  geom_histogram(bins = 30, fill = "steelblue", colour = "white") +
-  labs(x = "Slope (g per mm)", y = "Bootstrap replicates") +
-  theme_minimal(base_size = 13)
-```
-
-`analysis(s)` extracts the resampled data from a split; `assessment(s)` gives
-the rows left out. Useful when a standard error is hard to derive analytically —
-a median, a ratio of coefficients, a complicated derived statistic.
-
 ## Reporting the model
 
 `gtsummary` (@sec-tables) builds the table directly from the model object, so
@@ -1485,75 +1280,6 @@ tbl_merge(
   tab_spanner = c("**Unadjusted**", "**Adjusted**")
 )
 ```
-
-## Mixed models
-
-### When and why
-
-Every model so far assumed the observations are **independent** — that knowing
-one participant's outcome tells you nothing about another's. That assumption
-fails whenever the data has structure:
-
-- **Repeated measurements** on the same person: baseline and follow-up, a
-  weekly diary, an accelerometer worn over seven days.
-- **Clustering**: patients within clinics, pupils within schools, athletes
-  within teams, siblings within families.
-- **Crossed structures**: participants each rating several items.
-
-Why it matters: two measurements from the same person carry less information
-than two measurements from two people, because they resemble each other. Fit an
-ordinary `lm()` to such data and it counts every row as fresh evidence, so the
-standard errors come out **too small**, the confidence intervals too narrow and
-the p-values too small. The estimate may be fine; the uncertainty is wrong, in
-the direction that produces false positives.
-
-A mixed model handles this by giving each cluster its own **random** intercept
-(and optionally slope), drawn from a distribution:
-
-- `(1 | id)` — each person gets their own baseline level.
-- `(1 + time | id)` — each person gets their own baseline *and* their own slope
-  over time.
-
-::: {.callout-tip}
-## The alternatives, and when they are enough
-Mixed models are not the only answer to clustering:
-
-- **Cluster-robust standard errors** — keep the `lm()` and correct only the
-  uncertainty (`sandwich`/`clubSandwich`, or `vcov = ~id` in `marginaleffects`).
-  Simpler, and often sufficient when the clustering is a nuisance rather than
-  something you want to describe. Needs a reasonable number of clusters.
-- **GEE** (`geepack`) — population-average effects rather than
-  cluster-specific ones, which is sometimes the quantity you actually want.
-- **Aggregate first** — one summary value per person, then an ordinary model.
-  Crude, but honest and easy to explain, and hard to beat for a simple
-  pre/post comparison.
-
-Choose a mixed model when the variation *between* clusters is itself of
-interest, when clusters have different numbers of observations, or when you
-need person-specific predictions.
-:::
-
-`lme4` fits mixed models, and `broom.mixed` tidies them:
-
-```{r}
-#| label: mixed-model
-#| message: false
-library(lme4)
-
-# a random intercept per species: each species gets its own baseline,
-# and the slope is shared
-mixed <- lmer(body_mass_g ~ flipper_length_mm + (1 | species), data = model_data)
-
-broom.mixed::tidy(mixed, effects = "fixed", conf.int = TRUE)
-```
-
-```{r}
-#| label: mixed-model-random
-broom.mixed::tidy(mixed, effects = "ran_pars")
-```
-
-`glmmTMB` handles the cases `lme4` cannot — zero inflation, negative binomial,
-beta responses — with a similar formula interface.
 
 ::: {.webex-check .webex-box}
 **Check yourself**
@@ -1747,108 +1473,6 @@ you say.
 :::
 :::
 
-## Predictive modelling with tidymodels
-
-Everything above is **inference**: what is the effect, and how certain are we?
-`tidymodels` is built for a different question — **prediction**: how well does
-this generalise to data it has not seen?
-
-::: {.callout-warning}
-## Load tidymodels last, and qualify your data
-`tidymodels` attaches `modeldata`, which contains its own `penguins`. After
-`library(tidymodels)`, a bare `penguins` silently resolves to
-`modeldata::penguins` rather than the one you have been using:
-
-```{r}
-#| label: penguins-masking
-#| message: false
-library(tidymodels)
-
-utils::getAnywhere("penguins")$where[1]
-
-setdiff(names(palmerpenguins::penguins), names(penguins))
-```
-
-Same column names, but no `year` — a different data frame, chosen for you
-without a word. Since R 4.5 there is a third `penguins` in `datasets`, with
-shorter column names again (@sec-classes).
-
-Two defences. Write `palmerpenguins::penguins` explicitly, which is what this
-section does. Or call `tidymodels_prefer()`, which activates `conflicted` and
-converts silent masking into a loud error:
-
-```{r}
-#| label: conflict-demo
-#| eval: false
-tidymodels_prefer()
-
-penguins |> drop_na()
-#> Error: [conflicted] penguins found in 3 packages.
-#> Either pick the one you want with `::`:
-#> * modeldata::penguins
-#> * palmerpenguins::penguins
-#> * datasets::penguins
-```
-
-An error is the better outcome. This section is placed at the end of the chapter
-precisely because attaching `tidymodels` changes what later code means.
-:::
-
-```{r}
-#| label: tidymodels
-#| message: false
-penguins_tm <- palmerpenguins::penguins |> drop_na()
-
-set.seed(123)
-split <- initial_split(penguins_tm, prop = 0.75, strata = species)
-
-recipe_spec <- recipe(
-  body_mass_g ~ flipper_length_mm + species + sex,
-  data = training(split)
-) |>
-  step_dummy(all_nominal_predictors())
-
-workflow_spec <- workflow() |>
-  add_recipe(recipe_spec) |>
-  add_model(linear_reg() |> set_engine("lm"))
-
-fitted_wf <- fit(workflow_spec, data = training(split))
-
-# performance on data the model has never seen
-augment(fitted_wf, new_data = testing(split)) |>
-  metrics(truth = body_mass_g, estimate = .pred)
-```
-
-Cross-validation, in three lines:
-
-```{r}
-#| label: tidymodels-cv
-#| message: false
-set.seed(42)
-
-fit_resamples(workflow_spec, vfold_cv(training(split), v = 5)) |>
-  collect_metrics() |>
-  select(.metric, mean, n, std_err)
-```
-
-The pieces: **`rsample`** splits the data, **`recipes`** defines the
-preprocessing, **`parsnip`** specifies the model independently of which engine
-fits it, **`workflows`** binds preprocessing and model together so both are
-applied identically to every resample, and **`yardstick`** computes the metrics.
-
-::: {.callout-tip}
-## Which framework?
-Use **`lm()`/`glm()` + `broom` + `marginaleffects`** when you want to estimate
-and report an effect — almost all epidemiological and clinical research.
-
-Use **`tidymodels`** when the goal is prediction and you need resampling, tuning
-and honest out-of-sample performance.
-
-The two are not competitors, and using a predictive framework for an inferential
-question is a common mistake: a cross-validated R² does not tell you whether an
-exposure causes an outcome.
-:::
-
 ## More information
 
 - [broom](https://broom.tidymodels.org/) and its
@@ -1859,6 +1483,6 @@ exposure causes an outcome.
 - [emmeans vignettes](https://rvlenth.github.io/emmeans/articles/)
 - [easystats](https://easystats.github.io/easystats/) — `performance`,
   `parameters`, `effectsize`, `report`
-- [Tidy Modeling with R](https://www.tmwr.org/) — the tidymodels book
 - [Regression and Other Stories](https://avehtari.github.io/ROS-Examples/) — for
   the statistics rather than the code
+

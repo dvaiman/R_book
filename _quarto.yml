@@ -46,6 +46,7 @@ book:
         - 10_generative_ai.qmd
         - 10b_functions_iteration.qmd
         - 10c_modelling.qmd
+        - 10c2_causal.qmd
         - 10d_workflows.qmd
         - 11_usefull_packages.qmd
     - references.qmd

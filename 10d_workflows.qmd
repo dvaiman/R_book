@@ -128,7 +128,7 @@ list(
 how to make it". You never say what depends on what — `targets` reads the code
 and works it out: `clean_data` mentions `raw_data`, so it depends on it.
 
-`usethis::use_targets()` writes a starter `_targets.R` for you.
+`targets::use_targets()` writes a starter `_targets.R` for you to fill in.
 
 ### Running it
 
@@ -299,11 +299,17 @@ one-off exploration. The overhead — restructuring into functions, learning the
 commands — is real, and a small project does not repay it.
 
 ::: {.callout-warning}
-## Gitignore the cache
-`_targets/` holds your results, including your data. Add it to `.gitignore`
-before the first commit — `usethis::use_targets()` does this for you. For
-sensitive data this is not a tidiness question but a disclosure one
-(@sec-cleaning).
+## The cache holds your data
+`_targets/` stores every result, which means it stores your data. `targets`
+handles this for you: the first `tar_make()` writes a `_targets/.gitignore` that
+excludes the cached objects, keeping everything except a small metadata file out
+of Git.
+
+Do not take that on trust for sensitive data. Run `git status` before your first
+commit and confirm that nothing from `_targets/objects/` is staged. The
+generated file itself carries a warning that `_targets/meta/process` can contain
+sensitive information — for registry data, the safest choice is to commit
+nothing from `_targets/` at all (@sec-cleaning).
 :::
 
 ## `renv`: pinning package versions
@@ -447,7 +453,7 @@ Take a short analysis of your own — or write one: import `penguins`, drop
 missing values, fit a model, produce a coefficient table.
 
 1. Rewrite each step as a function that takes data and returns a result.
-2. Create `_targets.R` with `usethis::use_targets()` and fill in the target
+2. Create `_targets.R` with `targets::use_targets()` and fill in the target
    list.
 3. Run `tar_make()`. Then run it again — how long does the second run take?
 4. Run `tar_visnetwork()` and look at the graph.
