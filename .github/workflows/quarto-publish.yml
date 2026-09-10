@@ -79,6 +79,11 @@ jobs:
             any::broom.mixed
             any::tidymodels
             any::reprex
+            any::dagitty
+            any::ggdag
+            any::EValue
+            any::MatchIt
+            any::cobalt
 
       - name: Render Quarto project
         run: quarto render
