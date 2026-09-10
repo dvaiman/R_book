@@ -1,0 +1,549 @@
+# Reproducible Workflows {#sec-pipelines}
+
+::: {.callout-note}
+## What this chapter covers
+@sec-workflow describes the *steps* of an analysis — import, clean, explore,
+model, report. This chapter is about the machinery that makes those steps run
+reliably: turning a folder of scripts into a pipeline with `targets`, pinning
+your package versions with `renv`, and knowing when the extra machinery is
+worth it.
+:::
+
+```{r}
+#| label: setup-pipelines
+#| include: false
+library(webexercises)
+```
+
+## The problem with a folder of scripts
+
+A typical project reaches this state within a few weeks:
+
+```
+R/
+├── 01_import.R
+├── 02_clean.R
+├── 03_explore.R
+├── 04_model.R
+└── 05_report.qmd
+```
+
+This is already good practice (@sec-workflow) and it works. Until it does not:
+
+- You change one line in `02_clean.R`. Which of the later scripts now need
+  re-running? You cannot be certain, so you either re-run everything — twenty
+  minutes — or you re-run some of it and hope.
+- You come back after three months. Does `04_model.R` still work, or did it
+  depend on an object you created by hand in the console?
+- A co-author asks whether the figure in the manuscript came from the current
+  data. You do not actually know.
+- You re-run everything to be safe, and something breaks in step 2, and you
+  cannot tell whether it was broken before.
+
+The underlying problem is that **the dependencies between the steps exist only
+in your head**. The numbers in the filenames are a hint, not a mechanism.
+
+## `targets`
+
+[`targets`](https://docs.ropensci.org/targets/) makes those dependencies
+explicit and then does the bookkeeping for you. You declare the steps; it works
+out what depends on what, runs only what is out of date, and stores the results.
+
+Three consequences, and the middle one is the one that changes how you work:
+
+- **Skip what has not changed.** Re-running a pipeline where nothing changed
+  costs seconds.
+- **Trust the result.** If the pipeline is up to date, the outputs *were*
+  produced by the current code and the current data. Not "probably".
+- **Never lose the objects.** Every result is cached and readable at any time
+  with `tar_read()` — no more re-running an analysis to look at a number.
+
+### The shape of a project
+
+```
+my_project/
+├── _targets.R          <- the pipeline definition
+├── _targets/           <- the cache (gitignored)
+├── R/
+│   └── functions.R     <- your functions
+├── data-raw/
+└── report.qmd
+```
+
+Two things differ from the script-based layout. There is a **`_targets.R`** file
+describing the pipeline, and `R/` holds **functions** rather than top-to-bottom
+scripts. That second point is the real prerequisite: `targets` orchestrates
+function calls, so the work of @sec-functions is what makes this possible.
+
+### Functions first
+
+```{r}
+#| eval: false
+# R/functions.R
+
+clean_penguins <- function(data) {
+  data |>
+    drop_na(body_mass_g, flipper_length_mm, sex) |>
+    mutate(body_mass_kg = body_mass_g / 1000)
+}
+
+fit_model <- function(data) {
+  lm(body_mass_g ~ flipper_length_mm + species + sex, data = data)
+}
+
+model_table <- function(model) {
+  broom::tidy(model, conf.int = TRUE)
+}
+```
+
+Each function takes data in and returns something. No file reading, no
+`<-` at the top level, no side effects.
+
+### The pipeline
+
+```{r}
+#| eval: false
+# _targets.R
+
+library(targets)
+library(tarchetypes)
+
+# packages every target needs, declared once
+tar_option_set(
+  packages = c("dplyr", "tidyr", "ggplot2", "broom", "palmerpenguins")
+)
+
+# source everything in R/
+tar_source()
+
+list(
+  tar_target(raw_data, palmerpenguins::penguins),
+  tar_target(clean_data, clean_penguins(raw_data)),
+  tar_target(model, fit_model(clean_data)),
+  tar_target(coefficients, model_table(model))
+)
+```
+
+`tar_target(name, command)` says "there is a thing called *name*, and this is
+how to make it". You never say what depends on what — `targets` reads the code
+and works it out: `clean_data` mentions `raw_data`, so it depends on it.
+
+`usethis::use_targets()` writes a starter `_targets.R` for you.
+
+### Running it
+
+Here is that pipeline actually running. `tar_dir()` builds it in a temporary
+directory, which is how the `targets` documentation runs self-contained
+examples:
+
+```{r}
+#| label: targets-run
+#| message: false
+library(targets)
+
+tar_dir({
+  tar_script({
+    library(targets)
+    tar_option_set(
+      packages = c("dplyr", "tidyr", "broom", "palmerpenguins")
+    )
+    list(
+      tar_target(raw_data, palmerpenguins::penguins),
+      tar_target(clean_data, tidyr::drop_na(raw_data, body_mass_g, flipper_length_mm)),
+      tar_target(model, lm(body_mass_g ~ flipper_length_mm, data = clean_data)),
+      tar_target(coefficients, broom::tidy(model))
+    )
+  })
+
+  tar_make()
+})
+```
+
+Every target was built. Now run it again with nothing changed:
+
+```{r}
+#| label: targets-skip
+#| message: false
+tar_dir({
+  tar_script({
+    library(targets)
+    tar_option_set(
+      packages = c("dplyr", "tidyr", "broom", "palmerpenguins")
+    )
+    list(
+      tar_target(raw_data, palmerpenguins::penguins),
+      tar_target(clean_data, tidyr::drop_na(raw_data, body_mass_g, flipper_length_mm)),
+      tar_target(model, lm(body_mass_g ~ flipper_length_mm, data = clean_data)),
+      tar_target(coefficients, broom::tidy(model))
+    )
+  })
+
+  tar_make()
+  cat("\n--- running a second time, nothing changed ---\n")
+  tar_make()
+
+  cat("\n--- the cached result, read back without re-running ---\n")
+  print(tar_read(coefficients))
+})
+```
+
+**"skipped pipeline"** is the whole point. Nothing was recomputed, because
+nothing changed.
+
+::: {.callout-important}
+## What "changed" means
+`targets` invalidates a target when its **command**, its **dependencies**, or
+the **functions it calls** change. Edit `clean_penguins()` and `clean_data`,
+`model` and `coefficients` all rebuild — but `raw_data` does not, because it
+does not use that function.
+
+That is stronger than a timestamp check. It hashes the code, so reformatting
+that does not change meaning will not trigger a rebuild, and a changed function
+buried three files away will.
+
+What it does **not** track is anything invisible to R: a database that changed
+underneath you, a file you edited outside the pipeline, or randomness without a
+seed. Use `tar_target(format = "file")` to make file dependencies explicit.
+:::
+
+### The commands you will actually use
+
+| Command | What it does |
+|---------|--------------|
+| `tar_make()` | run the pipeline, skipping what is up to date |
+| `tar_read(name)` | read one result into the console |
+| `tar_load(name)` | load one or more results into your environment |
+| `tar_outdated()` | which targets *would* rebuild, without running them |
+| `tar_visnetwork()` | interactive diagram of the pipeline and its status |
+| `tar_manifest()` | the pipeline as a table |
+| `tar_prune()` | delete cached results no longer in the pipeline |
+| `tar_destroy()` | delete the whole cache and start clean |
+
+`tar_visnetwork()` is worth running early — it draws the dependency graph with
+each target coloured by whether it is up to date, which is often the fastest way
+to see that two things you thought were connected are not.
+
+::: {.callout-tip}
+## Working interactively with a pipeline
+The common worry is "I still want to poke at my data in the console". You do:
+
+```{r}
+#| eval: false
+tar_load(clean_data) # now clean_data is in your environment
+tar_load_everything() # or load the lot
+```
+
+Develop a function interactively, get it right, put it in `R/`, add a target.
+The pipeline is where finished work goes, not where you do exploratory work.
+:::
+
+### Branching: one target, many results
+
+Chapter @sec-modelling fitted a model per species with `map()`. In a pipeline
+you can do the same with **dynamic branching**, and each branch is cached
+separately — so if one species' data changes, only that branch reruns:
+
+```{r}
+#| eval: false
+list(
+  tar_target(species_list, c("Adelie", "Chinstrap", "Gentoo")),
+  tar_target(clean_data, clean_penguins(raw_data)),
+  tar_target(
+    fits,
+    fit_one(clean_data, species_list),
+    pattern = map(species_list) # one branch per species
+  ),
+  tar_target(combined, bind_rows(fits))
+)
+```
+
+`tarchetypes::tar_map()` does the *static* equivalent, creating separately named
+targets at build time — better when you want to see each one in the graph.
+
+### Rendering the report as a target
+
+```{r}
+#| eval: false
+library(tarchetypes)
+
+list(
+  # ... upstream targets ...
+  tar_quarto(report, "report.qmd")
+)
+```
+
+Inside `report.qmd` you read results with `tar_read()` rather than recomputing
+them:
+
+````markdown
+```{{r}}
+library(targets)
+coefficients <- tar_read(coefficients)
+```
+````
+
+Now the report is part of the dependency graph. Change the cleaning function and
+`tar_make()` rebuilds the model *and* re-renders the report — so the manuscript
+cannot silently disagree with the analysis. That is the single biggest practical
+benefit for research work.
+
+### When targets is worth it
+
+**Use it when** a full re-run takes more than a few minutes, the project has
+more than a handful of steps, several outputs depend on the same cleaning, you
+will come back to it after months, or a report must stay in sync with the
+analysis.
+
+**Skip it when** the analysis is one script that runs in seconds, or it is a
+one-off exploration. The overhead — restructuring into functions, learning the
+commands — is real, and a small project does not repay it.
+
+::: {.callout-warning}
+## Gitignore the cache
+`_targets/` holds your results, including your data. Add it to `.gitignore`
+before the first commit — `usethis::use_targets()` does this for you. For
+sensitive data this is not a tidiness question but a disclosure one
+(@sec-cleaning).
+:::
+
+## `renv`: pinning package versions
+
+A pipeline guarantees your code runs in the right order. It does not guarantee
+the packages behave the same way next year. `dplyr` 1.2.0 deprecated
+`case_match()`; `ggplot2` 4.0 changed its internals. Code written against one
+version may not run, or may run differently, against another.
+
+[`renv`](https://rstudio.github.io/renv/) gives each project its own library and
+records exactly what is in it.
+
+```{r}
+#| eval: false
+renv::init() # project library + renv.lock, once per project
+
+# ... work normally, install packages as usual ...
+
+renv::status() # what has drifted from the lockfile?
+renv::snapshot() # record the current versions in renv.lock
+```
+
+`renv.lock` is a small text file listing every package and its version. **Commit
+it.** Anyone who clones the project — including you on a new machine — runs:
+
+```{r}
+#| eval: false
+renv::restore() # install exactly the recorded versions
+```
+
+::: {.callout-tip}
+## Snapshot at the points that matter
+`renv::snapshot()` when you finish a piece of work, before submitting a
+manuscript, and before a long break. The lockfile from the day you generated the
+results is what makes them reproducible later.
+
+Two habits that avoid the common frustrations: run `renv::status()` before
+snapshotting so you know what you are recording, and do not snapshot in the
+middle of debugging a package installation.
+:::
+
+::: {.callout-note}
+## renv is not a container
+`renv` pins **R packages**. It does not pin R itself, your operating system, or
+system libraries such as GDAL or a Java runtime. For most analyses that is
+enough. When it is not — long-lived projects, regulated work, anything that must
+run identically in ten years — the next step is a container (Docker, with the
+[Rocker](https://rocker-project.org/) images), which pins the whole environment.
+That is beyond this book, but `renv` and Docker compose well: the container
+provides R, and `renv.lock` provides the packages.
+:::
+
+## Guarding against silent breakage
+
+A pipeline reruns reliably. That is not the same as producing *correct* results
+— it will happily rebuild a wrong answer. Two cheap habits catch most of it.
+
+**Assert what must be true**, so the pipeline fails loudly rather than
+propagating nonsense:
+
+```{r}
+#| eval: false
+clean_penguins <- function(data) {
+  out <- data |>
+    drop_na(body_mass_g, flipper_length_mm, sex)
+
+  # fail here rather than three targets later
+  stopifnot(
+    nrow(out) > 300,
+    !any(is.na(out$body_mass_g)),
+    all(out$body_mass_g > 0)
+  )
+
+  out
+}
+```
+
+**Test the functions**, since they are ordinary functions now:
+
+```{r}
+#| eval: false
+# tests/testthat/test-clean.R
+test_that("cleaning drops incomplete rows and keeps the rest", {
+  result <- clean_penguins(palmerpenguins::penguins)
+
+  expect_false(any(is.na(result$body_mass_g)))
+  expect_gt(nrow(result), 300)
+  expect_s3_class(result, "tbl_df")
+})
+```
+
+Restructuring into functions has a payoff beyond `targets`: functions are
+testable, and a script is not.
+
+::: {.callout-tip}
+## The reproducibility ladder
+Each rung costs more effort and buys more certainty. Most research work belongs
+on rung 3 or 4.
+
+1. **A script that runs top to bottom in a clean session** (@sec-workflow). If
+   you do nothing else, do this.
+2. **Project-relative paths** with `here()` (@sec-projects), and data that never
+   enters Git.
+3. **Recorded package versions** with `renv`.
+4. **A pipeline** with `targets`, so the outputs provably match the code.
+5. **A container** pinning R and the operating system too.
+
+Climb only as far as the work warrants. A rung skipped lower down is worth more
+than a rung added at the top — `renv` on a project whose script does not run in
+a clean session solves nothing.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+What does `tar_make()` do when nothing has changed?
+`r mcq(c("re-runs everything", answer = "skips every target", "errors", "rebuilds only the last target"))`
+
+Which file records your package versions?
+`r mcq(c("_targets.R", answer = "renv.lock", "DESCRIPTION", ".Rprofile"))`
+
+You edit one function. `targets` rebuilds
+`r longmcq(c(
+  "the whole pipeline, to be safe",
+  "only the target that calls it",
+  answer = "that target and everything downstream of it, but nothing upstream",
+  "nothing until you clear the cache"
+))`
+
+`renv` guarantees your analysis will run identically in ten years.
+`r torf(FALSE)`
+
+To use a pipeline result in the console you would write
+`r mcq(c("readRDS()", answer = "tar_read()", "tar_make()", "load()"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: convert a script into a pipeline
+
+Take a short analysis of your own — or write one: import `penguins`, drop
+missing values, fit a model, produce a coefficient table.
+
+1. Rewrite each step as a function that takes data and returns a result.
+2. Create `_targets.R` with `usethis::use_targets()` and fill in the target
+   list.
+3. Run `tar_make()`. Then run it again — how long does the second run take?
+4. Run `tar_visnetwork()` and look at the graph.
+5. Change one function, run `tar_outdated()` *before* rebuilding. Are the
+   targets it lists the ones you expected?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| eval: false
+# R/functions.R
+clean_penguins <- function(data) {
+  data |> tidyr::drop_na(body_mass_g, flipper_length_mm, sex)
+}
+
+fit_model <- function(data) {
+  lm(body_mass_g ~ flipper_length_mm + species + sex, data = data)
+}
+
+model_table <- function(model) {
+  broom::tidy(model, conf.int = TRUE)
+}
+```
+
+```{r}
+#| eval: false
+# _targets.R
+library(targets)
+tar_option_set(packages = c("dplyr", "tidyr", "broom", "palmerpenguins"))
+tar_source()
+
+list(
+  tar_target(raw_data, palmerpenguins::penguins),
+  tar_target(clean_data, clean_penguins(raw_data)),
+  tar_target(model, fit_model(clean_data)),
+  tar_target(coefficients, model_table(model))
+)
+```
+
+Step 5 is the one that teaches the idea. Editing `clean_penguins()` should mark
+`clean_data`, `model` and `coefficients` as outdated, but **not** `raw_data` —
+it does not call that function. If `tar_outdated()` lists something you did not
+expect, that is a real dependency you had not noticed, and worth understanding
+before you trust the pipeline.
+
+A common surprise: a target that reads a file rebuilds every time, or never
+rebuilds when the file changes. Declare it properly with
+`tar_target(my_file, "data-raw/thing.csv", format = "file")`, which tracks the
+file's contents rather than its name.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: decide whether you need this
+
+For a project you actually have, answer honestly:
+
+1. How long does a full re-run take?
+2. If you changed one cleaning rule, could you say with certainty which outputs
+   would change?
+3. Could someone else reproduce your last set of results from what is in the
+   repository today?
+4. Which rung of the reproducibility ladder are you on?
+5. What is the *cheapest* next rung, and is it worth it this week?
+
+::: {.callout-tip collapse="true"}
+## What people usually find
+
+Question 3 is where most projects fail, and rarely for exotic reasons. The
+recurring causes:
+
+- An object created in the console months ago that the script assumes exists.
+- A file path pointing at a folder only you have.
+- A package that has since changed behaviour.
+- A manual step — "then I fixed the two typos in Excel" — that exists in nobody's
+  code.
+
+Note that `targets` fixes only the first of those, `here()` the second, `renv`
+the third, and **nothing** fixes the fourth except not doing it.
+
+That ordering is the honest answer to question 5. If your script does not
+currently run in a clean session, adding a pipeline on top will not help; fix
+that first. If it does run cleanly and takes twenty minutes, `targets` will
+repay itself in a fortnight.
+:::
+:::
+
+## More information
+
+- [The targets manual](https://books.ropensci.org/targets/) — thorough and
+  well written, with a good chapter on debugging pipelines
+- [targets reference](https://docs.ropensci.org/targets/reference/) and
+  [tarchetypes](https://docs.ropensci.org/tarchetypes/) for the ready-made
+  target factories
+- [renv documentation](https://rstudio.github.io/renv/)
+- [The Rocker project](https://rocker-project.org/) — Docker images for R
+- [rOpenSci: reproducibility in R](https://ropensci.org/) — packages and
+  practices, peer reviewed

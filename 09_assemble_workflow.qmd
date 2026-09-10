@@ -1,5 +1,13 @@
 # The Data Analysis Workflow {#sec-workflow}
 
+::: {.callout-note}
+## Two chapters on workflow
+This chapter is about the **steps**: what a complete analysis contains, in what
+order, and what it should leave behind. @sec-pipelines is about the
+**machinery** — automating those steps with `targets` and pinning package
+versions with `renv` — and is worth reading once this one feels familiar.
+:::
+
 In a typical data analysis workflow, you should be able to follow the data from the moment it is read into R until you save the plots, tables, and the clean data. The data analysis can be done in one or several scripts. Using several scripts often makes it easier to manage if it is a larger process. This usually means that at the end of one script, the data is saved (for example, after cleaning the data as a new file), and then at the start of the next script, it is read in.
 
 ## End goal

@@ -84,6 +84,9 @@ jobs:
             any::EValue
             any::MatchIt
             any::cobalt
+            any::targets
+            any::tarchetypes
+            any::visNetwork
 
       - name: Render Quarto project
         run: quarto render

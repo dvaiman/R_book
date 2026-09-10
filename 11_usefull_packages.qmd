@@ -264,11 +264,14 @@ outright, and keeps your code readable.
 
 - **`renv`** — records the exact package versions your project uses in a
   `renv.lock` file, so it can be restored later or on another machine. The
-  single most effective step for long-term reproducibility.
+  single most effective step for long-term reproducibility (@sec-pipelines).
   [Site](https://rstudio.github.io/renv/)
 - **`targets`** — a pipeline tool: define the steps, and it re-runs only what
   the change affects. Worth it once a full re-run takes more than a few minutes.
-  [Site](https://docs.ropensci.org/targets/)
+  See @sec-pipelines. [Site](https://docs.ropensci.org/targets/)
+- **`tarchetypes`** — ready-made target factories for `targets`, including
+  `tar_quarto()` for rendering a report as part of the pipeline.
+  [Site](https://docs.ropensci.org/tarchetypes/)
 - **`usethis`** — automates project setup: `use_git()`, `use_readme_md()`,
   `use_git_ignore()`, `create_project()` (@sec-git).
   [Site](https://usethis.r-lib.org/)
