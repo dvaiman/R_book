@@ -490,7 +490,10 @@ whole reason the next section exists.
   treatment group."
 - **Report the coefficient table too**, but as supporting material. In a linear
   model without interactions it says the same thing; in anything more
-  complicated it does not.
+  complicated it does not. And resist reading every row as a finding: each
+  coefficient depends on which other variables are in the model, so only the
+  one the model was built to estimate has a clear interpretation
+  (@sec-causal).
 
 ```{r}
 #| label: comparison-basics
@@ -910,7 +913,12 @@ that does to your error rate is unchanged.
 
 ### Unadjusted and adjusted side by side
 
-A staple of epidemiological papers, and a natural fit for list columns:
+A staple of epidemiological papers, and a natural fit for list columns. One
+caution before the code: an adjusted estimate is only meaningful when there is
+a causal question behind it — a named exposure and a defended reason for each
+adjustment variable. For a purely descriptive question the crude estimate is
+the answer, and adjusting changes which population you are describing. That
+distinction is worked through in @sec-causal.
 
 ```{r}
 #| label: adjusted-unadjusted

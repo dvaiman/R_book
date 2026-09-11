@@ -46,7 +46,122 @@ question you have to answer before fitting anything: **what is the model for?**
 
 The same `lm()` call serves all three, which is exactly why they get confused.
 A variable that improves prediction can wreck a causal estimate, and vice versa.
-Decide which job you are doing before you choose variables.
+Decide which job you are doing before you choose variables. The question
+determines the method, not the other way round [@conroy2020].
+
+#### Prediction: a coefficient is just a weight
+
+If the goal is prediction, adding variables usually improves the forecast, and
+nothing else about them matters. A coefficient is a weight in a prediction
+rule. Whether it names an "important factor" is not a question prediction asks.
+
+```{r}
+#| label: jobs-prediction
+pred_data <- penguins |> drop_na(body_mass_g, bill_depth_mm)
+
+bill_only <- lm(body_mass_g ~ bill_depth_mm, data = pred_data)
+bill_species <- lm(body_mass_g ~ bill_depth_mm + species, data = pred_data)
+
+tibble(
+  model = c("bill depth only", "bill depth + species"),
+  bill_depth_coefficient = c(coef(bill_only)[2], coef(bill_species)[2]),
+  r_squared = c(glance(bill_only)$r.squared, glance(bill_species)$r.squared),
+  prediction_error_g = c(glance(bill_only)$sigma, glance(bill_species)$sigma)
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+Adding species cuts the prediction error roughly in half — and flips the bill
+depth coefficient from −192 to +257 g per mm. For prediction that is no problem
+at all: the second model predicts better, and that is the only thing being
+judged. What would be a problem is reporting either number as "the effect of
+bill depth". Neither is. Each is a weight that only makes sense alongside the
+other weights in its model.
+
+#### Causal inference: adjustment with a defended reason
+
+If the goal is causal inference, adjustment is appropriate — for a
+**prespecified exposure**, with an adjustment set chosen from stated causal
+assumptions. That is the rest of this section, and it is a different project
+from either of the other two.
+
+#### Description: adjustment usually answers a different question
+
+A descriptive study asks what the population is actually like: how common the
+outcome is, where it falls, how it differs between groups. Once you condition on
+other variables, you are no longer describing that population. You are
+describing a hypothetical one.
+
+*How heavy are the penguins on each island?*
+
+```{r}
+#| label: jobs-description-crude
+penguins |>
+  drop_na(body_mass_g) |>
+  summarise(n = n(), mean_mass_g = round(mean(body_mass_g)), .by = island)
+```
+
+That is the descriptive answer. Biscoe penguins really are about a kilogram
+heavier. Now the reflex many papers follow — "adjust for species":
+
+```{r}
+#| label: jobs-description-adjusted
+lm(body_mass_g ~ island + species, data = penguins) |>
+  tidy(conf.int = TRUE) |>
+  filter(str_detect(term, "island")) |>
+  select(term, estimate, conf.low, conf.high) |>
+  mutate(across(where(is.numeric), round))
+```
+
+The island difference has vanished. Neither result is miscalculated, but only
+the first answers the question asked. The adjusted coefficient describes islands
+with the *same* species mix — and that population does not exist:
+
+```{r}
+#| label: jobs-description-mix
+penguins |>
+  count(island, species) |>
+  pivot_wider(names_from = species, values_from = n, values_fill = 0)
+```
+
+Gentoos live only on Biscoe and Chinstraps only on Dream. "Biscoe compared with
+Dream at the same species composition" is a comparison between places that
+cannot be observed. The model produces a number for it anyway, by borrowing the
+Adelie comparison — the only species on all three islands.
+
+::: {.callout-warning}
+## "Factors associated with" studies
+Many papers take this form: a list of candidate variables, all entered into one
+multivariable model, and a table of the adjusted coefficients reported as
+"factors associated with" the outcome.
+
+The language is descriptive. The method is conditional. Because the design names
+no exposure and defends no adjustment set, no coefficient in the table has a
+clear target it is meant to recover [@lewer2025; @westreich2013]. Each is
+adjusted for all the others — including, for some of them, their own mediators
+and descendants. Adjustment gets done anyway, because it feels like the rigorous
+thing to do, even when no causal question has been posed.
+
+A column of mutually adjusted coefficients is not a list of stable facts about
+the world. Each number is an artefact of which other variables happened to be in
+the model, and it would change if the list changed — exactly as the bill depth
+coefficient did above.
+:::
+
+::: {.callout-tip}
+## The practical rule
+1. **State the estimand first** — what quantity, in what population, would
+   answer your question [@lesko2022]. Only then choose a method.
+2. **For a descriptive aim**, report the crude occurrence or contrast as the
+   primary result. If you standardise or adjust — to compare populations with
+   different age structures, say — treat that as a separate, explicitly
+   justified choice, and say what hypothetical population the adjusted number
+   describes.
+3. **For a causal aim**, name one exposure, draw the DAG, and report only the
+   exposure's estimate as the result (see the Table 2 fallacy below).
+4. **For a predictive aim**, judge the model on out-of-sample performance and
+   do not interpret its coefficients at all.
+:::
 
 ::: {.callout-important}
 ## "We are not claiming causality" does not make a model descriptive
@@ -210,7 +325,7 @@ to identify the *exposure* effect, not the effect of age, and not the effect of
 smoking — each of those would need its own DAG and its own adjustment set.
 
 Presenting the full coefficient table as though every row were an effect
-estimate is the **Table 2 fallacy** (Westreich and Greenland). It is extremely
+estimate is the **Table 2 fallacy** [@westreich2013]. It is extremely
 common in published papers.
 
 The fix is presentational and easy: report the exposure effect as the result,
