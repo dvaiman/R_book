@@ -4,19 +4,19 @@
     <marker id="aBo" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ec8f56"/></marker>
   </defs>
   <polyline points="692,95 692,52 205,52 205,95" fill="none" stroke="#ec8f56" stroke-width="2.5" marker-end="url(#aBo)"/>
-  <text x="448" y="44" text-anchor="middle" font-size="15" fill="#ec8f56">inte klart? → iterera</text>
+  <text x="448" y="44" text-anchor="middle" font-size="15" fill="#ec8f56">not done? → iterate</text>
   <rect x="15" y="95" width="95" height="58" rx="9" fill="#fff" stroke="#21a97d" stroke-width="2.5"/>
-  <text x="62" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Mål</text>
+  <text x="62" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Goal</text>
   <rect x="140" y="95" width="130" height="58" rx="9" fill="#fff" stroke="#21a97d" stroke-width="2.5"/>
-  <text x="205" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Planera</text>
+  <text x="205" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Plan</text>
   <rect x="300" y="95" width="150" height="58" rx="9" fill="#fff" stroke="#21a97d" stroke-width="2.5"/>
-  <text x="375" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Skriv kod</text>
+  <text x="375" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Write code</text>
   <rect x="480" y="95" width="95" height="58" rx="9" fill="#fff" stroke="#21a97d" stroke-width="2.5"/>
-  <text x="527" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Kör</text>
+  <text x="527" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Run</text>
   <rect x="605" y="95" width="175" height="58" rx="9" fill="#fff" stroke="#21a97d" stroke-width="2.5"/>
-  <text x="692" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Kontrollera</text>
+  <text x="692" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">Check</text>
   <rect x="820" y="95" width="120" height="58" rx="9" fill="#21a97d" stroke="#21a97d" stroke-width="2.5"/>
-  <text x="880" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#ffffff">Klart ✓</text>
+  <text x="880" y="130" text-anchor="middle" font-size="17" font-weight="bold" fill="#ffffff">Done ✓</text>
   <line x1="110" y1="124" x2="140" y2="124" stroke="#21a97d" stroke-width="2.5" marker-end="url(#aB)"/>
   <line x1="270" y1="124" x2="300" y2="124" stroke="#21a97d" stroke-width="2.5" marker-end="url(#aB)"/>
   <line x1="450" y1="124" x2="480" y2="124" stroke="#21a97d" stroke-width="2.5" marker-end="url(#aB)"/>

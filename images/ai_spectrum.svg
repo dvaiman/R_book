@@ -1,23 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="250" viewBox="0 0 960 250" font-family="Arial, Helvetica, sans-serif">
-  <text x="240" y="32" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">DU KÖR, AI FÖRESLÅR</text>
+  <text x="240" y="32" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">YOU RUN, AI SUGGESTS</text>
   <rect x="15" y="45" width="450" height="150" rx="14" fill="none" stroke="#344956" stroke-width="2" stroke-dasharray="8 6"/>
   <rect x="40" y="80" width="195" height="80" rx="10" fill="#ffffff" stroke="#21a97d" stroke-width="2.5"/>
   <text x="137" y="112" text-anchor="middle" font-size="18" font-weight="bold" fill="#344956">Autocomplete</text>
-  <text x="137" y="136" text-anchor="middle" font-size="14" fill="#8C8C8C">rad i taget</text>
+  <text x="137" y="136" text-anchor="middle" font-size="14" fill="#8C8C8C">a line at a time</text>
   <rect x="250" y="80" width="195" height="80" rx="10" fill="#ffffff" stroke="#21a97d" stroke-width="2.5"/>
-  <text x="347" y="112" text-anchor="middle" font-size="18" font-weight="bold" fill="#344956">Chatt</text>
-  <text x="347" y="136" text-anchor="middle" font-size="14" fill="#8C8C8C">ett block</text>
-  <text x="240" y="182" text-anchor="middle" font-size="13" fill="#8C8C8C">du skriver, AI svarar</text>
+  <text x="347" y="112" text-anchor="middle" font-size="18" font-weight="bold" fill="#344956">Chat</text>
+  <text x="347" y="136" text-anchor="middle" font-size="14" fill="#8C8C8C">a block at a time</text>
+  <text x="240" y="182" text-anchor="middle" font-size="13" fill="#8C8C8C">you write, AI answers</text>
 
-  <text x="720" y="32" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">AI KÖR, DU GRANSKAR</text>
+  <text x="720" y="32" text-anchor="middle" font-size="17" font-weight="bold" fill="#344956">AI RUNS, YOU REVIEW</text>
   <rect x="495" y="45" width="450" height="150" rx="14" fill="none" stroke="#344956" stroke-width="2" stroke-dasharray="8 6"/>
   <rect x="520" y="80" width="195" height="80" rx="10" fill="#21a97d" stroke="#21a97d" stroke-width="2.5"/>
   <text x="617" y="112" text-anchor="middle" font-size="17" font-weight="bold" fill="#ffffff">Posit Assistant</text>
-  <text x="617" y="136" text-anchor="middle" font-size="14" fill="#eaf6f1">din R-session</text>
+  <text x="617" y="136" text-anchor="middle" font-size="14" fill="#eaf6f1">your R session</text>
   <rect x="730" y="80" width="195" height="80" rx="10" fill="#21a97d" stroke="#21a97d" stroke-width="2.5"/>
   <text x="827" y="112" text-anchor="middle" font-size="17" font-weight="bold" fill="#ffffff">Claude Code</text>
-  <text x="827" y="136" text-anchor="middle" font-size="14" fill="#eaf6f1">dina filer</text>
-  <text x="720" y="182" text-anchor="middle" font-size="13" fill="#8C8C8C">båda är agenter: de agerar själva</text>
+  <text x="827" y="136" text-anchor="middle" font-size="14" fill="#eaf6f1">your files</text>
+  <text x="720" y="182" text-anchor="middle" font-size="13" fill="#8C8C8C">both are agents: they act on their own</text>
 
-  <text x="480" y="228" text-anchor="middle" font-size="16" fill="#344956">Ägarskapet sitter inte i verktyget, utan i hur du använder det.</text>
+  <text x="480" y="228" text-anchor="middle" font-size="16" fill="#344956">Ownership is not in the tool, but in how you use it.</text>
 </svg>
