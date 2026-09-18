@@ -166,6 +166,9 @@ cause trouble the moment a file crosses between Windows and macOS, or when a
 collaborator opens your script with a different encoding. Use `a` and `o` in
 code, and keep the Swedish spelling for labels in figures and tables where it is
 actually read by humans.
+
+See @sec-import for what encodings are and how to handle Swedish
+characters in the *contents* of your data.
 :::
 
 ## Vectors

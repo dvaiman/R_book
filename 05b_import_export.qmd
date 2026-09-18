@@ -130,7 +130,7 @@ read_csv(
     date = col_date(format = "%Y-%m-%d"),
     weight_kg = col_double()
   ),
-  locale = locale(encoding = "latin1") # for old files with broken a, a, o
+  locale = locale(encoding = "latin1") # old file where å, ä, ö come out wrong
 )
 ```
 
@@ -140,6 +140,257 @@ An ID like `00734` read as a number becomes `734`, and it will never join
 correctly against the register file that still has the leading zeros. Personal
 identity numbers have the same problem, plus they overflow the precision of a
 double. Always read identifiers as `col_character()`.
+:::
+
+## Character encoding: UTF-8 and Latin-1
+
+Sooner or later a file will arrive where `Göteborg` has turned into
+`G\xf6teborg` or `GÃ¶teborg`. That is an **encoding** problem, and for anyone
+working with Swedish text it is one of the most common import errors there is.
+
+### What an encoding is
+
+A file does not store letters. It stores bytes, and an **encoding** is the table
+that says which bytes mean which character. The problem is that there is more
+than one table:
+
+| Encoding | Also called | What it covers | `å` is stored as |
+|----------|-------------|----------------|------------------|
+| **ASCII** | | English letters, digits, punctuation — 128 characters | *cannot store it* |
+| **Latin-1** | ISO-8859-1 | ASCII plus Western European letters, one byte each | `e5` |
+| **Windows-1252** | CP1252, "ANSI" | Latin-1 plus a few extras such as `€` | `e5` |
+| **UTF-8** | | every character in every language — one to four bytes each | `c3 a5` |
+
+You can see this in R:
+
+```{r}
+#| label: encoding-bytes
+# the same letter, as UTF-8 bytes and as Latin-1 bytes
+charToRaw("å")
+charToRaw(iconv("å", from = "UTF-8", to = "latin1"))
+```
+
+Plain English letters are the same byte in all four encodings, which is why
+encoding problems only show up once the file contains `å`, `ä`, `ö`, `é`, `ü`,
+`€` or similar. A file can work for months and break the day someone named
+Öberg joins the study.
+
+### What goes wrong
+
+Nothing in the file says which table was used. The program reading it has to
+assume one, and if it assumes wrong, the bytes are decoded into the wrong
+characters. To show it, we write a small file the way an older Swedish Excel or
+SPSS export would — in Latin-1:
+
+```{r}
+#| label: encoding-make-file
+#| message: false
+library(tidyverse)
+
+latin1_file <- tempfile(fileext = ".csv")
+
+"city,n\nGöteborg,12\nMalmö,8\nÅre,3\n" |>
+  iconv(from = "UTF-8", to = "latin1", toRaw = TRUE) |>
+  unlist() |>
+  writeBin(latin1_file)
+```
+
+`readr` assumes UTF-8, which is the right default — so reading this file
+without saying otherwise gives:
+
+```{r}
+#| label: encoding-wrong
+wrong <- read_csv(latin1_file, show_col_types = FALSE)
+
+# print() shows the undecodable byte instead of failing - see below
+print(wrong)
+```
+
+`\xf6` is R showing you a raw byte it could not interpret. (The `print()` is
+there because this book normally formats tables with `knitr::kable()`, and
+`kable()` stops with *input string 1 is invalid UTF-8* on this data — the same
+problem, hitting the software that builds the book.) The data *looks*
+nearly right, which is exactly what makes it dangerous, because nothing that
+depends on the text works any more:
+
+```{r}
+#| label: encoding-wrong-consequences
+# the city is there, but it will not match
+wrong |> filter(city == "Göteborg") |> nrow()
+
+# R can tell you the strings are not valid UTF-8
+validUTF8(wrong$city)
+```
+
+A filter that returns zero rows, a join that silently fails to match, a
+`count()` that splits one category into two. None of them raises an error.
+
+Other functions do fail, and not always the same way:
+
+```{r}
+#| label: encoding-wrong-errors
+#| error: true
+# some base R text functions stop with an error ...
+nchar(wrong$city)
+
+# ... while stringr carries on without complaint
+str_to_upper(wrong$city)
+```
+
+The first at least stops you. The second is worse. It upper-cases the letters
+it recognises and passes the unreadable byte through untouched — the `\xf6` did
+not become `Ö`, because R does not know it is an `ö` at all. The result is still
+invalid, still matches nothing, and every value you derive from it inherits the
+problem. Other programs will typically display that byte as `�`, which is how
+`G�teborg` ends up in reports.
+
+Telling `read_csv()` the actual encoding fixes it:
+
+```{r}
+#| label: encoding-right
+right <- read_csv(
+  latin1_file,
+  locale = locale(encoding = "latin1"),
+  show_col_types = FALSE
+)
+
+right
+
+right |> filter(city == "Göteborg") |> nrow()
+```
+
+The opposite mistake — reading a UTF-8 file as if it were Latin-1 — produces
+the other familiar pattern, where each Swedish letter becomes two characters:
+
+```{r}
+#| label: encoding-reverse
+utf8_file <- tempfile(fileext = ".csv")
+write_csv(right, utf8_file)
+
+read_csv(utf8_file, locale = locale(encoding = "latin1"), show_col_types = FALSE) |>
+  print()
+```
+
+`Åre` fares worst: its second byte decodes to an invisible control character,
+shown here as `\u0085`.
+
+::: {.callout-tip}
+## Recognising the symptoms
+| You see | What happened | Fix |
+|---------|---------------|-----|
+| `G\xf6teborg`, or `G�teborg` | a Latin-1 file read as UTF-8 | `locale(encoding = "latin1")` |
+| `GÃ¶teborg`, `MalmÃ¶` | a UTF-8 file read as Latin-1 | read it as UTF-8 (the `readr` default) |
+| `invalid multibyte string` error | a Latin-1 file read as UTF-8, by a function that refuses rather than shows it | `locale(encoding = "latin1")` |
+| `€` missing, or a `NA` in its place | Windows-1252 file read as Latin-1 | `locale(encoding = "windows-1252")` |
+
+The `Ã` pattern is worth memorising. When you see `Ã` followed by another odd
+character where a Swedish letter should be, the file is UTF-8 and something
+read it wrongly.
+:::
+
+### Finding out which encoding a file uses
+
+`readr::guess_encoding()` looks at the bytes and makes an informed guess:
+
+```{r}
+#| label: encoding-guess
+guess_encoding(latin1_file)
+guess_encoding(utf8_file)
+```
+
+Treat it as a guess, not a verdict. The confidence for the Latin-1 file is low
+here because the file is tiny and only three characters give it anything to go
+on; Latin-1 and its Central European relative ISO-8859-2 look identical when
+the only non-English letters are `ö` and `Å`. On a real file with more text it
+does better. Confirm by reading the file and checking a few rows where you know
+the right spelling.
+
+::: {.callout-note}
+## Latin-1 or Windows-1252?
+Files described as "ANSI" by Windows, and most older Excel exports from a
+Swedish Windows machine, are really **Windows-1252**. It is identical to
+Latin-1 for `å`, `ä` and `ö`, so either setting works for those — but only
+Windows-1252 has `€`, curly quotes and a few other symbols. If a file might
+contain those, use `locale(encoding = "windows-1252")`.
+:::
+
+### Other functions, same idea
+
+Every import function has a way to say the encoding:
+
+```{r}
+#| label: encoding-other-functions
+#| eval: false
+# base R: passed through to read.table()
+read.csv("data/old_export.csv", fileEncoding = "latin1")
+
+# SPSS files: haven usually detects it, but older .sav files can need help
+haven::read_sav("data/survey.sav", encoding = "latin1")
+
+# Excel .xlsx files store text as UTF-8 internally, so readxl does not need it
+readxl::read_excel("data/register.xlsx")
+```
+
+### What is preferable: UTF-8, everywhere
+
+**Use UTF-8 for everything you create** — scripts, Quarto documents, data you
+save, files you send. It can represent every character in every language, it is
+the default for `readr`, Quarto, Git, Positron and the web, and since R 4.2 it
+is R's native encoding on Windows as well as macOS and Linux. Latin-1 cannot
+store characters outside Western Europe at all, so a Latin-1 file cannot hold a
+name like `Łukasz` or `Nguyễn`.
+
+The practical rule has three parts:
+
+1. **Convert at the door.** When a file arrives in another encoding, read it
+   with the correct `locale(encoding = ...)` and from then on everything inside
+   R is UTF-8. Do the conversion once, in your import script, with a comment
+   saying why.
+2. **Save your scripts as UTF-8.** In RStudio: *Tools → Global Options → Code →
+   Saving → Default text encoding → UTF-8*. Positron and VS Code use UTF-8 by
+   default. If an existing script opens with broken letters, *File → Reopen with
+   Encoding* lets you read it correctly before saving it again as UTF-8.
+3. **Write UTF-8, and help Excel read it.** `write_csv()` writes UTF-8. Excel,
+   however, often assumes a CSV is in the Windows encoding unless the file
+   starts with a special marker called a byte order mark — so a perfectly good
+   UTF-8 file can open in Excel as `GÃ¶teborg`. When the file is going to
+   someone who will open it in Excel, use `write_excel_csv()`, which adds the
+   marker, or `write_excel_csv2()` for the semicolon-separated version that
+   Swedish Excel expects:
+
+```{r}
+#| label: encoding-excel
+excel_file <- tempfile(fileext = ".csv")
+write_excel_csv2(right, excel_file)
+
+# the first three bytes are the UTF-8 byte order mark Excel looks for
+readBin(excel_file, "raw", n = 3)
+```
+
+::: {.callout-important}
+## Keep Swedish letters in the data, not in the names
+Everything above is about the *contents* of your data, where `å`, `ä` and `ö`
+belong and must be preserved. For the *names* of objects and columns the advice
+in @sec-classes still applies: use plain `a` and `o`, and `janitor::clean_names()`
+will do the conversion for you (@sec-cleaning). A column called `ålder` is one
+wrongly-encoded script away from an `object not found` error that is very hard
+to diagnose.
+:::
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+A file shows `MalmÃ¶` where it should say `Malmö`. The file is most likely
+`r mcq(c("Latin-1, read as Latin-1", answer = "UTF-8, read as if it were Latin-1", "corrupted beyond repair", "ASCII"))`
+
+Which encoding should you use for files you create?
+`r mcq(c("Latin-1", "Windows-1252", answer = "UTF-8", "ASCII"))`
+
+A wrongly decoded city name will still match in `filter(city == "Göteborg")`.
+`r torf(FALSE)`
+
+To send a CSV to a colleague who opens it in Swedish Excel, use
+`r mcq(c("write.csv()", "write_csv()", answer = "write_excel_csv2()", "saveRDS()"))`
 :::
 
 ## Do not use `setwd()`

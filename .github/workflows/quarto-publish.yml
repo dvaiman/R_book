@@ -18,6 +18,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
+    # render in a UTF-8 locale explicitly: the encoding examples in the import
+    # chapter (and every å, ä, ö in the book) depend on it
+    env:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
