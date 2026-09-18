@@ -93,6 +93,8 @@ jobs:
             any::targets
             any::tarchetypes
             any::visNetwork
+            any::arrow
+            any::openxlsx2
 
       - name: Render Quarto project
         run: quarto render

@@ -184,6 +184,10 @@ data_path <- here("data", "raw", "your_data_file.csv")
 data <- read.csv(data_path)
 ```
 
+How `here()` finds the root, how it behaves in RStudio, Positron and Quarto
+documents, and how `here::i_am()` protects a shared script are covered in
+@sec-here.
+
 ## Recommended Folder Structure
 
 A well-organized folder structure helps keep your project files organized and easily accessible. A typical structure might look like this:

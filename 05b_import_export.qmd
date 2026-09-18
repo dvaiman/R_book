@@ -4,7 +4,9 @@
 ## What this chapter covers
 This chapter follows the lecture *Importera och exportera data*. It covers the
 four ways to get data into R, why `setwd()` should be avoided, how the `here`
-package solves the file-path problem, and which format to save your results in.
+package solves the file-path problem, which format to save your results in,
+how to read and write Excel workbooks with several sheets, and how Parquet
+files handle data too large for CSV.
 :::
 
 ```{r}
@@ -91,7 +93,7 @@ two lines. This takes ten seconds and saves an hour.
 #| eval: false
 # Excel
 library(readxl)
-data_excel <- read_excel(here("data", "my_file.xlsx"), sheet = 1)
+data_excel <- read_excel(here("data", "my_file.xlsx"), sheet = "Results")
 
 # SPSS, Stata, SAS
 library(haven)
@@ -409,11 +411,10 @@ Why this is a bad idea:
   all require editing the path.
 - **Not reproducible**: the reviewer who downloads your code cannot run it.
 
-## The `here` package
+## The `here` package {#sec-here}
 
-`here()` builds paths relative to the **root of your R project**, which it finds
-by looking for the `.Rproj` file. The same line of code then works on every
-machine.
+`here()` builds paths relative to the **root of your project**, so the same line
+of code works on every machine.
 
 ```{r}
 #| eval: false
@@ -422,26 +423,117 @@ library(here)
 data_here <- read_csv(here("data", "my_file.csv"))
 ```
 
+Each argument is one level of folders, and `here()` joins them with the right
+separator for your operating system. `here("data/my_file.csv")` also works, but
+the comma form is easier to build from variables.
+
 Advantages:
 
 - Readable and reproducible.
-- Integrates with RStudio projects and Positron workspaces alike (@sec-projects).
+- Works the same in RStudio, Positron, a terminal and a Quarto document.
 - The project can be shared, moved, or synced through OneDrive and still work.
 - You can step out of the project with `".."`, e.g.
   `here("..", "shared_data", "register.csv")`.
 
+### How `here()` finds the root
+
+When `here` is loaded, it starts in the current working directory and walks
+**upwards**, one parent folder at a time, until it finds a folder containing a
+root marker: an `.Rproj` file, a `.git` folder, `.vscode/settings.json`,
+`_quarto.yml`, `renv.lock`, a `.here` file, and a few more. The first such
+folder becomes the root for the rest of the session. The full list is in
+@sec-projects.
+
+Two consequences matter in practice:
+
+1. **The search starts from the working directory**, so what `here()` finds
+   depends on how you opened the project.
+2. **The root is fixed once found.** Changing the working directory afterwards
+   with `setwd()` does not move it. That makes `here()` robust, but it also means
+   that if you switch to another project in the same R session, `here()` still
+   points at the first one. Restart R when you switch projects.
+
+When a path does not resolve the way you expect, ask `here` to explain itself:
+
 ```{r}
 #| label: here-demo
-# here() reports the project root it has found
-here()
+#| message: true
+# which folder is the root, and which marker decided it
+here::dr_here()
 ```
+
+### In RStudio
+
+Open the project by double-clicking the `.Rproj` file, or through
+**File → Open Project**, or the project menu in the top-right corner. RStudio
+then starts a fresh R session with the working directory set to the project
+folder, and `here()` finds the `.Rproj` straight away.
+
+- The project name in the top-right corner tells you which project you are in.
+  If it says **Project: (None)**, you are not in one, and `here()` will search
+  from whatever the working directory happens to be.
+- Switching project through the same menu restarts R, so `here()` is reset for
+  you.
+- If you opened a script without its project, **Session → Restart R**
+  (<kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>F10</kbd>) after opening the project
+  resets `here()`.
+
+### In Positron
+
+Open the project with **File → Open Folder**. The folder you open becomes the
+working directory, and `here()` searches upwards from there.
+
+- **Open the project folder itself, not a folder above it.** If you open
+  `OneDrive/courses/` which holds five projects, the working directory is
+  `courses/`, and `here()` either finds nothing or finds a marker in a folder
+  even higher up. Everything then resolves relative to the wrong place.
+- A project created with **New Folder from Template** has a `.git` folder, which
+  is a root marker, so `here()` works without an `.Rproj` file.
+- A plain folder with no marker at all works while it is the folder you have
+  open, because `here()` falls back to the working directory. It breaks as soon
+  as the working directory is anything else. Run `here::set_here()` once to
+  write an empty `.here` file and make the root explicit.
+- The folder name shown at the top of the window is the workspace you are in.
+  Opening another folder starts a new R session, so `here()` is reset.
+
+### In Quarto documents
+
+This is where `here()` earns its keep. When you render a `.qmd` file, its code
+runs with the working directory set to **the folder the document is in**, not
+the project root. A report stored in `reports/analysis.qmd` then looks for
+`read_csv("data/study.csv")` in `reports/data/`, which does not exist, even
+though the same line worked in the console.
+
+`here("data", "study.csv")` works in both places, because `here()` walks up from
+`reports/` and finds the project root.
+
+### Declaring where a script lives with `i_am()`
+
+For scripts you will share, put `here::i_am()` at the top and give the script's
+own path relative to the project root:
+
+```{r}
+#| eval: false
+here::i_am("analysis/01_clean.R")
+
+library(tidyverse)
+library(here)
+```
+
+`i_am()` does two things. It uses the script's location to find the root, so
+it does not depend on markers. And it **stops with an error** if no parent
+folder contains `analysis/01_clean.R`, for example because someone ran the
+script from the wrong project. An error on line 1 is much better than a
+script that runs to the end on the wrong data.
 
 ::: {.callout-tip}
 ## The recommended setup
-1. Always create an R project (**File → New Project**).
+1. Always work in a project: an `.Rproj` in RStudio, an opened folder under Git
+   in Positron.
 2. Use `here()` for every file path.
 3. Use `readr` functions for text files.
 4. Never use an absolute path in a script you intend to keep.
+5. Restart R when you switch projects.
 
 If you work on several computers and keep the project in a cloud folder, this
 combination is the difference between code that runs everywhere and code that
@@ -487,6 +579,9 @@ library(writexl)
 write_xlsx(data, here("output", "data_output.xlsx"))
 ```
 
+Several sheets, formatting and adding to an existing workbook are covered in
+@sec-excel.
+
 ## Which format should you choose?
 
 | Format | Advantages | Disadvantages |
@@ -494,13 +589,14 @@ write_xlsx(data, here("output", "data_output.xlsx"))
 | **CSV** | Readable by every program; plain text; diffs nicely in Git | Loses all metadata — factor levels, date formats, column types |
 | **RDS** | Preserves everything R-specific exactly | Only readable in R; binary, so Git cannot diff it |
 | **XLSX** | Easy to share with Excel users; multiple sheets | Inefficient for large data; invites manual editing |
-| **Parquet** | Fast, compressed, keeps types; readable from R and Python | Needs the `arrow` package; not human-readable |
+| **Parquet** | Fast, compressed, keeps types; read one column at a time; readable from R, Python and DuckDB | Needs the `arrow` (or `nanoparquet`) package; not human-readable |
 
 Recommendations:
 
 - **To share with others**: CSV, or Excel if the recipient insists.
 - **To preserve types, or to save a model object**: RDS.
-- **For large datasets**: Parquet via the `arrow` package.
+- **For large datasets, or to share with Python users**: Parquet via the
+  `arrow` package (see @sec-parquet).
 - Use `readr` and `here` throughout.
 
 ::: {.callout-important}
@@ -511,8 +607,375 @@ cleaning step turns out to be wrong, you want to be able to go back — and you
 cannot go back to a file you have already overwritten.
 
 For registry data under ethical approval, this is not just good practice. Add
-`data/` and `*.csv`, `*.sav`, `*.rds` to `.gitignore` **before** your first
+`data/` and `*.csv`, `*.sav`, `*.rds`, `*.parquet` to `.gitignore` **before** your first
 commit, so that identifiable data never enters version control.
+:::
+
+## Working with Excel files {#sec-excel}
+
+Excel files are everywhere: data from a collaborator, a lab export, a table a
+journal asks for. There are three packages to know, one for reading and two for
+writing:
+
+| Package | Does | Use it when |
+|---------|------|-------------|
+| `readxl` | Reads `.xls` and `.xlsx` | Always, for reading. Installed with the tidyverse. |
+| `writexl` | Writes data frames to `.xlsx`, one sheet per data frame | You just need the data in Excel. |
+| `openxlsx2` | Builds workbooks: formatting, column widths, frozen headers, adding sheets to an existing file | The file is for people to read. |
+
+None of them needs Excel installed. You may also meet `openxlsx`, the older
+package that `openxlsx2` replaces. The function names differ (`addWorksheet()`
+rather than `wb_add_worksheet()`), but the ideas are the same, and new code
+should use `openxlsx2`.
+
+```{r}
+#| label: excel-libs
+#| message: false
+library(readxl)
+library(writexl)
+library(palmerpenguins)
+```
+
+### Writing several sheets at once
+
+`write_xlsx()` takes a data frame, or a **named list** of data frames. Each
+element of the list becomes a sheet, named after the element. `split()` gives
+you such a list in one step:
+
+```{r}
+#| label: excel-write-sheets
+# one sheet per species
+by_species <- penguins |>
+  split(~species)
+
+names(by_species)
+
+xlsx_file <- tempfile(fileext = ".xlsx")
+write_xlsx(by_species, xlsx_file)
+```
+
+The same pattern works for any list you build yourself, for example
+`list(summary = summary_table, data = cleaned_data)`.
+
+### Reading sheets
+
+`excel_sheets()` lists the sheets in a file, and the `sheet` argument of
+`read_excel()` takes either a name or a position. Use the name: a colleague who
+inserts a new first sheet will silently change what `sheet = 1` means.
+
+```{r}
+#| label: excel-read-sheets
+excel_sheets(xlsx_file)
+
+gentoo <- read_excel(xlsx_file, sheet = "Gentoo")
+dim(gentoo)
+```
+
+To read **all** sheets and stack them, map over the sheet names and keep the
+name as a column:
+
+```{r}
+#| label: excel-read-all
+all_sheets <- excel_sheets(xlsx_file) |>
+  set_names() |>
+  map(\(s) read_excel(xlsx_file, sheet = s)) |>
+  list_rbind(names_to = "sheet")
+
+# check that nothing was lost on the way
+count(all_sheets, sheet)
+nrow(all_sheets) == nrow(penguins)
+```
+
+`set_names()` without arguments names the vector after its own values, so
+`list_rbind(names_to = "sheet")` knows which sheet each row came from. (The
+functions `map()` and `list_rbind()` are covered in @sec-functions.)
+
+Note that `species` came back as character: Excel, like CSV, has no factors.
+
+### Messy spreadsheets
+
+Spreadsheets made for people often have a title, notes or empty rows above the
+table. `read_excel()` has arguments for the usual problems:
+
+```{r}
+#| eval: false
+read_excel(
+  here("data", "lab_results.xlsx"),
+  sheet = "Results",
+  range = "B4:F120", # read exactly this block, ignoring notes around it
+  na = c("", "NA", "-", "missing") # every way the file says "no value"
+)
+
+read_excel(
+  here("data", "lab_results.xlsx"),
+  sheet = "Results",
+  skip = 3 # or: skip the three title rows and read everything below
+)
+```
+
+`range` also accepts a sheet and a range together, like `"Results!B4:F120"`.
+
+The problem that surprises people most is **dates**. Excel stores a date as the
+number of days since 30 December 1899 and only *displays* it as a date. If a
+column has dates in some cells and text in others, `read_excel()` reads it as
+text, and the dates come out as numbers like `"45292"`. Convert them with the
+right origin:
+
+```{r}
+#| label: excel-dates
+as.Date(45292, origin = "1899-12-30")
+```
+
+`janitor::excel_numeric_to_date()` does the same with a friendlier name.
+
+### Formatted workbooks with `openxlsx2`
+
+`writexl` writes plain data. When the file is for a person, a collaborator or a
+report appendix, you often want bold headers, sensible column widths, a frozen
+first row and numbers rounded for display. `openxlsx2` builds the workbook step
+by step with a pipe of `wb_*()` functions:
+
+```{r}
+#| label: excel-openxlsx2
+#| message: false
+library(openxlsx2)
+
+mass_summary <- penguins |>
+  summarise(
+    n = n(),
+    mean_mass = mean(body_mass_g, na.rm = TRUE),
+    .by = species
+  )
+
+report_file <- tempfile(fileext = ".xlsx")
+
+wb_workbook() |>
+  # sheet 1: a summary formatted for reading
+  wb_add_worksheet("summary") |>
+  wb_add_data(x = mass_summary) |>
+  wb_add_font(dims = "A1:C1", bold = TRUE) |>
+  wb_add_numfmt(dims = "C2:C4", numfmt = "0.0") |>
+  wb_set_col_widths(cols = 1:3, widths = "auto") |>
+  wb_freeze_pane(first_row = TRUE) |>
+  # sheet 2: the underlying data
+  wb_add_worksheet("data") |>
+  wb_add_data(x = penguins) |>
+  wb_save(report_file)
+
+excel_sheets(report_file)
+```
+
+`dims` uses Excel's own cell notation. The number format changes only how the
+value is **shown**: the cell still holds the full-precision mean, which is what
+you want if someone recalculates from it.
+
+To **add a sheet to a file that already exists**, load it, add, and save. This
+is something `writexl` cannot do; it always writes a new file.
+
+```{r}
+#| label: excel-add-sheet
+wb_load(report_file) |>
+  wb_add_worksheet("adelie") |>
+  wb_add_data(x = by_species$Adelie) |>
+  wb_save(report_file)
+
+excel_sheets(report_file)
+```
+
+::: {.callout-warning}
+## Two functions called `write_xlsx()`
+`openxlsx2` also has a `write_xlsx()`, so loading it after `writexl` masks
+the `writexl` version. They take similar arguments, but to be sure which one you
+are calling, write `writexl::write_xlsx()` or `openxlsx2::write_xlsx()`.
+:::
+
+::: {.callout-tip}
+## Excel as an output, not a workspace
+Write to Excel at the **end** of a pipeline, from code, and never edit that file
+by hand and read it back in. A number changed in a cell leaves no trace, and the
+next time the code runs it is overwritten. If someone needs to correct data,
+the correction goes into the cleaning code, where it is visible and repeatable.
+:::
+
+## Parquet files {#sec-parquet}
+
+CSV works fine until your data gets large. Accelerometer data, registry
+extracts covering a whole population, or a few years of repeated measurements
+can easily reach millions of rows. A CSV of that size is slow to read, takes up
+a lot of disk space, and loses every column type on the way. **Parquet** is the
+format designed for exactly this job.
+
+### What Parquet is
+
+A Parquet file is a binary file that stores a table **column by column** rather
+than row by row. That one design choice explains most of its advantages:
+
+- **Types are stored in the file.** Dates stay dates, integers stay integers,
+  and factors come back as factors. Nothing has to be guessed at import.
+- **Columns compress well.** A column holds values of one type, often
+  repeating, so it compresses far better than mixed rows of text.
+- **You can read only the columns you need.** Each column is stored
+  separately, so reading 3 of 200 columns means reading roughly 3/200 of the
+  file.
+- **Any language can read it.** Parquet is an open standard. Python (pandas,
+  polars), DuckDB and Spark all read the same file, which makes it a
+  good way to hand data between an R user and a Python user.
+
+The downside is that you cannot open it in a text editor or in Excel. For a
+small table that a person will read, CSV or Excel is still the better choice.
+
+### Reading and writing
+
+The main package is `arrow`, the R interface to Apache Arrow. It has
+`write_parquet()` and `read_parquet()`, which work just like their `readr`
+counterparts:
+
+```{r}
+#| label: parquet-libs
+#| message: false
+library(arrow)
+```
+
+To see the difference, simulate a dataset with a realistic size: 20,000
+participants with five visits each, making 100,000 rows. We write it to a
+temporary folder so the example leaves nothing behind.
+
+```{r}
+#| label: parquet-simulate
+# simulated visits - no real participants involved
+set.seed(2026)
+visits <- tibble(
+  id = sprintf("P%05d", rep(1:20000, each = 5)),
+  visit_date = as.Date("2024-01-01") + sample(0:700, 1e5, replace = TRUE),
+  clinic = factor(
+    sample(c("Stockholm", "Göteborg", "Malmö"), 1e5, replace = TRUE),
+    # a deliberate, non-alphabetical order
+    levels = c("Stockholm", "Göteborg", "Malmö")
+  ),
+  steps = round(rnorm(1e5, mean = 8000, sd = 2500)),
+  bmi = round(rnorm(1e5, mean = 25, sd = 4), 1)
+)
+
+out_dir <- tempfile("parquet_demo")
+dir.create(out_dir)
+
+write_csv(visits, file.path(out_dir, "visits.csv"))
+saveRDS(visits, file.path(out_dir, "visits.rds"))
+write_parquet(visits, file.path(out_dir, "visits.parquet"))
+
+# file sizes in megabytes
+file.size(file.path(out_dir, c("visits.csv", "visits.rds", "visits.parquet"))) / 1e6
+```
+
+The Parquet file is about a fifth the size of the CSV. RDS is about as small,
+because `saveRDS()` compresses too. What RDS cannot do is everything else in
+the list above: be read by other languages, or be read one column at a time.
+
+Now read both files back and compare the column types:
+
+```{r}
+#| label: parquet-types
+visits_csv <- read_csv(file.path(out_dir, "visits.csv"), show_col_types = FALSE)
+visits_pq <- read_parquet(file.path(out_dir, "visits.parquet"))
+
+# class of each column after the round trip
+map_chr(visits_csv, \(x) class(x)[1])
+map_chr(visits_pq, \(x) class(x)[1])
+
+# the level order we chose survives only in the Parquet file
+levels(visits_pq$clinic)
+levels(factor(visits_csv$clinic))
+
+identical(visits, visits_pq)
+```
+
+The CSV round trip turned `clinic` into text; if you convert it back to a factor
+you get alphabetical order, and your reference group changes without warning.
+The Parquet round trip gives back an object that is `identical()` to the one
+you saved.
+
+To read only some columns, use `col_select`, which takes the same helpers as
+`select()`:
+
+```{r}
+#| label: parquet-col-select
+read_parquet(
+  file.path(out_dir, "visits.parquet"),
+  col_select = c(id, steps)
+) |>
+  dim()
+```
+
+### Data larger than memory: `open_dataset()`
+
+`read_parquet()` loads the whole file into memory, like every other reader in
+this chapter. For data that does not fit in memory, or that is split over many
+files, `arrow` can do something more useful: leave the data on disk and let you
+query it with `dplyr` verbs.
+
+First, save the data as a **dataset**, a folder of Parquet files split by the
+value of a column (here, the year):
+
+```{r}
+#| label: parquet-write-dataset
+visits |>
+  mutate(year = year(visit_date)) |>
+  write_dataset(file.path(out_dir, "visits_by_year"), partitioning = "year")
+
+list.files(file.path(out_dir, "visits_by_year"), recursive = TRUE)
+```
+
+Then open it and write an ordinary `dplyr` pipe. Nothing is read yet: `arrow`
+only records what you asked for.
+
+```{r}
+#| label: parquet-query
+visits_ds <- open_dataset(file.path(out_dir, "visits_by_year"))
+
+active_2025 <- visits_ds |>
+  filter(year == 2025, steps > 10000) |>
+  summarise(n = n(), mean_bmi = mean(bmi), .by = clinic)
+
+class(active_2025)
+```
+
+`collect()` runs the query and returns an ordinary tibble:
+
+```{r}
+#| label: parquet-collect
+active_2025 |>
+  collect()
+```
+
+Two things make this fast. `filter(year == 2025)` means the 2024 file is never
+opened at all, because the year is in the folder name. Inside the 2025 file,
+only the four columns the query uses are read. On a dataset of a few gigabytes
+this can be the difference between a query taking seconds and not fitting in
+memory at all.
+
+Most common `dplyr` verbs work on an Arrow dataset: `filter()`, `select()`,
+`mutate()`, `summarise()`, `arrange()` and joins, along with many `stringr` and
+`lubridate` functions. If you use a function that Arrow cannot translate, you
+get an error that tells you so. The fix is to `filter()` and `select()` first,
+so the data is small, then `collect()` and continue in ordinary R.
+
+::: {.callout-tip}
+## Alternatives to `arrow`
+- **`nanoparquet`** has `read_parquet()` and `write_parquet()` with no
+  dependencies, and installs in seconds. It is a good choice if all you need is
+  to read and write files that fit in memory.
+- **`duckplyr`** (and `duckdb`) can query Parquet files directly with
+  `read_parquet_duckdb()`, in the same lazy way as `open_dataset()`.
+
+Both read the same files as `arrow`, so you can mix them.
+:::
+
+::: {.callout-important}
+## Parquet and sensitive data
+Parquet is compressed, **not encrypted**. A Parquet file of registry data is
+exactly as sensitive as the CSV it came from, only smaller and easier to copy.
+Keep it in the same protected location, and add `*.parquet` to `.gitignore`
+together with the other data formats.
 :::
 
 ## `::` without `library()`
@@ -537,8 +1000,52 @@ Which function reads a Swedish CSV file with `;` separators and `,` decimals?
 
 `here()` builds paths relative to your project root. `r torf(TRUE)`
 
+You render `reports/analysis.qmd`, which contains `read_csv("data/study.csv")`.
+Where does R look for the file?
+`r longmcq(c(
+  "In data/ in the project root",
+  answer = "In reports/data/, because a rendered document runs in its own folder",
+  "In your home folder",
+  "Wherever setwd() was last called in the console"
+))`
+
+In Positron you open a folder that contains five different projects. What
+happens to `here()`?
+`r longmcq(c(
+  "It asks which project you mean",
+  "It picks the most recently modified project",
+  answer = "It searches from the opened folder upwards, so it cannot find any of the five project roots below it",
+  "Nothing; Positron sets the root for each file automatically"
+))`
+
 Which format preserves factor levels and column types exactly?
 `r mcq(c("CSV", answer = "RDS", "XLSX", "TXT"))`
+
+How do you write three data frames to three sheets of one `.xlsx` file?
+`r longmcq(c(
+  "Call write_xlsx() three times with the same file name",
+  answer = "Pass a named list of the three data frames to write_xlsx()",
+  "It cannot be done from R",
+  "Use write_csv() with sheet = 1, 2, 3"
+))`
+
+A date column in Excel comes back as numbers like 45292. What are they?
+`r longmcq(c(
+  "Seconds since 1970",
+  answer = "Days since 30 December 1899, Excel's date origin",
+  "A corrupted file",
+  "Row numbers"
+))`
+
+What does `open_dataset()` return before you call `collect()`?
+`r longmcq(c(
+  "A tibble with all rows loaded into memory",
+  answer = "A reference to data on disk; the query only runs at collect()",
+  "A CSV file",
+  "An error, because dplyr verbs do not work on Parquet"
+))`
+
+A Parquet file is encrypted, so it is safe to email registry data as Parquet. `r torf(FALSE)`
 
 Why should a participant ID be read as character rather than numeric?
 `r longmcq(c(
@@ -643,5 +1150,56 @@ d <- read_csv2(
 `read_csv2()` handles the first two problems in one function; `col_types` fixes
 the third. Always run `glimpse()` straight after importing and confirm that
 every column has the type you expected.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 3: from CSV to Parquet
+
+1. Write `penguins` to a Parquet file with `write_parquet()`.
+2. Read it back and check whether `species` is still a factor with the same
+   levels.
+3. Read back only `species` and `body_mass_g` using `col_select`.
+4. Write `penguins` as a dataset partitioned by `island` with
+   `write_dataset()`. How many files are created, and where did the `island`
+   column go?
+5. Use `open_dataset()` and a `dplyr` pipe to compute the mean body mass per
+   species on Biscoe island, and `collect()` the result.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| eval: false
+library(tidyverse)
+library(arrow)
+library(palmerpenguins)
+library(here)
+
+write_parquet(penguins, here("data", "penguins.parquet"))
+
+penguins_pq <- read_parquet(here("data", "penguins.parquet"))
+levels(penguins_pq$species) # "Adelie" "Chinstrap" "Gentoo", as before
+
+read_parquet(
+  here("data", "penguins.parquet"),
+  col_select = c(species, body_mass_g)
+)
+
+penguins |>
+  write_dataset(here("data", "penguins_by_island"), partitioning = "island")
+
+list.files(here("data", "penguins_by_island"), recursive = TRUE)
+
+open_dataset(here("data", "penguins_by_island")) |>
+  filter(island == "Biscoe") |>
+  summarise(mean_mass = mean(body_mass_g, na.rm = TRUE), .by = species) |>
+  collect()
+```
+
+Three files are created, one folder per island (`island=Biscoe/part-0.parquet`
+and so on). The `island` column is no longer stored inside the files: its value
+is in the folder name, and `open_dataset()` adds it back as a column. That is
+why filtering on `island` is so cheap — Arrow only has to open one folder.
 :::
 :::

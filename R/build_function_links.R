@@ -34,7 +34,8 @@ optional_packages <- c(
   "marginaleffects", "emmeans", "performance", "parameters", "lme4",
   "broom.mixed", "rsample", "targets", "tarchetypes", "renv",
   "dagitty", "ggdag", "EValue", "MatchIt", "cobalt", "reprex", "summarytools",
-  "tidymodels", "recipes", "parsnip", "workflows", "yardstick"
+  "tidymodels", "recipes", "parsnip", "workflows", "yardstick",
+  "arrow", "nanoparquet", "duckplyr", "openxlsx2", "janitor"
 )
 
 qmd_files <- list.files(".", pattern = "\\.qmd$", full.names = TRUE)
