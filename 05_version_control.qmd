@@ -130,15 +130,6 @@ In RStudio, **File → New Project → Version Control → Git** does the same; 
 Positron, use **New Folder from Git…** in the **New** menu (or the command
 palette).
 
-::: {.callout-important}
-## Git and OneDrive do not mix well
-A repository inside a folder synced by OneDrive, Dropbox or iCloud can be
-damaged when the sync client and Git write to the hidden `.git` folder at the
-same time, or when the sync creates "conflicted copy" files inside it. Keep Git
-repositories in an ordinary local folder, such as `~/projects/`, and let the
-**remote** be your backup. If you use Git, you do not need the cloud sync.
-:::
-
 ## What goes into the repository
 
 Git is for the files you **write**. Everything that can be recreated from them,
@@ -402,8 +393,7 @@ What should a commit message explain that the diff cannot?
 ::: {.callout-note collapse="true"}
 ## Exercise 1: your first repository
 
-Do this in a new, throwaway project in an ordinary local folder (not OneDrive),
-in whichever editor you use.
+Do this in a new, throwaway project, in whichever editor you use.
 
 1. Create the project and run `usethis::use_git()`. Look at the `.gitignore`
    it created.
