@@ -100,6 +100,17 @@ the difference, long to model the repeated measurements.
 
 ### Variable types
 
+```{r}
+#| label: fig-horst-var-types
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   Nominal, ordinal and binary variables. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Nominal: a turtle, a snail and a butterfly. Ordinal: bees that are unhappy, OK and awesome. Binary: an extinct dinosaur and a living shark.
+knitr::include_graphics("images/horst/nominal_ordinal_binary.png")
+```
+
 The class of a column decides how the model treats it, silently.
 
 | Class | How a model treats it | Use it when |
@@ -185,6 +196,17 @@ second, and `haven::as_factor()` converts labelled SPSS columns properly
 (@sec-import).
 :::
 
+```{r}
+#| label: fig-horst-continuous
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   Continuous and discrete numeric variables. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A chick that is 3.1 inches tall and weighs 34.16 grams illustrates continuous data; an octopus with 8 legs and 4 spots illustrates discrete counts.
+knitr::include_graphics("images/horst/continuous_discrete.png")
+```
+
 ### A quick checklist
 
 ```{r}
@@ -199,6 +221,17 @@ reference level you want, is every quantity numeric, and is the data long enough
 that each observation has its own row?
 
 ## The problem broom solves
+
+```{r}
+#| label: fig-horst-broom
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   broom turns messy model output into tidy tibbles. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Monsters with brooms clean messy tables, which come out as neat rectangles.
+knitr::include_graphics("images/horst/broom_package.png")
+```
 
 R's modelling functions are older than the tidyverse, and they return objects
 designed to be *printed*, not manipulated.
@@ -393,6 +426,17 @@ is.
 :::
 
 ## Checking the model
+
+```{r}
+#| label: fig-horst-residual
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   A residual is the observed value minus the predicted value. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A dragon on a scale: its predicted weight is 3.9 tons, its actual weight 4.2 tons, so the residual is 0.3 tons.
+knitr::include_graphics("images/horst/dragon_residual.png")
+```
 
 `performance` runs the standard diagnostics and returns them as one figure:
 

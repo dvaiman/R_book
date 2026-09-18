@@ -480,6 +480,17 @@ reprex::reprex({
 })
 ```
 
+```{r}
+#| label: fig-horst-reprex
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   reprex: make reproducible examples, so others can help you. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A monster hands tech support crumpled papers and everyone is stressed; next to it, code in a neat box labelled reprex and everyone celebrates.
+knitr::include_graphics("images/horst/reprex.png")
+```
+
 **Staying current**
 
 Package documentation is the authority, and it is the thing language models are

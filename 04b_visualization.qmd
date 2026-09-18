@@ -33,6 +33,17 @@ Three questions, every time:
 - **What is the best way to show this message?** The answer is often simpler
   than the plot you first imagined.
 
+```{r}
+#| label: fig-r4ds-visualize
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   Visualisation in the data science cycle. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   The data science cycle with the visualize step highlighted.
+knitr::include_graphics("images/r4ds/data-science-visualize.png")
+```
+
 ## The grammar of graphics
 
 The grammar of graphics was formulated by Leland Wilkinson [@wilkinson2005] and
@@ -68,6 +79,17 @@ theme_set(theme_minimal(base_size = 13))
 ```
 
 ## Layer 1: Data
+
+```{r}
+#| label: fig-culmen
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   Bill length and bill depth, the two measurements used in many examples in this book. Artwork by Allison Horst, from the palmerpenguins package (CC0).
+#| fig-alt: |
+#|   Illustration of a penguin head showing bill length measured along the top of the bill and bill depth measured from top to bottom.
+knitr::include_graphics("images/horst/culmen_depth.png")
+```
 
 `ggplot()` on its own produces an empty canvas. Every layer you add draws
 something onto it.
@@ -590,10 +612,22 @@ A statistical transformation, or **stat**, processes the data before it is
 drawn — usually by summarising it. Every geom has a default stat, and every stat
 has a default geom.
 
-- `stat_bin()` — used by `geom_histogram()`, `geom_bar()`, `geom_freqpoly()`
+- `stat_bin()` — used by `geom_histogram()` and `geom_freqpoly()`
+- `stat_count()` — used by `geom_bar()`
 - `stat_boxplot()` — used by `geom_boxplot()`
 - `stat_smooth()` — used by `geom_smooth()`
 - `stat_summary()` — arbitrary summaries such as means with error bars
+
+```{r}
+#| label: fig-r4ds-stat
+#| echo: false
+#| out.width: "90%"
+#| fig-cap: |
+#|   geom_bar() does not plot your data directly: stat_count() first counts the rows per category, and the bars show those counts. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   A table of diamonds passes through stat_count() to a table of counts per cut, which becomes a bar chart of count by cut.
+knitr::include_graphics("images/r4ds/visualization-grammar.png")
+```
 
 There are two equivalent ways to use them: add a `stat_*()` and override its
 geom, or add a `geom_*()` and override its stat.

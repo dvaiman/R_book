@@ -21,6 +21,17 @@ library(tidyverse)
 library(palmerpenguins)
 ```
 
+```{r}
+#| label: fig-r4ds-program
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   Programming surrounds every step of the data science cycle. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   The data science cycle, enclosed in a box labelled program.
+knitr::include_graphics("images/r4ds/data-science-program.png")
+```
+
 ## Why write a function
 
 The rule of thumb: **if you have copied and pasted the same code three times,
@@ -426,6 +437,17 @@ expected when none is.
 
 ## Iteration with `purrr`
 
+```{r}
+#| label: fig-horst-map
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   map() applies the same function to every element, like the same frosting on every cupcake. Illustration from Hadley Wickham's talk *The Joy of Functional Programming (for Data Science)*, by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Three monsters frost cupcakes with the same frosting while another holds a recipe book with code that automates it.
+knitr::include_graphics("images/horst/map_frosting.png")
+```
+
 Once you have a function, the next question is how to apply it to many things.
 `purrr::map()` is the tidyverse answer.
 
@@ -468,6 +490,17 @@ less obvious place.
 :::
 
 ### `map()` versus the loop you would have written
+
+```{r}
+#| label: fig-horst-for-loop
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: |
+#|   A for loop visits each element in turn. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A for loop over a parade of monsters gives the triangles sunglasses and the other shapes a hat.
+knitr::include_graphics("images/horst/monster_for_loop.png")
+```
 
 ```{r}
 #| label: map-vs-loop
@@ -569,6 +602,17 @@ penguins |>
 value.
 
 ### `map2()` and `pmap()`
+
+```{r}
+#| label: fig-horst-map2
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   map2() pairs up two inputs, like different frostings for different cupcakes. Illustration from Hadley Wickham's talk *The Joy of Functional Programming (for Data Science)*, by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Three monsters frost cupcakes with three different frostings while another holds a recipe book with code.
+knitr::include_graphics("images/horst/map2_cupcakes.png")
+```
 
 ```{r}
 #| label: map2-pmap

@@ -257,6 +257,17 @@ document.
 
 ## Rendering
 
+```{r}
+#| label: fig-quarto-render
+#| echo: false
+#| out.width: "75%"
+#| fig-cap: |
+#|   What happens when you render: knitr runs the code, and pandoc turns the result into HTML, PDF or Word. Artwork from the *Hello, Quarto* keynote by Julia Lowndes and Mine Çetinkaya-Rundel, RStudio Conference 2022. Illustrated by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A schematic of a qmd file passing through knitr or jupyter to markdown, then through pandoc to HTML, PDF or Word.
+knitr::include_graphics("images/horst/qmd_render_schema.png")
+```
+
 - Click **Render** in RStudio, or **Preview** in Positron, or press
   <kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> in either. Both editors
   bundle their own copy of Quarto, so there is nothing extra to install.

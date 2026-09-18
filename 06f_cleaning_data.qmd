@@ -133,6 +133,17 @@ summarytools::dfSummary(data) # a full HTML summary
 
 ## 1. Column names
 
+```{r}
+#| label: fig-horst-clean-names
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: |
+#|   janitor::clean_names() converts messy column names to snake_case. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A beaver feeds shapes with long messy column names into a machine that turns them into lower snake case.
+knitr::include_graphics("images/horst/janitor_clean_names.png")
+```
+
 ::: {.panel-tabset}
 ## Problem
 

@@ -28,6 +28,17 @@ laptop and nowhere else, a column of numbers imported as text, a Swedish decimal
 comma silently turning 3,5 into a character string — all of these are import
 problems, and all of them are cheaper to fix here than three steps later.
 
+```{r}
+#| label: fig-r4ds-import
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   Import is the first step of the data science cycle. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   The data science cycle with the import step highlighted.
+knitr::include_graphics("images/r4ds/data-science-import.png")
+```
+
 ## Four ways to import
 
 ### 1. By clicking
@@ -398,6 +409,17 @@ To send a CSV to a colleague who opens it in Swedish Excel, use
 ## Do not use `setwd()`
 
 ```{r}
+#| label: fig-setwd
+#| echo: false
+#| out.width: "55%"
+#| fig-cap: |
+#|   setwd() breaks easily; R projects and here() do not. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A cracked glass cube labelled setwd with bandages looks on at a sturdy cube labelled R Proj and a small cube labelled here doing a skateboard trick.
+knitr::include_graphics("images/horst/cracked_setwd.png")
+```
+
+```{r}
 #| eval: false
 setwd("C:/Users/daniel/OneDrive/projects/study_2024/data")
 data <- read.csv("my_file.csv")
@@ -412,6 +434,17 @@ Why this is a bad idea:
 - **Not reproducible**: the reviewer who downloads your code cannot run it.
 
 ## The `here` package {#sec-here}
+
+```{r}
+#| label: fig-here
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: |
+#|   here: find your path. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A monster leaves a spooky forest of absolute file paths and setwd calls for a bright path with signs saying here.
+knitr::include_graphics("images/horst/here.png")
+```
 
 `here()` builds paths relative to the **root of your project**, so the same line
 of code works on every machine.

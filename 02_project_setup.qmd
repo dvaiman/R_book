@@ -23,6 +23,17 @@ Go to **File → New Project** and follow the prompts:
 RStudio writes an `.Rproj` file into the folder. Opening that file sets the
 working directory to the folder and restores project-specific settings.
 
+```{r}
+#| label: fig-r4ds-new-project
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   Creating a new project in RStudio: New Directory, New Project, then name it and choose where it lives. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   Three steps of the RStudio New Project Wizard: New Directory, New Project, then the directory name and location.
+knitr::include_graphics("images/r4ds/new-project.png")
+```
+
 ## Positron
 
 Positron uses VS Code's **workspace** model: a project is simply a folder you

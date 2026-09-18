@@ -140,6 +140,17 @@ Missing values are always sorted to the end, regardless of direction.
 
 ## `filter()`: keeping rows
 
+```{r}
+#| label: fig-horst-filter
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: |
+#|   dplyr::filter() keeps the rows that satisfy your conditions. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Monsters draw a box around rows where the animal is otter and the site is bay, and cross out the others.
+knitr::include_graphics("images/horst/dplyr_filter.jpg")
+```
+
 `filter()` keeps the rows for which a condition is `TRUE`. Rows where the
 condition is `NA` are **dropped**, which is worth remembering.
 
@@ -460,6 +471,17 @@ changes to the source file.
 
 ## `mutate()`: creating columns
 
+```{r}
+#| label: fig-horst-mutate
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: |
+#|   dplyr::mutate() adds columns and keeps the existing ones. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Monsters dressed as superheroes add a new column to an existing data frame.
+knitr::include_graphics("images/horst/dplyr_mutate.png")
+```
+
 `mutate()` adds new columns or modifies existing ones. It works element by
 element, using the vectorised arithmetic from @sec-classes.
 
@@ -545,6 +567,17 @@ Always finish with `.default =`. Without it, unmatched rows become `NA`
 silently, and `NA` is one of the values that will not match any condition.
 Verify with `count()` afterwards, every time.
 :::
+
+```{r}
+#| label: fig-horst-case-when
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: |
+#|   case_when(): if-else for many conditions. The artwork uses TRUE ~ for the fallback; today you write .default = instead. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Creatures get a new danger column that is extreme for a kraken and high for everything else, with the case_when code shown.
+knitr::include_graphics("images/horst/dplyr_case_when.png")
+```
 
 ### The recoding family
 
@@ -690,6 +723,17 @@ penguins |>
 ```
 
 ### `across()`: the same summary for many columns
+
+```{r}
+#| label: fig-horst-across
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: |
+#|   across() applies a function to a selection of columns. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A fairy monster wearing a hat labelled mean bounces across the top of a table, applying the function to each column.
+knitr::include_graphics("images/horst/dplyr_across.png")
+```
 
 ```{r}
 #| label: summarise-across1

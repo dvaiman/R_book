@@ -580,6 +580,17 @@ beta responses — with a similar formula interface.
 
 ## Predictive modelling with tidymodels
 
+```{r}
+#| label: fig-horst-parsnip
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   parsnip gives one interface to many modelling engines. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Monsters in race cars labelled stan, keras, glmnet and lm at a starting line, with a parsnip flag.
+knitr::include_graphics("images/horst/parsnip.png")
+```
+
 Everything above is **inference**: what is the effect, and how certain are we?
 `tidymodels` is built for a different question — **prediction**: how well does
 this generalise to data it has not seen?

@@ -59,6 +59,17 @@ Excel and manual entry, `str_squish()` is almost always the one you want —
 `"Erik  Mattsson"` with two spaces will not match `"Erik Mattsson"` in a join.
 :::
 
+```{r}
+#| label: fig-horst-squish
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   str_squish() removes leading, trailing and repeated interior whitespace. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Monsters squish together a string reading a cat, ejecting the extra spaces at the ends and between the words.
+knitr::include_graphics("images/horst/str_squish.png")
+```
+
 ### Combining strings
 
 ```{r}
@@ -72,6 +83,17 @@ glue("The dataset contains {n} observations.")
 ```
 
 ### Extracting numbers from text
+
+```{r}
+#| label: fig-horst-parse-number
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   readr::parse_number(): just give me the numbers. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Two monsters remove the non-numeric text from a cinema marquee labelled My Data, leaving only the numbers.
+knitr::include_graphics("images/horst/parse_number.png")
+```
 
 A recurring problem: a measurement stored as `"165 cm"` or `"72,5 kg"`.
 

@@ -1104,6 +1104,17 @@ mode into system mode.
 
 ## Other resources for debugging
 
+```{r}
+#| label: fig-horst-debugging
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   The emotional stages of debugging. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Ten faces of a monster debugging, from I got this through meltdown to a new hope and I love coding.
+knitr::include_graphics("images/horst/debugging.jpg")
+```
+
 AI is not the only place to look.
 
 ### [Stack Overflow](https://stackoverflow.com/)

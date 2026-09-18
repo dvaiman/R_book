@@ -16,6 +16,17 @@ library(webexercises)
 
 ## What EDA is
 
+```{r}
+#| label: fig-horst-exploratory
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: |
+#|   ggplot2 for visual data exploration. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   Monsters with binoculars and guidebooks watch graphs flying overhead like birds.
+knitr::include_graphics("images/horst/ggplot2_exploratory.png")
+```
+
 John Tukey, often regarded as the father of exploratory data analysis,
 introduced the idea in *Exploratory Data Analysis* [@tukey1977]. EDA is related to
 data cleaning but serves a different purpose. Cleaning prepares the data —
@@ -234,6 +245,17 @@ Notice that `bill_depth_mm` and `flipper_length_mm` are clearly **bimodal** —
 two humps. A boxplot of the same variable shows none of this; it would report a
 median and a reasonable-looking spread. This is the single best argument for
 always looking at a distribution before summarising it.
+
+```{r}
+#| label: fig-r4ds-boxplot
+#| echo: false
+#| out.width: "75%"
+#| fig-cap: |
+#|   How a boxplot is built from the data, compared with a histogram. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   The same values shown as points, as a rotated histogram and as a boxplot, with the median, quartiles, whiskers and outliers labelled.
+knitr::include_graphics("images/r4ds/EDA-boxplot.png")
+```
 
 ### Histogram and Q-Q plot together
 

@@ -13,6 +13,17 @@ tidyverse functions that fix each problem.
 library(webexercises)
 ```
 
+```{r}
+#| label: fig-r4ds-wrangle
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   Wrangling (import, tidy and transform) in the data science cycle. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   The data science cycle with import, tidy and transform highlighted as wrangle.
+knitr::include_graphics("images/r4ds/data-science-wrangle.png")
+```
+
 ## What tidy data is
 
 Tidy data is a way of organising a dataset that makes it easier to analyse and
@@ -39,13 +50,24 @@ knitr::include_graphics("images/r4ds/tidy-1.png")
 #| echo: false
 #| out.width: "70%"
 #| fig-cap: |
-#|   Tidy data, illustrated by Allison Horst.
+#|   Tidy data. Illustration from the Openscapes blog *Tidy Data for reproducibility, efficiency, and collaboration* by Julia Lowndes and Allison Horst, CC BY 4.0.
 #| fig-alt: |
 #|   Cartoon showing tidy data: variables in columns, observations in rows.
 knitr::include_graphics("images/tidy_data.jpeg")
 ```
 
 ### Why it matters
+
+```{r}
+#| label: fig-tidy-workbench
+#| echo: false
+#| out.width: "80%"
+#| fig-cap: |
+#|   The same tools work on every tidy dataset. Illustration from the Openscapes blog *Tidy Data for reproducibility, efficiency, and collaboration* by Julia Lowndes and Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A tidy workbench where the same tools fit every rectangular data frame, next to a messy workbench where a frustrated monster tapes untidy tables together.
+knitr::include_graphics("images/horst/tidydata_3.jpg")
+```
 
 - **Manipulation becomes predictable.** Every tidyverse function expects tidy
   data, so filtering, transforming and summarising work the same way every time.
@@ -59,7 +81,7 @@ knitr::include_graphics("images/tidy_data.jpeg")
 #| echo: false
 #| out.width: "70%"
 #| fig-cap: |
-#|   Non-tidy data, illustrated by Allison Horst.
+#|   Tidy datasets are all alike, but every messy dataset is messy in its own way. Illustration from the Openscapes blog *Tidy Data for reproducibility, efficiency, and collaboration* by Julia Lowndes and Allison Horst, CC BY 4.0.
 #| fig-alt: |
 #|   Cartoon showing messy, non-tidy data.
 knitr::include_graphics("images/non_tidy_data.jpeg")
@@ -231,6 +253,17 @@ wrong sample size.
 :::
 
 ### Avoid `.RData`, prefer `.rds`
+
+```{r}
+#| label: fig-clean-slate
+#| echo: false
+#| out.width: "55%"
+#| fig-cap: |
+#|   In RStudio, Tools → Global Options → General: never restore or save .RData. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   The RStudio Options dialog with Restore .RData into workspace at startup unticked and Save workspace to .RData on exit set to Never.
+knitr::include_graphics("images/r4ds/rstudio-clean-slate.png")
+```
 
 - `.RData` saves many objects at once and preserves their attributes, but it is
   not human-readable and you cannot tell what is inside without loading it — at

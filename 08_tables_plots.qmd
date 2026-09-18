@@ -32,6 +32,17 @@ The first table in almost every health-science paper is the same: sample
 characteristics, by group. It is worth being able to produce it quickly and
 correctly.
 
+```{r}
+#| label: fig-r4ds-communicate
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: |
+#|   Communicating results is the last step of the data science cycle. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0.
+#| fig-alt: |
+#|   The data science cycle with the communicate step highlighted.
+knitr::include_graphics("images/r4ds/data-science-communicate.png")
+```
+
 ## Building a table by hand
 
 You can build any table with `dplyr` and `tidyr`. It is more work than a

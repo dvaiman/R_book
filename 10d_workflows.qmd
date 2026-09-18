@@ -406,6 +406,17 @@ testable, and a script is not.
 
 ::: {.callout-tip}
 ## The reproducibility ladder
+```{r}
+#| label: fig-horst-repro-court
+#| echo: false
+#| out.width: "55%"
+#| fig-cap: |
+#|   Reproducible work stands up in court. Artwork by Allison Horst, CC BY 4.0.
+#| fig-alt: |
+#|   A confident R Markdown document on a witness stand points at its own code while a monster judge celebrates.
+knitr::include_graphics("images/horst/reproducibility_court.png")
+```
+
 Each rung costs more effort and buys more certainty. Most research work belongs
 on rung 3 or 4.
 
