@@ -3,8 +3,10 @@
 ::: {.callout-note}
 ## What this chapter covers
 This chapter follows the lecture *Quarto*. It covers what a Quarto document is
-made of, the chunk options you will actually use, and how to produce a
-self-contained report that someone else can open.
+made of, the chunk options you will actually use, how to produce a
+self-contained report that someone else can open, and how the same document
+becomes a Word file, a PDF, slides or a website. It was written for Quarto
+1.10.
 :::
 
 ```{r}
@@ -18,16 +20,22 @@ library(webexercises)
 Using Quarto for your analyses puts code, results and documentation in a single
 document. The idea goes back to Donald Knuth's *literate programming*
 [@knuth1984]: a program written primarily to be read by humans, with the code
-embedded in the explanation rather than the other way round. The numbers in your text are computed from your data every time the
-document is rendered, so they cannot drift out of date. This is the practical
+embedded in the explanation rather than the other way round. The numbers in
+your text are computed from your data every time the document is rendered, so they cannot drift out of date. This is the practical
 core of reproducibility: not that you *could* reproduce the analysis, but that
 you do so automatically on every render.
 
 ::: {.callout-tip}
 ## Set the output location first
-By default, plots and printed data frames appear inline underneath each code
-chunk. You can change this in **Tools → Global Options → R Markdown** so that
-output goes to the console and the plot pane instead.
+When you run a chunk while writing, where does the output go?
+
+- **RStudio** shows it inline, underneath each chunk, by default. **Tools →
+  Global Options → R Markdown → Show output inline** switches it to the console
+  and the plot pane instead.
+- **Positron** sends it to the console and the Plots pane by default. Turn on
+  the setting `quarto.inlineOutput.enabled` to show it underneath each cell
+  instead. With inline output on, each `.qmd` file gets its own R session, which
+  keeps documents from accidentally sharing objects.
 
 Neither is right. Inline output is good for a document you are writing; the
 console and plot pane are better when you are debugging and want a large plot.
@@ -140,8 +148,10 @@ inside a code chunk. This confuses nearly everyone at least once.
 
 ### 3. Code chunks
 
-Code chunks are enclosed in triple backticks with the language in braces. The
-keyboard shortcut to insert one is `Ctrl/Cmd + Alt + I`.
+Code chunks are enclosed in triple backticks with the language in braces. To
+insert one, press <kbd>Ctrl/Cmd</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd> in RStudio;
+in Positron, run **Quarto: Insert Code Cell** from the command palette, which
+also shows its shortcut.
 
 ```{{r}}
 summary(cars)
@@ -247,9 +257,12 @@ document.
 
 ## Rendering
 
-- Click **Render** in RStudio or Positron, or press `Ctrl/Cmd + Shift + K`.
-  Positron needs the Quarto CLI installed separately (@sec-positron).
-- Or run `quarto::quarto_render("my_document.qmd")`.
+- Click **Render** in RStudio, or **Preview** in Positron, or press
+  <kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> in either. Both editors
+  bundle their own copy of Quarto, so there is nothing extra to install.
+- Or run `quarto::quarto_render("my_document.qmd")` from the console.
+- Or run `quarto render my_document.qmd` in the terminal; `quarto preview`
+  re-renders automatically every time you save.
 
 Rendering runs the document in a **fresh R session**. This is the single most
 useful thing about it: anything that works in your console but not on render is
@@ -261,6 +274,123 @@ reproducible.
 If you only render at the end, you get all of your errors at once, in a document
 that has grown large enough that finding them is hard. Render after every
 substantial addition.
+:::
+
+## One document, many formats
+
+The format in the YAML header decides what comes out. The same text and code
+can produce an HTML report, a Word document for co-authors who want to use
+track changes, a PDF for a journal, or slides.
+
+``` yaml
+format:
+  html:
+    embed-resources: true
+  docx:
+    reference-doc: gih-template.docx   # fonts, margins and styles from a Word file
+  typst: default                       # PDF, without installing LaTeX
+```
+
+With several formats listed, **Render** produces the first one; to get them
+all, run `quarto render report.qmd` in the terminal, or
+`quarto::quarto_render("report.qmd", output_format = "all")`.
+
+| Format | Produces | Notes |
+|--------|----------|-------|
+| `html` | A web page | The default. Add `embed-resources: true` for one file to email. |
+| `docx` | Word | `reference-doc` copies the styles of a Word file you provide, such as a department or journal template. |
+| `typst` | PDF | Fast and needs no LaTeX. The easiest way to a PDF today. |
+| `pdf` | PDF via LaTeX | Needed by some journal templates. Install LaTeX once with `quarto install tinytex`. |
+| `revealjs` | HTML slides | The course lecture slides are made this way. |
+
+Word output is often what collaborators actually need. Write and render in
+Quarto, send the `.docx`, and bring their comments back into the `.qmd` by hand,
+so the numbers in the text are still computed rather than typed.
+
+## Citations
+
+Put references in a BibTeX file, point to it in the header, and cite with `@`:
+
+``` yaml
+bibliography: references.bib
+csl: vancouver.csl        # optional: a citation style, from zotero.org/styles
+```
+
+``` markdown
+Physical activity is associated with lower mortality [@ekelund2019].
+@ekelund2019 found a dose-response relationship.
+```
+
+Quarto formats the citations and adds a reference list at the end. You do not
+have to write BibTeX by hand. In RStudio's **visual editor** (the
+**Visual** button above the document), **Insert → Citation** looks up a DOI or
+searches your Zotero library and adds the entry to `references.bib` for you.
+Zotero's Better BibTeX extension can also keep a `.bib` file up to date
+automatically. This book's own reference list is built the same way.
+
+## Parameters: one report, many versions
+
+A **parameter** is a value in the header that the document uses like a
+variable. It lets you render the same report for each clinic, region or year
+without copying the file.
+
+``` yaml
+---
+title: "Report for `r knitr::inline_expr("params$region")`"
+params:
+  region: "Stockholm"
+---
+```
+
+Inside the document, `params$region` holds the value:
+
+```{{r}}
+region_data <- visits |>
+  filter(region == params$region)
+```
+
+Render one version per region from R:
+
+```{r}
+#| eval: false
+regions <- c("Stockholm", "Göteborg", "Malmö")
+
+walk(regions, \(r) {
+  quarto::quarto_render(
+    "region_report.qmd",
+    execute_params = list(region = r),
+    output_file = str_glue("report_{r}.html")
+  )
+})
+```
+
+`walk()` is `map()` for functions you call for their side effect, here writing
+files (@sec-functions).
+
+## Projects, books and manuscripts
+
+A single `.qmd` file is a document. Add a `_quarto.yml` file to a folder and it
+becomes a **Quarto project**, with shared settings and the option to render
+everything at once with `quarto render`. The project type decides what comes
+out:
+
+- `type: website` — a set of linked pages, like the course slide site;
+- `type: book` — chapters with numbering and cross-references between them,
+  like this book;
+- `type: manuscript` — a scientific article, with its notebooks, rendered to
+  HTML, Word and PDF together, ready to share alongside a submission.
+
+A website or book can be published to GitHub Pages or Quarto Pub with
+`quarto publish`. This book is rendered and published automatically by GitHub
+every time a change is pushed (@sec-git).
+
+::: {.callout-warning}
+## A rendered report contains your results
+Output is part of the document: every printed table, `head()` and summary ends
+up in the HTML or Word file. A report on registry data is as sensitive as the
+data it shows until you have checked that it contains only aggregates, and small
+counts may need to be suppressed. Never publish it to a public site to "just
+share it with a colleague".
 :::
 
 ## Example Quarto sites
@@ -282,6 +412,12 @@ Rendering a Quarto document runs it in your current R session.
 
 To make a single HTML file you can email, you add
 `r mcq(c("self-contained-html: true", answer = "embed-resources: true", "standalone: yes", "format: file"))`
+
+Which format gives you a PDF without installing LaTeX?
+`r mcq(c("pdf", answer = "typst", "docx", "revealjs"))`
+
+To render one report per region from the same `.qmd` file, you use
+`r mcq(c("a for loop that copies the file", answer = "parameters", "cross-references", "callouts"))`
 
 In a code chunk, `# something` is
 `r mcq(c("a heading", answer = "a comment", "a chunk option", "an error"))`

@@ -1,32 +1,71 @@
 # Version Control {#sec-git}
 
-Version control is not a large part of this book, but it is worth a mention as it is a good practice to use in a reproducible workflow. It is an important part of modern software development and data analysis, particularly when projects involve multiple collaborators or making code publicly available (trancparancy). Version control systems help manage changes to source code or data files by keeping track of modifications and allowing users to revert to previous versions if needed. 
+::: {.callout-note}
+## What this chapter covers
+Version control is not part of the course lectures, but it is part of working
+reproducibly, so it is in the book. The chapter explains the few ideas Git is
+built on, sets it up once, and then shows the daily workflow in both RStudio and
+Positron: committing, looking back, undoing, branching and resolving conflicts.
+It ends with what must never go into a repository.
+:::
 
-### Tracking Changes
-Version control systems allow you to track changes made to files over time. This makes it easier to see who changed what and when, which is invaluable in diagnosing and understanding changes that affect the performance or functionality of your projects.
+```{r}
+#| label: setup-git
+#| include: false
+library(webexercises)
+```
 
-### Collaboration
-For projects involving multiple people, version control is crucial as it allows team members to work independently on files without fear of conflicting changes. Tools like Git provide mechanisms such as branches and merges, enabling seamless integration of work from different team members.
+## Why bother
 
-### Experimentation
-With version control, data scientists and programmers can experiment with different approaches without the risk of losing their original work. You can create branches to experiment with new ideas, and safely merge them back to the main project only if they prove to be beneficial.
+Without version control, a project's history lives in file names:
+`analysis_final.R`, `analysis_final_v2.R`, `analysis_final_v2_DV_comments.R`.
+Nobody can tell which one produced the table in the submitted manuscript, and
+nobody dares delete the old ones.
 
-### Git
-Git is the most widely used version control system today. It is highly flexible and supports both local and remote repositories. GitHub, a web-based service built on Git, extends its functionality by providing a graphical interface and additional tools for project management.
+Version control replaces that with a single copy of each file and a complete,
+annotated history behind it. For research this gives you:
 
-## Using Version Control in R Projects
+- **A record of what changed, when and why.** When a reviewer asks why the
+  sample size went from 1,204 to 1,187 between two drafts, the answer is in the
+  history, with the date and your own explanation.
+- **Freedom to experiment.** Try a different model or rewrite the cleaning; if
+  it does not work out, go back. Nothing is ever really lost.
+- **Collaboration without emailing files.** Several people can work on the same
+  project and combine their changes.
+- **Transparency.** Sharing the repository with a paper lets others see exactly
+  what was done.
 
-When working on R projects, integrating version control with your workflow can significantly improve the manageability and reproducibility of your work. RStudio, a popular IDE for R, includes integrated support for Git and Subversion, making it easier to track changes, revert to previous states, and collaborate with others.
+**Git** is the version control system almost everyone uses. **GitHub** (and
+alternatives such as GitLab) hosts copies of Git repositories online.
 
-### Before either IDE: install and configure Git
+## The ideas Git is built on
 
-Both editors drive the same Git underneath, so this part is identical.
+Git has a reputation for being difficult, mostly because of its vocabulary. The
+ideas themselves are few:
+
+| Term | What it means |
+|------|---------------|
+| **Repository** (repo) | A project folder whose history Git tracks. The history lives in a hidden `.git` folder inside it. |
+| **Commit** | A saved snapshot of the project, with a message saying what changed and why. The history is a chain of commits. |
+| **Staging** | Choosing which changes go into the next commit. You can change five files and commit only two of them. |
+| **Diff** | The difference between two versions of a file: lines removed in red, lines added in green. |
+| **Remote** | A copy of the repository somewhere else, usually on GitHub. |
+| **Push** / **pull** | Send your new commits to the remote / fetch other people's commits from it. |
+| **Clone** | Download a complete copy of a repository, history included. |
+| **Branch** | A parallel line of commits, for trying something without disturbing the main version. |
+
+A commit is only saved in your local repository until you push it. The remote
+is both your backup and the meeting point for collaborators.
+
+## One-time setup
+
+Both editors use the same Git underneath, so this part is identical in RStudio
+and Positron.
 
 1. **Install Git** from [git-scm.com](https://git-scm.com/downloads) if you do
-   not already have it. On macOS, running `git --version` in a terminal will
-   offer to install it.
-2. **Tell Git who you are.** This only has to be done once per computer, and the
-   name and email end up in every commit you make:
+   not already have it. On macOS, running `git --version` in a terminal offers
+   to install it.
+2. **Tell Git who you are.** The name and email end up in every commit you make:
 
 ```{r}
 #| eval: false
@@ -45,82 +84,395 @@ usethis::create_github_token() # opens GitHub to create a personal access token
 gitcreds::gitcreds_set() # paste the token in when prompted
 ```
 
+In Positron you can instead sign in to GitHub through the **Accounts** menu at
+the bottom of the activity bar, which is enough for pushing and pulling from the
+editor.
+
 ::: {.callout-tip}
-## `usethis` works the same in both IDEs
-`usethis::use_git()`, `usethis::use_github()` and `usethis::git_sitrep()` are
-plain R functions, so they behave identically in RStudio and Positron. When in
-doubt, `git_sitrep()` prints a diagnosis of your whole Git and GitHub setup and
-tells you what is missing.
+## When something does not work: `git_sitrep()`
+`usethis::git_sitrep()` prints a diagnosis of your whole Git and GitHub setup,
+names what is missing, and suggests the fix. It is a plain R function, so it
+works the same in both editors.
 :::
 
-### Setting Up Git with RStudio
+## Starting a repository
 
-1. **Initialise a repository**: in an existing project, run
-   `usethis::use_git()`, or use **Tools → Version Control → Project Setup** and
-   choose Git. RStudio will offer to restart.
-2. **Use the Git pane** that appears in the top-right quadrant. Tick the files
-   you want to include (this is *staging*), click **Commit**, write a message,
-   and commit.
-3. **Push and pull** with the arrows in the same pane.
-4. **View history** with the clock icon, and see what changed in a file with
-   **Diff**.
+**A project you already have**: open it, then in the console
 
-[More on version control in RStudio](https://docs.posit.co/ide/user/ide/guide/tools/version-control.html)
+```{r}
+#| eval: false
+# keep data out BEFORE Git sees anything
+usethis::use_git_ignore(c("data/", "*.csv", "*.sav", "*.parquet", "*.rds"))
 
-### Setting Up Git with Positron
+usethis::use_git() # start tracking this project
+usethis::use_github(private = TRUE) # create a GitHub copy and connect it
+```
 
-Positron inherits VS Code's Git integration, so the concepts are the same but
-the buttons are in different places (@sec-positron).
+`use_git()` offers to commit every file already in the folder. That is why the
+ignore rules come first: whatever is not ignored at that moment goes into the
+first commit. Read the list of files it shows before you answer yes.
 
-1. **Open the folder** as a workspace — **File → Open Folder**. Positron detects
-   an existing `.git` directory automatically.
-2. **Initialise a repository** if there is not one yet: open the **Source
-   Control** view in the activity bar on the left (or `Ctrl/Cmd + Shift + G`)
-   and click **Initialize Repository**. `usethis::use_git()` in the console does
-   the same thing and also sets up a sensible `.gitignore`.
-3. **Stage and commit** in the Source Control view. Hover a changed file and
-   click **+** to stage it, type a commit message in the box at the top, and
-   press `Ctrl/Cmd + Enter` to commit.
-4. **Push and pull** from the **...** menu in the Source Control view, or from
-   the sync button in the status bar at the bottom.
-5. **View the diff** by clicking a file name in the Source Control list — it
-   opens a side-by-side comparison, which is one of the things Positron does
-   noticeably better than RStudio.
-
-::: {.callout-note}
-## Differences worth knowing
-- **Staging is explicit.** RStudio's checkbox and Positron's **+** button do the
-  same thing (`git add`), but in Positron you can also stage *part* of a file by
-  selecting lines in the diff view and choosing "Stage Selected Ranges". That is
-  genuinely useful when one editing session produced two unrelated changes.
-- **A Positron-only project has no `.Rproj` to commit**, unless you added one
-  with `usethis::use_rstudio()`. Either way is fine: `.git` is itself a project
-  root marker, so `here()` works regardless (@sec-positron).
-- **The terminal is always there.** Anything the interface cannot do,
-  `git` in the terminal can. Positron's integrated terminal opens with
-  `Ctrl + backtick`.
+::: {.callout-warning}
+## `use_github()` makes a public repository unless you say otherwise
+The default is **public**: anyone on the internet can read it. For research
+projects, pass `private = TRUE` and make it public deliberately, later, once
+you have checked what is in the history.
 :::
+
+**A project that exists on GitHub already**: clone it.
+
+```{r}
+#| eval: false
+usethis::create_from_github("owner/repository", destdir = "~/projects")
+```
+
+In RStudio, **File → New Project → Version Control → Git** does the same; in
+Positron, use **New Folder from Git…** in the **New** menu (or the command
+palette).
+
+::: {.callout-important}
+## Git and OneDrive do not mix well
+A repository inside a folder synced by OneDrive, Dropbox or iCloud can be
+damaged when the sync client and Git write to the hidden `.git` folder at the
+same time, or when the sync creates "conflicted copy" files inside it. Keep Git
+repositories in an ordinary local folder, such as `~/projects/`, and let the
+**remote** be your backup. If you use Git, you do not need the cloud sync.
+:::
+
+## What goes into the repository
+
+Git is for the files you **write**. Everything that can be recreated from them,
+and everything that must stay private, stays out.
+
+| Commit | Do not commit |
+|--------|---------------|
+| R scripts, `.qmd` files, functions in `R/` | **Data**: `data/`, `*.csv`, `*.sav`, `*.dta`, `*.parquet`, `*.rds` |
+| `_targets.R`, `renv.lock` (@sec-pipelines) | Rendered output that the code recreates (`_book/`, `*.html`, figures) |
+| `README.md`, `data-dict.yaml` (@sec-data-dictionary) | `.Rhistory`, `.RData`, `.Rproj.user/` |
+| `.gitignore` itself | `.Renviron` and anything else holding passwords or API keys |
+
+`.gitignore` is a text file listing patterns Git should not track.
+`usethis::use_git()` creates a reasonable one, and `usethis::use_git_ignore()`
+adds to it.
 
 ::: {.callout-important}
 ## Add data to `.gitignore` before your first commit
-This matters more than which IDE you use. Removing a file in a later commit does
-**not** remove it from the history — the data is still there for anyone who
-clones the repository.
+Removing a file in a later commit does **not** remove it from the history: it
+is still there for anyone who clones the repository. So the ignore rules have to
+be in place before the first commit, not after.
 
-`usethis::use_git_ignore(c("data/", "data-raw/", "*.csv", "*.sav", "*.rds"))`
-adds the entries, and `usethis::use_git()` sets up a reasonable default
-`.gitignore` when it initialises the repository. Check `git status` before your
-first commit and confirm that no data file is listed.
+```{r}
+#| eval: false
+usethis::use_git_ignore(c(
+  "data/", "data-raw/",
+  "*.csv", "*.sav", "*.dta", "*.parquet", "*.rds",
+  ".Renviron"
+))
+```
+
+Then check the list of changed files before you commit (the Git pane, the
+Source Control view, or `git status` in the terminal), and confirm that no data
+file is in it.
 :::
 
-[Happy Git and GitHub for the useR](https://happygitwithr.com/) is the standard
-reference for all of this, and it covers both the setup and what to do when it
+## The daily workflow
+
+Once the repository exists, the rhythm is always the same:
+
+1. **Pull** first, if others work on the project, so you start from the latest
+   version.
+2. **Work** as usual: edit, run, render.
+3. **Look at the diff** of what you changed. This is a small code review of your
+   own work, and it catches the stray `View()` or the accidentally deleted line.
+4. **Stage** the changes that belong together and **commit** them with a
+   message.
+5. **Push**, at the latest at the end of the day.
+
+### Good commits
+
+Commit **small and often**: one commit per logical change, not one per day.
+"Exclude participants without baseline" and "Add sensitivity analysis" are two
+commits, even if you did both before lunch. If a change later turns out to be
+wrong, a small commit is easy to find and easy to undo.
+
+The message should say **why**, because the diff already says what:
+
+```text
+Exclude participants without a baseline measurement
+
+The protocol requires baseline for the change score. Removes 17
+participants; flow chart updated.
+```
+
+A short first line (under about 60 characters), then a blank line, then as much
+explanation as a reviewer would need. "Fix", "update" and "changes" tell your
+future self nothing.
+
+## Git in RStudio
+
+1. **Initialise**: `usethis::use_git()`, or **Tools → Version Control → Project
+   Setup** and choose Git. RStudio restarts and a **Git** pane appears in the
+   top-right quadrant.
+2. **Stage and commit**: tick the files you want to include, click **Commit**.
+   A window opens with the diff of each file; write the message and commit.
+3. **Push and pull** with the green and blue arrows in the Git pane.
+4. **History**: the clock icon shows the list of commits; click one to see its
+   diff.
+5. **Revert** a file to its last committed version: select it and click
+   **Revert** (in the **More** menu). This discards your uncommitted changes to
+   that file.
+6. **Branches**: the branch name at the right of the Git pane is a menu for
+   switching; the icon beside it creates a new branch.
+
+[More on version control in RStudio](https://docs.posit.co/ide/user/ide/guide/tools/version-control.html)
+
+## Git in Positron
+
+Positron has the Git integration of VS Code, and for day-to-day work it is
+clearly the stronger of the two editors. The concepts are identical; the
+controls are in different places (@sec-positron).
+
+1. **Open the folder** (**File → Open Folder**). Positron detects an existing
+   `.git` folder by itself.
+2. **Initialise** if there is no repository yet: open the **Source Control**
+   view in the activity bar (<kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>)
+   and click **Initialize Repository**, or run `usethis::use_git()`.
+3. **See the diff**: click any changed file in the Source Control view to open
+   a side-by-side comparison. Changed lines are also marked in the margin of the
+   editor while you work, in green (added), blue (modified) and red (deleted).
+4. **Stage**: hover a file and click **+**. To stage **part** of a file, open
+   its diff, select the lines, and choose **Stage Selected Ranges** from the
+   right-click menu. That is the feature RStudio users miss most once they have
+   used it: one editing session that produced two unrelated changes can become
+   two clean commits.
+5. **Commit**: write the message in the box at the top and press
+   <kbd>Ctrl/Cmd</kbd>+<kbd>Enter</kbd>.
+6. **Push and pull**: the sync button in the status bar at the bottom, or the
+   **…** menu in the Source Control view.
+7. **Branches**: the branch name in the bottom-left corner of the status bar.
+   Click it to switch branch or create a new one.
+
+A few things Positron adds on top:
+
+- **A history graph.** The Source Control view has a **Graph** section showing
+  the commits and branches as a timeline.
+- **File history.** The **Timeline** section at the bottom of the Explorer shows
+  every commit that touched the open file; click one to see what it changed.
+- **A three-way merge editor** for conflicts (see below), with buttons to accept
+  one side, the other, or both.
+- **GitHub built in.** The GitHub Pull Requests and Issues extension comes
+  pre-installed, so you can review pull requests and read issues without leaving
+  the editor.
+- **Suggested commit messages.** If you have configured an AI provider, the
+  sparkle icon in the message box drafts a message from the staged diff. Treat
+  it like any other AI output (@sec-ai): it can describe *what* changed, but only
+  you know *why*, and the why is the part worth writing.
+
+[Git in Positron](https://positron.posit.co/git.html)
+
+## Undoing things
+
+Most of what makes Git feel safe is knowing how to go back. The common cases,
+from the least to the most drastic:
+
+| Situation | RStudio | Positron | Terminal |
+|-----------|---------|----------|----------|
+| Throw away uncommitted changes to a file | **Revert** | **Discard Changes** (↶ icon) | `git restore file.R` |
+| Unstage a file, keeping the changes | Untick it | **−** icon | `git restore --staged file.R` |
+| Fix the message or add a forgotten file to the last commit, **not yet pushed** | Tick **Amend previous commit** | **Commit → Commit (Amend)** in the **…** menu | `git commit --amend` |
+| Look at an old version of a file | History → **View file** | Timeline → click the commit | `git show a1b2c3d:file.R` |
+| Undo a commit that is **already pushed** | Terminal | Terminal | `git revert a1b2c3d` |
+
+`a1b2c3d` stands for the commit's ID, the short code shown next to each commit
+in the history.
+
+Discarding changes cannot itself be undone, because those changes were never
+committed. That is one more reason to commit often.
+
+`git revert` does not delete anything. It adds a **new** commit that reverses
+the old one, so the history stays honest and your collaborators' copies stay
+valid. Never rewrite history that others have already pulled.
+
+## Branches
+
+A branch lets you try something without touching the working version: a
+different model specification, a large restructuring, a reviewer's suggestion
+you are not sure about.
+
+```bash
+git switch -c try-mixed-model   # create a branch and move to it
+# ... work and commit as usual ...
+git switch main                 # back to the main version, untouched
+git merge try-mixed-model       # keep the experiment: merge it into main
+git branch -d try-mixed-model   # delete the branch when it is merged
+```
+
+If the experiment fails, switch back to `main` and delete the branch; nothing on
+`main` ever knew about it. Both editors do the same from the branch menu. On
+GitHub, merging a branch usually happens through a **pull request**, which gives
+collaborators a place to review the changes first.
+
+For a project you work on alone, you can get a long way with no branches at
+all. They become valuable when you collaborate, or when an experiment will take
+more than a day.
+
+## Merge conflicts
+
+When two people change **the same lines** of the same file, Git cannot decide
+which version to keep, and it asks you. The file then contains both versions
+between markers:
+
+```text
+<<<<<<< HEAD
+model <- lm(mass ~ flipper + species, data = penguins)
+=======
+model <- lm(mass ~ flipper * species, data = penguins)
+>>>>>>> try-interaction
+```
+
+The part above `=======` is yours; the part below is the incoming change.
+Resolve it by editing the file to what it *should* be (one version, the other,
+or a combination), deleting the three marker lines, and committing. Positron's
+merge editor shows the two versions and the result side by side and lets you
+accept either with a click; RStudio shows the markers in the ordinary editor.
+
+Conflicts are rarer than their reputation. Changes to different files, or to
+different parts of the same file, are merged automatically. Pulling before you
+start working and pushing when you finish avoids most of the rest.
+
+## Git and sensitive data
+
+The rules from @sec-import apply with extra force here, because Git remembers
+everything:
+
+- **Never commit registry data or any other personal data**, not even to a
+  private repository. Private means GitHub decides who can read it, and
+  GitHub is a third-party service outside your ethical approval.
+- **Secrets count too.** A `.Renviron` with an API key or a database password,
+  once pushed, should be treated as leaked: change the key, do not just delete
+  the file.
+- **If data has been committed**, deleting it in a new commit is not enough.
+  Removing it from the history takes specialist tools (`git filter-repo`), and
+  any clone made in the meantime still has it. Stop, do not push, and contact
+  your data protection officer or IT support. How to report it is decided by
+  your institution, not by Git.
+- **Commit messages and code are part of what you share.** Do not write
+  identifiers, rare diagnoses or individual values into comments or messages.
+
+## Git and GitHub are not the same
+
+- **Git** is the version control system. It runs locally on your computer and
+  keeps the history of your project as a series of commits. It works without an
+  internet connection and without any account.
+- **GitHub** is a service that hosts Git repositories online. It adds a web
+  interface, access control, issues, pull requests and GitHub Pages (which
+  publishes this book). GitLab and Bitbucket do the same job, and some
+  universities run their own GitLab.
+
+You can use Git without GitHub. You cannot use GitHub without Git.
+
+[Happy Git and GitHub for the useR](https://happygitwithr.com/) by Jenny Bryan
+is the standard reference for all of this in R, including what to do when it
 goes wrong.
 
-::: {.callout-tip}  
-# Git and GitHub are not the same.
+::: {.webex-check .webex-box}
+**Check yourself**
 
-- **Git** is a distributed version control system, which means it helps you manage and track versions of your project. It operates locally on your computer, allowing you to manage your code history in a series of snapshots called commits. Git provides the tools necessary for you to create branches, merge changes, and revert to previous versions of your project, all from your local environment.
+What is staging?
+`r longmcq(c(
+  "Uploading your commits to GitHub",
+  answer = "Choosing which changes go into the next commit",
+  "Creating a new branch",
+  "Saving a file in the editor"
+))`
 
-- **GitHub**, on the other hand, is a hosting service for Git repositories. It extends Git's functionality by adding a web-based graphical interface, along with collaboration features like bug tracking, feature requests, task management, and wikis for every project. GitHub makes it easier to collaborate with others on projects that are managed using Git by storing a copy of your Git repository on the internet, facilitating shared access and team collaboration.
+`usethis::use_github()` creates a private repository by default. `r torf(FALSE)`
+
+You committed a CSV with registry data, then deleted it in the next commit.
+The data is no longer in the repository. `r torf(FALSE)`
+
+A commit you have already pushed turns out to be wrong. What is the safe way to
+undo it?
+`r mcq(c("Delete the .git folder", answer = "git revert", "git commit --amend", "Discard Changes"))`
+
+What should a commit message explain that the diff cannot?
+`r mcq(c("Which files changed", "How many lines changed", answer = "Why the change was made", "Who made the change"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: your first repository
+
+Do this in a new, throwaway project in an ordinary local folder (not OneDrive),
+in whichever editor you use.
+
+1. Create the project and run `usethis::use_git()`. Look at the `.gitignore`
+   it created.
+2. Add a `data/` folder containing any small CSV file. Add `data/` to
+   `.gitignore` with `usethis::use_git_ignore()`, and check that the CSV does
+   not show up among the changed files.
+3. Create `analysis.R` with three lines of code and commit it with a proper
+   message.
+4. Change one line, look at the diff, and commit again.
+5. Change another line, then discard that change so the file is back to your
+   last commit.
+6. Find your first commit in the history and look at what the file looked like
+   then.
+
+::: {.callout-tip collapse="true"}
+## What to look for
+- **Step 1**: `use_git()` already ignores `.Rhistory`, `.RData` and
+  `.Rproj.user`, but not `data/`. That is why step 2 matters.
+- **Step 2**: if the CSV still appears, the ignore pattern does not match its
+  path. `git check-ignore -v data/file.csv` in the terminal tells you which
+  rule, if any, applies to a file.
+- **Step 4**: in the diff, the old line is red and the new one green. This is
+  the view to check before every commit.
+- **Step 5**: **Revert** in RStudio, **Discard Changes** in Positron. The
+  discarded change is gone for good, since it was never committed.
+- **Step 6**: the clock icon in RStudio; the **Timeline** in Positron's
+  Explorer, or the **Graph** in the Source Control view.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: a conflict on purpose
+
+Conflicts are much less frightening once you have made one yourself.
+
+1. In the repository from Exercise 1, create a branch called `experiment` and
+   change line 2 of `analysis.R`. Commit.
+2. Switch back to `main`, change **the same line** differently, and commit.
+3. Merge `experiment` into `main` (`git merge experiment` in the terminal).
+4. Resolve the conflict, then commit.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```bash
+git switch -c experiment
+# edit line 2, then
+git commit -am "Try a different summary"
+
+git switch main
+# edit line 2 differently, then
+git commit -am "Use the median instead of the mean"
+
+git merge experiment
+# CONFLICT (content): Merge conflict in analysis.R
+```
+
+`analysis.R` now contains both versions of line 2 between `<<<<<<<`,
+`=======` and `>>>>>>>`. Edit the file so it holds the version you want, remove
+the three marker lines, then:
+
+```bash
+git add analysis.R
+git commit -m "Merge experiment: keep the median"
+```
+
+In Positron the conflicted file is listed under **Merge Changes** in the Source
+Control view; open it and use the merge editor instead of editing the markers
+by hand. `git commit -am` stages every tracked file that changed and commits in
+one step; it does not add new files.
+:::
 :::
