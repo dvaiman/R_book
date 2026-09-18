@@ -36,6 +36,7 @@ book:
         - 06d_joins.qmd
         - 06e_strings_factors.qmd
         - 06f_cleaning_data.qmd
+        - 06g_data_dictionary.qmd
     - part: "Exploring and communicating"
       chapters:
         - 07_exploratory_data_analysis.qmd

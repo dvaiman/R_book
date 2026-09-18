@@ -1,0 +1,540 @@
+# Data Dictionaries {#sec-data-dictionary}
+
+::: {.callout-note}
+## What this chapter covers
+What a data dictionary is, what to put in one, and how to write it in a format
+that both people and AI tools can read. You will build one for `penguins` in
+the `data-dict.yaml` format, check the data against it from R, and see how it
+lets you give an AI assistant the *description* of your data instead of the
+rows.
+:::
+
+```{r}
+#| label: setup-dict
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: dict-libs
+#| message: false
+library(tidyverse)
+library(palmerpenguins)
+```
+
+## Why write one
+
+Your code says **how** the data was handled. It does not say **what** the data
+is. Look at a column called `sex` with the values 1 and 2, or `vikt` with values
+between 40 and 180, or a table with 14,000 rows. Which value is which sex? Is
+weight in kilograms, and measured or self-reported? Is it one row per person, or
+one per visit? The answers are usually in someone's head, an email or a PDF from
+the data provider, and they get lost.
+
+A **data dictionary** writes these answers down in one place, next to the data.
+In registry research it is usually called a **codebook**, and it is the same
+idea. It describes:
+
+- **the dataset**: where it comes from, how and when it was collected, and
+  which version you have;
+- **each table**: the *grain* (what one row is) and the *population* (who is
+  included);
+- **each column**: name, type, units, allowed values or plausible range, how
+  missing values are coded, and a description a newcomer can understand;
+- **how tables connect**: which keys join them;
+- **a glossary** of domain terms an outsider could not guess.
+
+Documentation like this has always helped collaborators, reviewers and your
+future self. What is new is that there is now a second reader. Hadley Wickham's
+argument in [*Why code when AI?*](https://tidydesign.substack.com/p/y-code-when-ai)
+is that the same document gives an AI assistant the context it otherwise lacks,
+and that this makes it more motivating to write. An AI that knows `vikt` is in
+kilograms, that one row is one visit, and that `sex` is missing for some people
+writes better code than one that guesses from the column names.
+
+::: {.callout-important}
+## You share the description, not the rows
+For sensitive data, this is the main benefit. A dictionary tells an AI tool
+everything it needs to write correct code, without a single row of the data
+leaving your machine. @sec-ai covers when and how to use AI with data; the
+dictionary is what makes the safe option practical.
+:::
+
+## Three levels
+
+How far to go depends on how much the data matters and how long it will live:
+
+1. **Show** the structure in the moment: `glimpse()`, `count()`, a summary.
+   Good enough for a quick exploration.
+2. **Write it down** as a simple table: one row per variable, with a few
+   columns. The codebook at the end of @sec-cleaning is this level.
+3. **Standardise it** in a machine-readable format that can be validated
+   against the data and read by any tool. This chapter is about this level.
+
+## The `data-dict.yaml` format
+
+The tidyverse team has published an open specification for data dictionaries,
+[data-dict](https://data-dict.tidyverse.org), along with a command-line tool
+that drafts, validates and renders them. A dictionary is a YAML file, the same
+format as the `---` header of a Quarto document (@sec-quarto): plain text that
+you can read, edit, diff in Git, and hand to any program.
+
+::: {.callout-warning}
+## An early preview
+When this was written (September 2026), the specification was at version 0.1.0
+and the tool at 0.0.3, described as an early preview. Details may change. The
+ideas in this chapter do not depend on them: even if you never install the tool,
+a well-written YAML dictionary is useful on its own.
+:::
+
+Here is a complete dictionary for `penguins`:
+
+```{r}
+#| label: dict-show
+#| echo: false
+#| output: asis
+cat("```yaml", readLines("examples/penguins-data-dict.yaml"), "```", sep = "\n")
+```
+
+Read it from the top: the dataset, then one table, then one column at a time.
+The keys you will use most:
+
+| Key | Where | What it records |
+|-----|-------|-----------------|
+| `description` | dataset, table, column | What a newcomer needs to know. For a table, state the grain and the population. |
+| `source` | table | Where the data lives, e.g. `parquet: data/penguins.parquet` (@sec-parquet). |
+| `type` | column | What kind of values the column holds (see below). |
+| `units` | column | The unit of a measured quantity: `mm`, `g`, `kg`, `min`. |
+| `values` | column | The allowed values of an `enum` column. |
+| `range` | column | The plausible or observed `[min, max]`. |
+| `constraints` | column, table | Rules: `required` (no missing), `unique`, `primary_key`, `foreign_key`. |
+| `glossary` | dataset | Definitions of domain terms. |
+| `todo` | anywhere | What is still unknown. |
+
+Almost everything is optional. `name` and `columns` are enough to start, and a
+short dictionary that exists beats a complete one that does not.
+
+### Types say what you may do with a column
+
+The type vocabulary is richer than R's column classes, and the difference is the
+useful part:
+
+| Type | Meaning | Example |
+|------|---------|---------|
+| `number` | An ordinary number | a test score |
+| `number(quantity)` | A measured amount; needs `units` | body mass in g, steps per day |
+| `number(id)` | A number that is really a label: never do arithmetic on it | participant ID, municipality code |
+| `number(ordinal)` | A ranking: order it, but do not add it | education level 1-5, study year |
+| `enum` | One of a known set of values | species, sex, region |
+| `string` | Free text | comments |
+| `date`, `datetime` | Dates and times (`datetime` records a time zone) | visit date, accelerometer timestamp |
+| `boolean` | `true` or `false` | smoker |
+
+`number(id)` and `number(ordinal)` encode exactly the mistakes this book warns
+about: taking the mean of an ID, or treating a 1-5 scale as if the steps were
+equal (@sec-modelling). Written into the dictionary, the warning travels with
+the data to every person and every tool that reads it.
+
+### What the penguin dictionary tells you that the data does not
+
+- **Units.** `body_mass_g` has a unit in its name; the dictionary states
+  it explicitly. Columns like `vikt` or `langd` usually do not.
+- **The grain**: one row per penguin, measured once. Not stated anywhere in the
+  data itself.
+- **What missing means.** `sex` is missing for 11 birds where it could not be
+  determined, and missing is not a third category. That changes how you model
+  it.
+- **Which columns must be complete.** `species`, `island` and `year` are
+  `required`; the measurements are not.
+
+## Start from the data, finish by hand
+
+Writing every column by hand is tedious and error-prone. Let R draft the
+mechanical parts, and write the parts only a person can know yourself.
+
+The function below looks at each column and records its type, its allowed
+values or range, and whether it has missing values. Everything it cannot know
+is marked `todo`.
+
+```{r}
+#| label: dict-skeleton
+# draft one column entry from the data; meaning is left as todo
+describe_column <- function(x, name) {
+  type_part <- if (is.factor(x)) {
+    list(type = "enum", values = levels(x))
+  } else if (inherits(x, "Date")) {
+    list(type = "date", range = as.character(range(x, na.rm = TRUE)))
+  } else if (is.numeric(x)) {
+    list(type = "number", range = range(x, na.rm = TRUE))
+  } else if (is.logical(x)) {
+    list(type = "boolean")
+  } else {
+    list(type = "string")
+  }
+
+  # only mark a column required if the data has no missing values
+  constraints <- if (!anyNA(x)) list(constraints = list("required")) else list()
+
+  c(list(name = name), type_part, constraints, list(todo = "describe"))
+}
+
+skeleton <- list(
+  `$version` = "0.1.0",
+  name = "penguins",
+  tables = list(list(
+    name = "penguins",
+    todo = "grain and population",
+    columns = imap(penguins, describe_column) |> unname()
+  ))
+)
+
+draft_file <- tempfile(fileext = ".yaml")
+yaml::write_yaml(skeleton, draft_file)
+
+# the first two columns of the draft
+readLines(draft_file) |>
+  head(24) |>
+  cat(sep = "\n")
+```
+
+`imap()` calls the function once per column, passing both the column and its
+name (@sec-functions). The result is a nested list, and `yaml::write_yaml()`
+turns a nested list into YAML.
+
+From here you edit the file by hand: replace every `todo` with a description,
+add `units` and `label`, change `number` to `number(quantity)`, `number(id)` or
+`number(ordinal)` as appropriate, and write the table's grain and population.
+That is the work that needs a person who understands the data.
+
+::: {.callout-warning}
+## Ranges and values come from the data
+The draft copies `range` and `values` from the data, and the `data-dict` format
+also has an `examples` field for a few typical values. For sensitive data, these
+can themselves be identifying: the maximum age in a small cohort, a rare
+diagnosis code, a municipality with twelve residents. Before a dictionary for
+sensitive data is shared or given to an AI tool, **replace ranges with plausible
+bounds** (`age: [18, 100]` rather than the observed `[19, 97]`), **leave out
+rare values** or write them as a rule, and **use invented examples** or none.
+
+The format also has a `display: restricted` field for marking columns that hold
+personal data. It is a label that tools can respect, not a protection in
+itself.
+:::
+
+## Check the data against the dictionary
+
+A dictionary that nobody checks drifts away from the data: a new column is
+added, a unit changes, a new category appears. The strength of a
+machine-readable dictionary is that you can **validate** the data against it,
+so that the two cannot silently disagree.
+
+The `data-dict` tool does this properly (see below). To see what validation
+means, here is a small version in R. It reads the dictionary and checks each
+column: required columns have no missing values, `enum` columns contain only the
+listed values, and numbers stay inside the range.
+
+```{r}
+#| label: dict-validate-fn
+# return one row per problem found in one column
+check_column <- function(spec, data) {
+  if (!spec$name %in% names(data)) {
+    return(tibble(column = spec$name, problem = "in the dictionary but not in the data", n = NA_integer_))
+  }
+  x <- data[[spec$name]]
+  counts <- list()
+
+  if ("required" %in% spec$constraints) {
+    counts[["missing values"]] <- sum(is.na(x))
+  }
+  if (spec$type == "enum") {
+    counts[["value not in the dictionary"]] <- sum(!is.na(x) & !as.character(x) %in% spec$values)
+  }
+  if (!is.null(spec$range)) {
+    counts[["outside the range"]] <- sum(x < spec$range[[1]] | x > spec$range[[2]], na.rm = TRUE)
+  }
+
+  tibble(column = spec$name, problem = names(counts), n = unlist(counts, use.names = FALSE)) |>
+    filter(n > 0)
+}
+
+check_against_dictionary <- function(data, dict_path) {
+  columns <- yaml::read_yaml(dict_path)$tables[[1]]$columns
+  undocumented <- setdiff(names(data), map_chr(columns, "name"))
+
+  bind_rows(
+    map(columns, \(spec) check_column(spec, data)) |> list_rbind(),
+    tibble(column = undocumented, problem = "in the data but not in the dictionary", n = NA_integer_)
+  )
+}
+```
+
+The real data agrees with the dictionary, so the list of problems is empty:
+
+```{r}
+#| label: dict-validate-ok
+dict_file <- "examples/penguins-data-dict.yaml"
+
+problems <- check_against_dictionary(penguins, dict_file)
+nrow(problems)
+```
+
+Now introduce the kind of problems that turn up in real data: one body mass
+entered in kilograms, three species typed in lower case, a new column nobody
+documented, and a column that has disappeared.
+
+```{r}
+#| label: dict-validate-bad
+# simulate typical errors in a new delivery of the data
+penguins_new <- penguins |>
+  mutate(
+    body_mass_g = if_else(row_number() == 5, body_mass_g / 1000, body_mass_g),
+    species = if_else(row_number() %in% 10:12, "adelie", as.character(species)),
+    comment = NA_character_
+  ) |>
+  select(-year)
+
+check_against_dictionary(penguins_new, dict_file)
+```
+
+Every problem is found, and none of them would have stopped your code from
+running. `"adelie"` would have become a fourth species in every table and plot;
+the bird weighing 3.45 g would have pulled down the Adelie mean. Put a check
+like this straight after import (step 2, *validate*, in the workflow from
+@sec-cleaning), and stop if it finds anything.
+
+For serious use, reach for a package rather than your own function:
+`pointblank` and `validate` (@sec-packages) write validation rules in R, and
+the `data-dict` tool validates against the dictionary directly.
+
+::: {.callout-note}
+## What validation cannot catch
+Validation catches **mechanical** errors: wrong type, forbidden value, number
+out of range, missing column. It cannot tell you whether you described the
+variable correctly in the first place. If the dictionary says `vikt` is in
+kilograms and it is really in pounds, the data will agree with the dictionary
+and both will be wrong.
+:::
+
+## The `data-dict` tool
+
+The command-line tool does three things: **draft** a dictionary from a data
+file, **validate** data against a dictionary, and **render** the dictionary as
+a browsable HTML page. It can be installed from R:
+
+```{r}
+#| eval: false
+pak::pak("tidyverse/data-dict/r")
+datadict::dd_install()
+```
+
+or with Python's `uv` (`uv tool install data-dict-yaml`). Then, in the
+terminal:
+
+```bash
+data-dict draft data/penguins.parquet       # writes data-dict.yaml with todo items
+data-dict validate-data data-dict.yaml      # checks names, types, ranges and constraints
+data-dict render-spec data-dict.yaml        # writes an HTML version for people
+```
+
+The tool reads the data from the `source` given for each table, which is one
+reason Parquet (@sec-parquet) pairs well with it: the file stores its own column
+types, so there is nothing to guess.
+
+It is also built to be driven by an AI agent. The quickstart simply asks an
+agent to *use the data-dict CLI to document the dataset*, pointing it to
+existing documentation; the agent runs `draft` and fills in the descriptions
+from that documentation. That is convenient for public data. For sensitive data
+it means the agent sees the data, so draft locally, as above, and write the
+descriptions yourself.
+
+## Using the dictionary with AI
+
+Once the dictionary exists, it is the first thing to give an AI tool:
+
+- **In a chat**, paste the dictionary (with any sensitive ranges and values
+  generalised) together with your question, instead of pasting rows.
+- **With an agent**, put a line in the project's instruction file such as
+  *"Read `data-dict.yaml` before writing any code that touches the data"*, and
+  name it as context in each task (@sec-ai).
+- **In reviews**, ask the AI to check your code against the dictionary: "does
+  this pipeline treat `year` as ordinal and `sex` missing as missing?"
+
+Wickham points out one more benefit when the dictionary lives in Git with the
+code: a change shows up in **three places at once**, in the code, in the data,
+and in the dictionary diff. If all three agree after a change, it is easier to
+trust that the right thing happened than if you only look at one of them.
+
+How much a dictionary improves an AI's code is so far mostly practical
+experience rather than research. That it helps the humans on the project is
+well established.
+
+## Where dictionaries come from in practice
+
+You rarely start from nothing. Swedish registers come with variable
+descriptions from the data holder (Statistics Sweden, the National Board of
+Health and Welfare), REDCap exports a data dictionary for every project, SPSS
+and Stata files carry variable and value labels (which `haven` keeps, see
+@sec-import), and older studies often have a codebook as a PDF or Word file.
+
+The work is to bring that information into one file that sits next to the data,
+is under version control, and can be checked. The R packages `codebook` and
+`codebookr` produce readable codebooks from labelled data; the social sciences
+have the DDI standard; the FAIR principles and *Datasheets for Datasets* (see
+@sec-ai for links) describe what good documentation should contain.
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+What should a table's `description` state, according to the `data-dict`
+specification?
+`r longmcq(c(
+  "The file size and number of rows",
+  answer = "The grain (what one row is) and the population (who is included)",
+  "The name of the analyst",
+  "The R code that created it"
+))`
+
+A column of municipality codes should have type
+`r mcq(c("number(quantity)", answer = "number(id)", "number(ordinal)", "boolean"))`
+
+A dictionary's `range` and `values` can never reveal anything about individuals.
+`r torf(FALSE)`
+
+Validation against a dictionary confirms that each variable is described
+correctly. `r torf(FALSE)`
+
+Why give an AI assistant the dictionary rather than a sample of rows?
+`r longmcq(c(
+  "Because AI tools cannot read rows",
+  answer = "It gives the assistant the meaning, types and units it needs without any data leaving your machine",
+  "Because it is shorter",
+  "There is no reason; rows are always better"
+))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: write a dictionary for `mpg`
+
+The `mpg` dataset from `ggplot2` has 234 cars and 11 columns.
+
+1. Use `describe_column()` and `imap()` from this chapter to draft a dictionary
+   for `mpg` and write it to `mpg-data-dict.yaml`.
+2. Open the file and complete it by hand. Look up the columns in `?mpg`. At a
+   minimum, write the table's grain, give `displ`, `cty` and `hwy` their units,
+   and decide the type of `year`, `cyl` and `drv`.
+3. Run `check_against_dictionary()` on `mpg`. Then break the data on purpose so
+   that each kind of problem is reported at least once.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| eval: false
+skeleton <- list(
+  `$version` = "0.1.0",
+  name = "mpg",
+  tables = list(list(
+    name = "mpg",
+    todo = "grain and population",
+    columns = imap(mpg, describe_column) |> unname()
+  ))
+)
+yaml::write_yaml(skeleton, here::here("mpg-data-dict.yaml"))
+```
+
+A completed extract might look like this:
+
+```yaml
+tables:
+  - name: mpg
+    description: >
+      Grain: one row per car model, year and configuration. Population:
+      models from fueleconomy.gov that had a new release every year
+      between 1999 and 2008.
+    columns:
+      - name: displ
+        label: Engine displacement
+        type: number(quantity)
+        units: litres
+        range: [1.6, 7.0]
+      - name: year
+        type: enum
+        values: [1999, 2008]
+        description: Year of manufacture. Only two years are included.
+      - name: cyl
+        type: number(ordinal)
+        range: [4, 8]
+        description: Number of cylinders (4, 5, 6 or 8).
+      - name: drv
+        type: enum
+        values: ["f", "r", "4"]
+        description: Drive train. f = front, r = rear, 4 = four-wheel.
+      - name: hwy
+        label: Highway fuel economy
+        type: number(quantity)
+        units: miles per gallon
+```
+
+Two decisions worth noticing. `year` holds numbers, but with only two values it
+is really a category, so `enum` describes it better than `number`. And `drv`
+needs `"4"` in quotes: unquoted, YAML reads `4` as a number, while in the data
+it is text. Our small check happens to tolerate that, because `%in%` converts
+both sides to text, but a stricter tool will not.
+
+```{r}
+#| eval: false
+mpg_broken <- mpg |>
+  mutate(
+    hwy = if_else(row_number() == 1, 290, hwy), # out of range
+    drv = if_else(row_number() == 2, "front", drv), # not an allowed value
+    manufacturer = if_else(row_number() == 3, NA, manufacturer) # missing in a required column
+  )
+
+check_against_dictionary(mpg_broken, here::here("mpg-data-dict.yaml"))
+```
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: make a dictionary safe to share
+
+You have drafted a dictionary for a registry extract. It contains, among others:
+
+```yaml
+- name: age
+  type: number(quantity)
+  units: years
+  range: [19, 103]
+- name: municipality
+  type: enum
+  values: ["0180", "1480", "2521", ...]   # all 290 codes that occur
+- name: diagnosis
+  type: enum
+  values: [I21, I63, Q87.4, ...]         # every code that occurs
+  examples: [I21, I21, Q87.4]
+```
+
+You want to give it to an AI assistant to help write the analysis code. What
+would you change, and why?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+- **`age`**: the observed maximum of 103 may single out one person. Use a
+  plausible bound such as `[18, 110]`, or state the inclusion criterion in the
+  description instead.
+- **`municipality`**: the list itself is public, but the *set that occurs* in
+  the extract, together with other fields, can narrow down who is included. Use
+  `type: number(id)` with a description ("four-digit municipality code, SCB
+  standard") instead of the list.
+- **`diagnosis`**: rare codes such as Q87.4 (Marfan syndrome) are identifying in
+  small groups. Describe the coding system ("ICD-10-SE, main diagnosis") and list
+  only the codes your analysis uses, if any.
+- **`examples`**: they are taken from real rows. Delete them, or invent values
+  that are clearly examples.
+
+The assistant does not need any of the removed detail to write correct code.
+It needs the types, units, coding systems and the grain, and those are not
+sensitive.
+:::
+:::

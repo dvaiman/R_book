@@ -1,0 +1,76 @@
+$version: 0.1.0
+$learn_more: https://data-dict.tidyverse.org/
+
+name: penguins
+label: Palmer Archipelago penguins
+description: >
+  Size measurements of adult foraging penguins near Palmer Station,
+  Antarctica, collected 2007-2009 by Dr. Kristen Gorman and the Palmer
+  Station Long Term Ecological Research programme.
+origin: https://allisonhorst.github.io/palmerpenguins/
+
+tables:
+  - name: penguins
+    label: Penguins
+    description: >
+      Grain: one row per penguin, measured once. Population: adult
+      Adelie, Chinstrap and Gentoo penguins nesting on three islands.
+    source:
+      parquet: data/penguins.parquet
+    columns:
+      - name: species
+        type: enum
+        values: [Adelie, Chinstrap, Gentoo]
+        constraints: [required]
+        description: Penguin species.
+
+      - name: island
+        type: enum
+        values: [Biscoe, Dream, Torgersen]
+        constraints: [required]
+        description: Island in the Palmer Archipelago where the bird nested.
+
+      - name: bill_length_mm
+        label: Bill length
+        type: number(quantity)
+        units: mm
+        range: [32.1, 59.6]
+        description: Length of the culmen (the upper ridge of the bill).
+
+      - name: bill_depth_mm
+        label: Bill depth
+        type: number(quantity)
+        units: mm
+        range: [13.1, 21.5]
+        description: Depth of the culmen.
+
+      - name: flipper_length_mm
+        label: Flipper length
+        type: number(quantity)
+        units: mm
+        range: [172, 231]
+        description: Length of the flipper.
+
+      - name: body_mass_g
+        label: Body mass
+        type: number(quantity)
+        units: g
+        range: [2700, 6300]
+        description: Body mass at capture.
+
+      - name: sex
+        type: enum
+        values: [female, male]
+        description: >
+          Sex determined by blood sample. Missing for 11 birds where
+          it could not be determined; missing is not a third category.
+
+      - name: year
+        type: number(ordinal)
+        range: [2007, 2009]
+        constraints: [required]
+        description: Study year in which the bird was measured.
+
+glossary:
+  culmen: The upper ridge of a bird's bill.
+  flipper: The penguin's wing, adapted for swimming.

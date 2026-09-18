@@ -95,6 +95,7 @@ jobs:
             any::visNetwork
             any::arrow
             any::openxlsx2
+            any::yaml
 
       - name: Render Quarto project
         run: quarto render

@@ -844,7 +844,9 @@ codebook
 ```
 
 For a fuller codebook, the `codebookr` package generates a Word document with
-value labels, ranges and frequencies.
+value labels, ranges and frequencies. @sec-data-dictionary goes further: a codebook with
+units, meanings and rules, in a format you can validate the data against and
+give to an AI tool instead of the data.
 
 ## Saving the cleaned data
 

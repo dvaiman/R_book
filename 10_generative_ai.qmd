@@ -593,6 +593,35 @@ connecting tools and data sources to an agent. A **sandbox** is a bounded
 environment where an agent can run code without reaching the rest of your
 computer or your data.
 
+### Give the agent a bounded task
+
+An agent does best with a small, well-defined task, and you keep ownership
+most easily when you can see the whole task at once. A workflow that suits
+research code: **ask → explore → plan → implement → test → review**. Let the
+agent explore the project and propose a plan, and read the plan *before* it
+changes anything.
+
+A good task has five parts:
+
+```text
+Goal:         Add a check for missing values to R/02_clean.R.
+Context:      Read R/01_import.R and data-dict.yaml first.
+Constraints:  Do not change any other file. Use the tidyverse and |>.
+Done when:    The script stops if a required column has missing values.
+Verification: Show the plan first. Then run it on data/sim.csv and show the result.
+```
+
+Notice two things. The data dictionary (@sec-data-dictionary) is named as
+context, so the agent knows what "required" means for each column without
+seeing the data. And the agent runs on **simulated** data, not the real data.
+The *done when* line is your definition of correct, written before the code
+exists.
+
+Prefer **small, testable steps** over "rewrite the whole analysis". When
+something goes wrong, you can see where. (Workflow after Metwalli,
+[*How to work with AI coding agents*](https://towardsdatascience.com/how-to-work-with-ai-coding-agents/),
+2026.)
+
 ### Which one when?
 
 | Situation | Reasonable starting point | Why |
@@ -655,69 +684,20 @@ tibble(
 ### A data dictionary
 
 Having *shown* the structure once, write it down **once** in a **data
-dictionary** — in registry research, the same thing as a **codebook**. One
-document describing your data so that both you and an AI can work from the
-*description* instead of the raw data.
+dictionary**, what registry research calls a **codebook**: one document that
+records the grain, the types, the units, the allowed values and what missing
+means. The same document serves your collaborators, your reviewers, your future
+self and an AI tool, and you share the *description* rather than the rows.
 
 Three levels of increasing durability, chosen according to how much the data
 matters: **show** the structure in the moment → **write it down** as a codebook
-→ **standardise** it machine-readably as a `data-dict.yaml`.
+→ **standardise** it machine-readably as a `data-dict.yaml` that the data can
+be validated against.
 
-The document holds three kinds of content:
-
-- **About the data**: where it comes from, how and when it was collected, and
-  where it lives.
-- **About each field**: name, label, type, constraints, description, examples,
-  and where relevant units, range and permitted values.
-- **Links and glossary**: how tables relate (primary and foreign keys), plus a
-  glossary of domain terms an outsider could not guess.
-
-``` yaml
-$version: 0.1.0
-name: penguins
-tables:
-  - name: penguins
-    source:
-      parquet: data/penguins.parquet
-    columns:
-      - name: species
-        type: enum
-        values: [Adelie, Chinstrap, Gentoo]
-        description: Penguin species.
-      - name: body_mass_g
-        type: number(quantity)
-        units: gram
-        range: [2700, 6300]
-        description: Body mass at capture.
-      - name: sex
-        type: enum
-        values: [female, male]
-        constraints: []
-        description: Sex determined in the field; missing where undetermined.
-glossary:
-  flipper: The penguin's forelimb, measured from shoulder to tip.
-```
-
-It is just a text file — the same YAML as the `---` block at the top of your
-Quarto documents (@sec-quarto). Most fields are optional: `name` and `columns`
-are enough to start.
-
-::: {.callout-tip}
-## The codebook earns its keep far beyond the AI chat
-It is **documentation** for collaborators, reviewers and your future self; it
-supports **reproducibility** because it travels with the data; it enables
-**validation** (does the data follow the codebook?); and it is context for any
-AI mode at all. The same document serves both the human and the machine — and
-you share the *codebook* rather than the rows.
-:::
-
-::: {.callout-warning}
-## The codebook is not entirely free of values
-`examples`, `range` and `values` come *from* your data. For sensitive data, use
-synthetic examples or leave those fields out. And note that if you let an AI
-draft the codebook for you, it sees the data — so for sensitive data, write it
-locally or by hand.
-:::
+@sec-data-dictionary covers this properly: the `data-dict` format, drafting a
+dictionary from the data in R, checking the data against it, and which fields
+(`range`, `values`, `examples`) have to be generalised before a dictionary of
+sensitive data is shared.
 
 ## AI inside the analysis
 
@@ -821,6 +801,49 @@ penguins |> slice_head(n = 5)
 # 3. TEST: against something you know should hold
 testthat::expect_equal(nrow(result), 3)
 ```
+
+## Understand what the plot shows
+
+AI makes good-looking plots quickly. It is still **you** who has to know what
+they show. Ask three questions of every plot:
+
+- What **question** should the plot answer, and does the plot type fit it?
+- What is one point or bar: an individual, a measurement, or a **mean**?
+- What is **hidden**: the spread, the number of observations, rows dropped
+  because of missing values, an axis that does not start at zero?
+
+Ask for "mean highway mileage per car class" and you may get the plot on the
+left. It is not wrong, but it says less than it seems to.
+
+```{r}
+#| label: ai-plot-mean
+#| fig-height: 3.5
+#| fig-cap: "What AI suggested: mean highway mileage per class."
+mpg |>
+  ggplot(aes(x = class, y = hwy)) +
+  stat_summary(fun = mean, geom = "col")
+```
+
+```{r}
+#| label: ai-plot-points
+#| fig-height: 3.5
+#| fig-cap: "The same data, with every car shown."
+mpg |>
+  ggplot(aes(x = class, y = hwy)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(
+    position = position_jitter(width = 0.2, seed = 1),
+    alpha = 0.4
+  )
+```
+
+With every car visible, you can see that the `2seater` bar rests on only five
+cars, and that the spread within `compact`, `midsize` and `subcompact` is much
+larger than the differences between their means. With repeated measurements per person, "what is one
+point?" matters even more: a mean of means and a mean of all measurements are
+different numbers. And `ggplot2` drops rows with missing values with only a
+warning. You own the conclusion the plot leads to, even if AI wrote the code
+(@sec-visualisation).
 
 ## Documenting AI use
 
@@ -1116,6 +1139,8 @@ Forums, Slack and Discord channels, and
 - [You can delegate the work but don't delegate ownership](https://saeidehbakhshi.substack.com/p/you-can-delegate-the-work-but-dont)
 - [Thinking — Fast, Slow, and Artificial](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6097646)
   — Shaw & Nave on System 3 and cognitive surrender
+- [How to work with AI coding agents](https://towardsdatascience.com/how-to-work-with-ai-coding-agents/)
+  — Metwalli on the workflow and task structure for coding agents
 
 **Going further**
 
@@ -1136,6 +1161,7 @@ Forums, Slack and Discord channels, and
 **R and AI**
 
 - [Learning the tidyverse with AI](https://tidyverse.org/blog/2025/04/learn-tidyverse-ai/)
+- [10 tips for getting better R code from your AI coding agent](https://www.infoworld.com/article/4184642/10-tips-for-getting-better-r-code-from-your-ai-coding-agent.html)
 - [ellmer](https://ellmer.tidyverse.org) · [mall](https://mlverse.github.io/mall/) ·
   [btw](https://posit-dev.github.io/btw/) ·
   [data-dict](https://data-dict.tidyverse.org) ·
