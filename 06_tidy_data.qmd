@@ -26,6 +26,15 @@ down to three rules:
 3. **Each value has its own cell.**
 
 ```{r}
+#| label: fig-tidy-rules
+#| echo: false
+#| out.width: "100%"
+#| fig-cap: "The three rules of tidy data: variables are columns, observations are rows, and values are cells. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Three panels showing a table with variables highlighted as columns, observations as rows and values as individual cells."
+knitr::include_graphics("images/r4ds/tidy-1.png")
+```
+
+```{r}
 #| label: fig-tidydata
 #| echo: false
 #| out.width: "70%"

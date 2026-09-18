@@ -55,7 +55,18 @@ y
 ```
 
 Note that key 3 exists only in `x`, and key 4 only in `y`. That mismatch is what
-distinguishes the joins from each other.
+distinguishes the joins from each other. @fig-join-setup draws the two tables:
+the coloured column is the key, and the grey columns are the values that come
+along for the ride.
+
+```{r}
+#| label: fig-join-setup
+#| echo: false
+#| out.width: "45%"
+#| fig-cap: "The two example tables. The coloured key columns map colour to key value; the grey columns are the values carried along. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Table x with keys 1, 2, 3 and values x1 to x3, and table y with keys 1, 2, 4 and values y1 to y3."
+knitr::include_graphics("images/r4ds/join-setup.png")
+```
 
 ## Mutating joins
 
@@ -70,6 +81,15 @@ Every row of `x` is kept. Where there is no match in `y`, the new columns are
 left_join(x, y, by = join_by(key))
 ```
 
+```{r}
+#| label: fig-join-left
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: "A left join keeps every row of x. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Left join: rows with keys 1, 2 and 3 are kept; key 3 gets NA for val_y."
+knitr::include_graphics("images/r4ds/join-left.png")
+```
+
 ## right_join()
 
 Every row of `y` is kept.
@@ -77,6 +97,15 @@ Every row of `y` is kept.
 ```{r}
 #| label: join-right
 right_join(x, y, by = join_by(key))
+```
+
+```{r}
+#| label: fig-join-right
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: "A right join keeps every row of y. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Right join: rows with keys 1, 2 and 4 are kept; key 4 gets NA for val_x."
+knitr::include_graphics("images/r4ds/join-right.png")
 ```
 
 ## inner_join()
@@ -88,6 +117,15 @@ Only rows with a match in both are kept.
 inner_join(x, y, by = join_by(key))
 ```
 
+```{r}
+#| label: fig-join-inner
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: "An inner join keeps only the rows whose key appears in both tables. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Inner join: only keys 1 and 2 appear in the output."
+knitr::include_graphics("images/r4ds/join-inner.png")
+```
+
 ## full_join()
 
 Every row from both datasets is kept.
@@ -96,7 +134,28 @@ Every row from both datasets is kept.
 #| label: join-full
 full_join(x, y, by = join_by(key))
 ```
+
+```{r}
+#| label: fig-join-full
+#| echo: false
+#| out.width: "70%"
+#| fig-cap: "A full join keeps every row of both x and y. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Full join: keys 1, 2, 3 and 4 appear, with NA where there was no match."
+knitr::include_graphics("images/r4ds/join-full.png")
+```
 :::
+
+@fig-join-venn sums up the four mutating joins as Venn diagrams: which rows of
+`x` and `y` survive each one.
+
+```{r}
+#| label: fig-join-venn
+#| echo: false
+#| out.width: "85%"
+#| fig-cap: "Venn diagrams of the inner, full, left and right joins. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Four Venn diagrams of x and y, shading the intersection for inner join, everything for full join, all of x for left join and all of y for right join."
+knitr::include_graphics("images/r4ds/join-venn.png")
+```
 
 ::: {.callout-tip}
 ## `left_join()` is the default choice
@@ -139,6 +198,17 @@ There are three possible outcomes for a row in `x`:
 - **No match**: it is dropped (inner join) or filled with `NA` (left join).
 - **One match**: it is kept, with the new columns added.
 - **More than one match**: it is **duplicated**, once per match.
+
+@fig-join-match-types shows all three at once.
+
+```{r}
+#| label: fig-join-match-types
+#| echo: false
+#| out.width: "65%"
+#| fig-cap: "The three ways a row in x can match: x1 matches one row in y, x2 matches two, and x3 matches none. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Key 1 matches once, key 2 matches two rows of y and is duplicated in the output, key 3 matches nothing."
+knitr::include_graphics("images/r4ds/join-match-types.png")
+```
 
 That last case is where analyses go wrong. Nothing errors, nothing warns loudly;
 your dataset just quietly grows, and every subsequent count, mean and model is
@@ -205,6 +275,24 @@ semi_join(x, y, by = join_by(key))
 
 # anti_join: keep rows of x that do NOT have a match
 anti_join(x, y, by = join_by(key))
+```
+
+```{r}
+#| label: fig-join-semi
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: "In a semi-join only the existence of a match matters; the values in y are not added. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Semi join: keys 1 and 2 of x are kept, and no columns from y are added."
+knitr::include_graphics("images/r4ds/join-semi.png")
+```
+
+```{r}
+#| label: fig-join-anti
+#| echo: false
+#| out.width: "60%"
+#| fig-cap: "An anti-join is the inverse of a semi-join: it keeps the rows of x that have no match in y. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Anti join: only key 3 of x is kept, because it has no match in y."
+knitr::include_graphics("images/r4ds/join-anti.png")
 ```
 
 `anti_join()` is a data-quality tool as much as a data-manipulation one. Before

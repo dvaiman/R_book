@@ -45,8 +45,9 @@ A figure from Hadley Wickham describes the a workflow process in a simplistic wa
 #| echo: false
 #| out.width: "70%"
 #| out.height: "auto"
-#| fig-cap: | 
-#|   A simplistic workflow.
+#| fig-cap: |
+#|   A simplistic workflow. Figure from @wickham2023r4ds, used under
+#|   CC BY-NC-ND 3.0.
 #| fig-alt: |
 #|   tidy your data.
 

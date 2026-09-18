@@ -115,10 +115,38 @@ df |>
 What happened, step by step:
 
 - Columns that were **not** pivoted (`id`) are repeated once for each pivoted
-  column.
+  column (@fig-pivot-variables).
 - The **names** of the pivoted columns become values in the new `measurement`
-  column.
-- The **values** in those columns are preserved and split across rows.
+  column (@fig-pivot-names).
+- The **values** in those columns are preserved and split across rows
+  (@fig-pivot-values).
+
+```{r}
+#| label: fig-pivot-variables
+#| echo: false
+#| out.width: "75%"
+#| fig-cap: "Columns that are already variables are repeated, once for each column that is pivoted. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "The id column A, B, C in the wide table becomes A, A, B, B, C, C in the long table."
+knitr::include_graphics("images/r4ds/tidy-data-variables.png")
+```
+
+```{r}
+#| label: fig-pivot-names
+#| echo: false
+#| out.width: "75%"
+#| fig-cap: "The names of the pivoted columns become values in a new column, repeated once for each row of the original data. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "The column names bp1 and bp2 become the values of a new measurement column."
+knitr::include_graphics("images/r4ds/tidy-data-column-names.png")
+```
+
+```{r}
+#| label: fig-pivot-values
+#| echo: false
+#| out.width: "75%"
+#| fig-cap: "The number of values is preserved, not repeated, but unwound row by row. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "The blood pressure values move from two columns into one value column, row by row."
+knitr::include_graphics("images/r4ds/tidy-data-cell-values.png")
+```
 
 ### Choosing columns
 
@@ -163,7 +191,17 @@ who_small |>
   head(6)
 ```
 
-One long column name has become three tidy variables.
+One long column name has become three tidy variables, as in
+@fig-pivot-multiple.
+
+```{r}
+#| label: fig-pivot-multiple
+#| echo: false
+#| out.width: "75%"
+#| fig-cap: "When a column name holds several pieces of information, each name fills in several output columns. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Column names such as x_1 are split so that each part fills its own output column."
+knitr::include_graphics("images/r4ds/tidy-data-multiple-names.png")
+```
 
 ### Several variables *and* several values: `.value`
 
@@ -191,6 +229,16 @@ household |>
 ```
 
 The result has one row per child, with `dob` and `name` as proper columns.
+@fig-pivot-value shows the same idea with generic names.
+
+```{r}
+#| label: fig-pivot-value
+#| echo: false
+#| out.width: "75%"
+#| fig-cap: "With names_to = c('.value', 'num'), the first part of each column name becomes the output column name and the second part becomes the value of num. Figure from @wickham2023r4ds, used under CC BY-NC-ND 3.0."
+#| fig-alt: "Columns x_1, x_2, y_1, y_2 become rows numbered 1 and 2 with one x column and one y column."
+knitr::include_graphics("images/r4ds/tidy-data-names-and-values.png")
+```
 
 ### Dropping generated missing values
 
