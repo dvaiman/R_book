@@ -96,6 +96,7 @@ jobs:
             any::arrow
             any::openxlsx2
             any::yaml
+            any::modelbased
 
       - name: Render Quarto project
         run: quarto render

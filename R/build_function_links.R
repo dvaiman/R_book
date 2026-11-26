@@ -35,7 +35,8 @@ optional_packages <- c(
   "broom.mixed", "rsample", "targets", "tarchetypes", "renv",
   "dagitty", "ggdag", "EValue", "MatchIt", "cobalt", "reprex", "summarytools",
   "tidymodels", "recipes", "parsnip", "workflows", "yardstick",
-  "arrow", "nanoparquet", "duckplyr", "openxlsx2", "janitor"
+  "arrow", "nanoparquet", "duckplyr", "openxlsx2", "janitor",
+  "modelbased", "insight", "datawizard", "slider", "mgcv", "zoo"
 )
 
 qmd_files <- list.files(".", pattern = "\\.qmd$", full.names = TRUE)

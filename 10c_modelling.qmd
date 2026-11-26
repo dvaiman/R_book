@@ -707,7 +707,7 @@ avg_comparisons(model, variables = "sex", comparison = "lnratioavg",
 "14% heavier" without them invites the reader to imagine the wrong quantity.
 :::
 
-### Averaging over your data, or evaluating at the average
+### Averaging over your data, or evaluating at the average {#sec-averaging}
 
 This is the distinction that trips people up, and it is worth understanding
 because in a non-linear model the two give different answers.
@@ -831,6 +831,148 @@ pairs(means)
 it, and worth stating in the methods. Note also that these are estimated at
 fixed covariate values rather than averaged over the data, so they will not
 always match `avg_predictions()`.
+
+### modelbased
+
+`modelbased` is a third option, and a slightly different kind of thing: rather
+than being a new engine, it is **one front end over both** of the others. The
+same three verbs cover everything this section has done:
+
+```{r}
+#| label: modelbased-means
+#| message: false
+library(modelbased)
+
+estimate_means(model, by = "species")
+```
+
+```{r}
+#| label: modelbased-contrasts
+estimate_contrasts(model, contrast = "species")
+```
+
+```{r}
+#| label: modelbased-slopes
+estimate_slopes(model, trend = "flipper_length_mm")
+```
+
+The output is a data frame with tidy column names, so it goes straight into a
+table or a figure, and `plot()` on any of these gives a `ggplot` you can keep
+building on.
+
+#### It makes the choice from @sec-averaging explicit
+
+This is the reason to know the package. The distinction that took this chapter
+several pages — do you evaluate at the average, or average over your data? — is
+a single argument:
+
+```{r}
+#| label: modelbased-estimate-arg
+bind_rows(
+  estimate_means(model, by = "species", estimate = "typical") |> as_tibble(),
+  estimate_means(model, by = "species", estimate = "average") |> as_tibble(),
+  estimate_means(model, by = "species", estimate = "population") |> as_tibble(),
+  .id = "estimate"
+) |>
+  mutate(estimate = c("typical", "average", "population")[as.integer(estimate)]) |>
+  select(estimate, species, Mean) |>
+  pivot_wider(names_from = species, values_from = Mean)
+```
+
+Read the three rows against what you already know:
+
+- **`"typical"`** (the default) builds a balanced grid: numeric covariates at
+  their mean, categorical ones averaged over their levels with equal weight.
+  This is what `emmeans()` gives you, and the numbers above match it exactly.
+- **`"average"`** predicts for every row in your data and averages within
+  species. This is what `avg_predictions()` gives you, and those numbers match
+  too. Gentoo comes out much heavier here because the average is taken over the
+  flipper lengths Gentoos actually have, not over a common value.
+- **`"population"`** copies every observation into every species, predicts, and
+  averages. That is G-computation (@sec-causal): the question is "what if
+  everybody had been a Gentoo, holding the rest of the sample as it is?"
+
+One argument, three genuinely different questions. Having them side by side in
+one function is a good reason to use `modelbased` even if you do your fitting
+elsewhere, because it is much harder to report the wrong one by accident when
+you have had to name it.
+
+::: {.callout-tip}
+## Which backend is doing the work
+`estimate_means()` uses `marginaleffects` by default and `emmeans` if you ask
+for it with `backend = "emmeans"`. For most jobs the choice does not matter.
+It does matter for multiplicity: `p_adjust = "tukey"` needs the `emmeans`
+backend, while the ordinary corrections (`"holm"`, `"bonferroni"`, `"fdr"`)
+work with either.
+
+```{r}
+#| label: modelbased-backend
+#| eval: false
+estimate_contrasts(model, contrast = "species", backend = "emmeans", p_adjust = "tukey")
+```
+:::
+
+### Three packages, one job: which to use
+
+| | Best at |
+|---|---|
+| `marginaleffects` | The widest range of quantities, and the finest control. Where to go when the question is unusual. |
+| `emmeans` | Long history, excellent multiplicity handling, the reference in many fields. |
+| `modelbased` | A short, readable interface over both, and the clearest way to say which average you mean. |
+
+They agree when asked the same question. Most of the disagreements people
+report between them are the three rows of the table above — not a bug, but two
+packages defaulting to different questions.
+
+## The easystats family
+
+`modelbased` is one of a family. The `easystats` packages share a grammar
+(`check_*`, `estimate_*`, `model_*`) and work on the same wide range of model
+objects, which is why they turn up repeatedly once you fit anything more
+complicated than `lm()`:
+
+| Package | What it does | Used in this book |
+|---|---|---|
+| `insight` | Pulls anything out of any model object. The foundation the rest is built on. | indirectly, everywhere |
+| `parameters` | Coefficients as a tidy table, with standardisation and bootstrapping | below |
+| `performance` | Model checks, R², collinearity, comparing models | above |
+| `modelbased` | Marginal means, contrasts, slopes, predictions | above |
+| `effectsize` | Standardised effects, Cohen's d, partial eta² and their intervals | |
+| `correlation` | Correlation matrices in long or wide form, partial and robust | |
+| `datawizard` | Data preparation for models: rescaling, centring, recoding | |
+| `bayestestR` | Describing posterior distributions for Bayesian models | |
+| `see` | The plots for all of the above | |
+
+`parameters::model_parameters()` is `broom::tidy()`'s more talkative cousin: the
+same one-row-per-term idea, with more printed by default and more arguments for
+what you want.
+
+```{r}
+#| label: model-parameters
+parameters::model_parameters(model)
+```
+
+Asking for standardised coefficients is one argument rather than a rescaling
+step you have to do yourself:
+
+```{r}
+#| label: model-parameters-std
+parameters::model_parameters(model, standardize = "refit") |>
+  as.data.frame() |>
+  select(Parameter, Coefficient, CI_low, CI_high) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+::: {.callout-note}
+## easystats or broom?
+Both. `broom` is smaller, is part of the tidymodels world, and gives you
+exactly three verbs — which is usually all you want in a pipeline that ends in
+a table. `easystats` prints more, covers more model classes, and has
+`check_model()` and `estimate_means()`, which `broom` has no equivalent of.
+
+Most of the time you want `broom::tidy()` inside a pipeline and the easystats
+functions when you are looking at a model yourself.
+:::
 
 ## Many models at once
 

@@ -32,7 +32,7 @@ exercises; the two are meant to be used together.
 | **Getting data in and out** | [Importing, exporting, file paths, Excel and Parquet](05b_import_export.qmd) | *Importera och exportera data* |
 | **Data wrangling** | [Tidy data](06_tidy_data.qmd), [`dplyr` verbs](06b_dplyr_verbs.qmd), [pivoting](06c_pivot.qmd), [joins](06d_joins.qmd), [strings and factors](06e_strings_factors.qmd), [cleaning](06f_cleaning_data.qmd), [data dictionaries](06g_data_dictionary.qmd) | *Tidyverse verb*, *Pivoting*, *Joins*, *String manipulation*, *Städa data* |
 | **Exploring and communicating** | [EDA](07_exploratory_data_analysis.qmd), [tables](08_tables_plots.qmd), [the full workflow](09_assemble_workflow.qmd) | *Explorativ dataanalys*, *Tabeller* |
-| **Beyond the basics** | [Generative AI](10_generative_ai.qmd), [writing functions and iteration](10b_functions_iteration.qmd), [statistics and modelling](10c_modelling.qmd), [causal analysis and advanced models](10c2_causal.qmd), [reproducible workflows](10d_workflows.qmd), [useful packages](11_usefull_packages.qmd) | *R med AI för att utforska data* |
+| **Beyond the basics** | [Generative AI](10_generative_ai.qmd), [writing functions and iteration](10b_functions_iteration.qmd), [statistics and modelling](10c_modelling.qmd), [causal analysis and advanced models](10c2_causal.qmd), [reproducible workflows](10d_workflows.qmd), [sensor and wearable data](10e_sensor_data.qmd), [useful packages](11_usefull_packages.qmd) | *R med AI för att utforska data* |
 
 The book's parts do not follow the course schedule exactly. In the course, AI
 and visualisation are taught in the introductory block, and importing, EDA,

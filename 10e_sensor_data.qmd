@@ -1,0 +1,1323 @@
+# Sensor and Wearable Data {#sec-sensors}
+
+::: {.callout-note}
+## What this chapter covers
+Accelerometers, heart-rate monitors and continuous glucose monitors all produce
+the same shape of data: one row per person per moment, for days on end. This
+chapter is about what to do with that. How to handle the time axis, how to look
+at the data before you summarise it, how to decide what counts as wear, how to
+turn millions of minutes into a few numbers per person, and which analyses suit
+the result. The examples are simulated, so everything here runs without a
+device file.
+:::
+
+```{r}
+#| label: setup-sensors
+#| include: false
+library(webexercises)
+```
+
+```{r}
+#| label: sensor-libs
+#| message: false
+library(tidyverse)
+library(slider)
+```
+
+## What makes it different
+
+A questionnaire gives you one row per participant. A device gives you one row
+per participant per epoch, for a week or two, and that changes the practical
+problem in four ways.
+
+- **Volume.** A wrist accelerometer sampling at 30 Hz for seven days is about
+  18 million rows per participant before you do anything. Even summarised to
+  one-minute epochs, 1,000 participants is 10 million rows.
+- **Structure.** Minutes sit inside days, days sit inside people. Almost every
+  mistake in this field comes from analysing one level as if it were another.
+- **Time.** Nothing works until the time axis is right, and time is full of
+  traps: time zones, summer time, devices whose clocks drift, files that start
+  mid-afternoon.
+- **Distance from the question.** Nobody asks "what was the mean acceleration?"
+  They ask about *moderate-to-vigorous physical activity*, *sleep duration*,
+  *time in range*. Every one of those is a construct you build from the signal
+  with a chain of decisions, and the decisions matter more than the statistics
+  that follow.
+
+### The chain from signal to exposure
+
+It is worth being explicit about that chain, because each step throws
+information away and adds an assumption:
+
+| Level | Example | Rows per person-week |
+|---|---|---|
+| Raw signal | acceleration on three axes at 30 Hz | ~18,000,000 |
+| Epoch summary | ENMO per minute | 10,080 |
+| Classified epoch | this minute counts as MVPA | 10,080 |
+| Event | a 14-minute walk | tens |
+| Day | 48 minutes of MVPA on Tuesday | 7 |
+| Person | 41 minutes of MVPA per day on average | 1 |
+
+Most published analyses model the last row. The work is almost entirely in
+getting there, and a reader can only judge it if you describe the steps.
+
+::: {.callout-tip}
+## Decide which level your question lives at
+"Are people who move more fitter?" is a person-level question: one number per
+person, ordinary regression. "Do people sleep worse after an active day?" is a
+day-level question *within* a person, and needs the days kept apart. "When
+during the day is this group most active?" is an epoch-level question. Aggregate
+to the level of the question and no further.
+:::
+
+## The example data
+
+Real device files are large, often identifiable, and come in formats that need
+a dedicated reader. So the examples here use a simulated week of wrist-worn
+data: 25 participants, seven days, one-minute epochs, with an accelerometer
+value and a heart rate for each minute.
+
+The accelerometer value is **ENMO** (Euclidean Norm Minus One) in
+*milli-gravity* units, mg. It is the modern open-standard summary of raw
+acceleration — the length of the acceleration vector minus 1 *g* for gravity,
+averaged over the epoch and truncated at zero. A minute of sitting still is a
+few mg; a brisk walk is well over 100.
+
+::: {.callout-note collapse="true"}
+## How the example data were made
+Worth reading once, because the structure of the simulation is the structure of
+real data: a slow-moving background level, deliberate bursts of activity, and
+periods when the device is not on the wrist.
+
+```{r}
+#| label: sensor-simulate
+set.seed(2026)
+
+# an AR(1) series: this is what makes activity arrive in blocks rather than
+# flickering from one minute to the next
+ar1 <- function(n, rho = 0.95) {
+  as.numeric(stats::filter(rnorm(n, 0, 1), rho, method = "recursive"))
+}
+
+n_id <- 25
+dates <- as.Date("2026-03-02") + 0:6
+
+people <- tibble(
+  id = sprintf("P%02d", 1:n_id),
+  age = round(rnorm(n_id, 45, 12)),
+  sex = sample(c("female", "male"), n_id, replace = TRUE),
+  propensity = rnorm(n_id, 0, 0.35), # how active this person is
+  resting_hr = round(60 + rnorm(n_id, 0, 7))
+)
+
+# every person-night gets its own bedtime and wake time
+sleep_times <- expand_grid(id = people$id, date = dates) |>
+  mutate(onset = round(rnorm(n(), 1370, 45)), offset = round(rnorm(n(), 400, 40)))
+
+# one row per person-minute; min_of_day is an integer, so joins are exact
+grid <- expand_grid(id = people$id, date = dates, min_of_day = 0:1439) |>
+  left_join(people, by = "id") |>
+  left_join(sleep_times, by = c("id", "date")) |>
+  mutate(
+    weekend = wday(date, week_start = 1) >= 6,
+    asleep = min_of_day < offset | min_of_day >= onset
+  ) |>
+  mutate(z = ar1(n()), .by = c(id, date)) |>
+  mutate(z = z / sd(z), .by = c(id, date)) |>
+  mutate(
+    mu_base = if_else(asleep, 4, exp(3.0 + 0.55 * z + propensity)),
+    k_base = if_else(asleep, 2, 3)
+  )
+
+# deliberate activity: two commutes on weekdays, exercise on some days
+person_days <- distinct(grid, id, date, weekend, propensity)
+
+bouts <- person_days |>
+  mutate(exercise = rbinom(n(), 1, plogis(-0.5 + 2 * propensity))) |>
+  reframe(
+    start = c(
+      if (!weekend) round(rnorm(2, c(480, 1035), 25)) else numeric(0),
+      if (exercise == 1) round(rnorm(1, 1110, 70)) else numeric(0)
+    ),
+    dur = c(
+      if (!weekend) round(runif(2, 10, 25)) else numeric(0),
+      if (exercise == 1) round(runif(1, 30, 60)) else numeric(0)
+    ),
+    level = c(
+      if (!weekend) rep(150, 2) else numeric(0),
+      if (exercise == 1) runif(1, 180, 300) else numeric(0)
+    ),
+    .by = c(id, date)
+  ) |>
+  reframe(min_of_day = start + seq_len(dur) - 1L, level = level, .by = c(id, date, start))
+
+# The device comes off. Note that removals are sampled with a weight that
+# favours the less active participants: in real studies compliance and
+# behaviour go together, and that is what makes wear time a confounder.
+nonwear <- bind_rows(
+  person_days |>
+    slice_sample(prop = 0.45, weight_by = plogis(-2.5 * propensity)) |>
+    mutate(start = round(runif(n(), 420, 1150)),
+           dur = round(runif(n(), 90, 420) * plogis(-propensity) * 2)),
+  expand_grid(id = "P07", date = dates) |> mutate(start = 1310, dur = 130),
+  expand_grid(id = c("P12", "P19"), date = dates[c(3, 6)]) |> mutate(start = 400, dur = 900),
+  expand_grid(id = "P23", date = dates[5:7]) |> mutate(start = 0, dur = 1440)
+) |>
+  reframe(min_of_day = start + seq_len(dur) - 1L, .by = c(id, date, start)) |>
+  filter(min_of_day <= 1439) |>
+  distinct(id, date, min_of_day) |>
+  mutate(off = TRUE)
+
+sensor <- grid |>
+  left_join(summarise(bouts, level = max(level), .by = c(id, date, min_of_day)),
+    by = c("id", "date", "min_of_day")
+  ) |>
+  left_join(nonwear, by = c("id", "date", "min_of_day")) |>
+  mutate(
+    off = coalesce(off, FALSE),
+    in_bout = !is.na(level),
+    mu = if_else(in_bout, level, mu_base),
+    k = if_else(in_bout, 25, k_base),
+    enmo = round(rgamma(n(), shape = k, rate = k / mu), 1),
+    # off the wrist the accelerometer still records, and reads close to zero
+    enmo = if_else(off, round(runif(n(), 0, 0.3), 1), enmo),
+    timestamp = as.POSIXct(paste(date), tz = "Europe/Stockholm") + min_of_day * 60
+  ) |>
+  arrange(id, timestamp) |>
+  mutate(enmo_s = slide_dbl(enmo, mean, .before = 2, .after = 2), .by = id) |>
+  mutate(
+    hr = round(resting_hr + 0.85 * enmo_s^0.85 - 6 * asleep + rnorm(n(), 0, 3)),
+    # the optical heart-rate sensor reports nothing at all off the wrist
+    hr = if_else(off, NA_real_, hr)
+  ) |>
+  select(id, timestamp, date, min_of_day, enmo, hr)
+```
+:::
+
+```{r}
+#| label: sensor-glimpse
+glimpse(sensor)
+```
+
+Note what is *not* in this table: no column saying whether the device was worn,
+no sleep, no activity intensity. Those are things we are about to derive.
+
+## Time is the hard part
+
+### Keep a timestamp and an integer
+
+The two time columns here do different jobs. `timestamp` is a real point in
+time, which you need for ordering, for durations, and for joining to anything
+else. `min_of_day` is an integer from 0 to 1439, which you need whenever you
+compare *times of day* across days and people.
+
+Use the integer for that, not a decimal hour. Decimal hours are floating-point
+numbers, and two routes to "8:01 in the morning" can differ in the last bits,
+so joins silently fail to match:
+
+```{r}
+#| label: sensor-float
+8 + 1 / 60 == 481 / 60
+
+near(8 + 1 / 60, 481 / 60) # dplyr's tolerant comparison
+```
+
+```{r}
+#| label: sensor-tod
+sensor |>
+  mutate(hour = min_of_day %/% 60, minute = min_of_day %% 60) |>
+  slice(480:481) |>
+  select(timestamp, min_of_day, hour, minute)
+```
+
+### Time zones and summer time
+
+A device clock usually records local time, and that is where the trouble
+starts. Two rules save most of the pain:
+
+1. **Say the time zone when you parse, and never rely on the default.** The
+   default is whatever the machine running the code happens to use, so the same
+   script gives different answers on a colleague's laptop and on a server.
+2. **Expect two broken days a year.** When the clocks change, one local day has
+   23 hours and another has 25. A "daily total" is then not comparable, and a
+   rule like "exclude days with fewer than 1,380 minutes of wear" quietly
+   excludes everybody on one particular Sunday.
+
+```{r}
+#| label: sensor-dst
+# Sweden put the clocks forward on 29 March 2026
+spring <- seq(as.POSIXct("2026-03-29 00:00:00", tz = "Europe/Stockholm"),
+  as.POSIXct("2026-03-30 00:00:00", tz = "Europe/Stockholm"),
+  by = "1 hour"
+)
+
+length(spring) - 1 # hours in that local day
+
+difftime(as.POSIXct("2026-03-30 00:00:00", tz = "Europe/Stockholm"),
+  as.POSIXct("2026-03-29 00:00:00", tz = "Europe/Stockholm"),
+  units = "hours"
+)
+```
+
+The example week above deliberately avoids a clock change. Real studies do not
+get that choice, so count the minutes you actually have per day rather than
+assuming 1,440 (@sec-import has more on reading files; the encoding and
+locale problems there are the same family of problem as this one).
+
+### Check for gaps before you trust a count
+
+A device can drop samples, and a file can start or end mid-day. Counting rows
+per day is the cheapest possible check, and it should be the first thing you
+run:
+
+```{r}
+#| label: sensor-gaps
+sensor |>
+  count(id, date, name = "minutes") |>
+  count(minutes, name = "person_days")
+```
+
+Every person-day here has exactly 1,440 rows, so nothing is missing from the
+grid. If it did not, `tidyr::complete()` with an explicit sequence of
+timestamps would fill the holes with `NA` — which is what you want, because a
+missing minute and a minute of stillness are different things and must not be
+allowed to look alike.
+
+## Look at it before you summarise it
+
+This is the part that gets skipped, and it is the part that catches the
+problems. Three plots, in this order.
+
+### One person, one day
+
+```{r}
+#| label: fig-sensor-day
+#| fig-cap: "One participant, one day, at one-minute resolution. The shaded bands are the intensity cut-points used later in the chapter."
+#| fig-height: 3.2
+sensor |>
+  filter(id == "P01", date == as.Date("2026-03-03")) |>
+  ggplot(aes(min_of_day / 60, enmo)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 100, ymax = Inf,
+    alpha = 0.13, fill = "firebrick") +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 50, ymax = 100,
+    alpha = 0.13, fill = "goldenrod") +
+  geom_line(linewidth = 0.25) +
+  scale_x_continuous(breaks = seq(0, 24, 3), limits = c(0, 24)) +
+  labs(x = "Time of day (h)", y = "ENMO (mg)", title = "P01, Tuesday")
+```
+
+You can read a day off this plot: a quiet night, a sharp burst on the way to
+work, a scattered middle of the day, a bigger burst in the late afternoon. If
+your plot does not look like a day, something upstream is wrong.
+
+### Everybody, every day: the raster
+
+This is the single most useful plot in wearable research. One row per day, time
+of day along the x-axis, colour for intensity. A week of a person's life fits
+in a few centimetres, and anything odd is immediately visible.
+
+```{r}
+#| label: fig-sensor-raster
+#| fig-cap: "Four participants, one row per day. Dark bands are inactivity — which here is sometimes sleep and sometimes a device in a drawer."
+#| fig-height: 7
+#| fig-width: 9
+sensor |>
+  filter(id %in% c("P01", "P07", "P12", "P23")) |>
+  ggplot(aes(min_of_day / 60, fct_rev(factor(date)), fill = pmin(enmo, 150))) +
+  geom_raster() +
+  facet_wrap(~id, ncol = 1, scales = "free_y") +
+  scale_fill_viridis_c(option = "magma", name = "ENMO (mg)") +
+  scale_x_continuous(breaks = seq(0, 24, 3), expand = c(0, 0)) +
+  labs(x = "Time of day (h)", y = NULL)
+```
+
+Four different stories, none of which would be visible in a table of daily
+means:
+
+- **P01** wears the device all week. The nightly dark band and the twice-daily
+  commute bursts are clear.
+- **P07** has a dark block at the same time every evening — a habit, probably
+  taking the watch off before bed.
+- **P12** has two days with a long dark block right through the middle of the
+  day.
+- **P23** goes dark completely from the fifth day and never comes back.
+
+The last three are not inactivity. They are a missing-data problem wearing
+inactivity's clothes, and if you take daily means without dealing with them you
+will conclude that P23 became extremely sedentary on Friday.
+
+### The average day
+
+```{r}
+#| label: fig-sensor-profile
+#| fig-cap: "Median ENMO by time of day, with the interquartile range across participants."
+#| fig-height: 3.4
+sensor |>
+  mutate(weekend = wday(date, week_start = 1) >= 6,
+    bin = (min_of_day %/% 15) * 15) |>
+  summarise(enmo = mean(enmo), .by = c(id, weekend, bin)) |>
+  summarise(
+    median = median(enmo),
+    lower = quantile(enmo, 0.25),
+    upper = quantile(enmo, 0.75),
+    .by = c(weekend, bin)
+  ) |>
+  ggplot(aes(bin / 60, median, colour = weekend, fill = weekend)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, colour = NA) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(0, 24, 3)) +
+  labs(x = "Time of day (h)", y = "ENMO (mg)", colour = "Weekend", fill = "Weekend")
+```
+
+Note the two-step aggregation: **average within person first, then across
+people**. Summarising all the rows at once would weight the people with the most
+valid days most heavily, which is both wrong and invisible.
+
+## Wear time
+
+Everything downstream depends on deciding which minutes count. This is the
+biggest methodological decision in the chapter, and it is made with code, so it
+is one you can document exactly.
+
+### Finding non-wear
+
+The signal is not zero when the device is removed; it is *flat*. For
+epoch-level data a workable rule is: a long run of minutes with almost no
+movement. Long runs are what `consecutive_id()` is for — it gives a new number
+every time a value changes, so a run becomes a group.
+
+```{r}
+#| label: sensor-nonwear
+wear <- sensor |>
+  arrange(id, timestamp) |>
+  mutate(still = enmo < 1) |>
+  mutate(block = consecutive_id(still), .by = id) |>
+  mutate(block_length = n(), .by = c(id, block)) |>
+  mutate(
+    nonwear = still & block_length >= 60, # 60 minutes of near-zero
+    worn = !nonwear
+  ) |>
+  select(-still, -block, -block_length)
+
+wear |>
+  summarise(minutes = n(), .by = nonwear) |>
+  mutate(percent = round(100 * minutes / sum(minutes), 1))
+```
+
+Why a *run*, rather than a threshold on single minutes? Because sleep also
+produces very low values. It is the sixty consecutive minutes of near-nothing
+that distinguishes a drawer from a sleeping wrist, and a rule based on single
+minutes would throw away everybody's night.
+
+Now redraw the raster with non-wear marked, and the four stories separate
+cleanly:
+
+```{r}
+#| label: fig-sensor-raster-flagged
+#| fig-cap: "The same four participants, with detected non-wear in grey. Sleep stays dark; the drawer turns grey."
+#| fig-height: 7
+#| fig-width: 9
+wear |>
+  filter(id %in% c("P01", "P07", "P12", "P23")) |>
+  mutate(shown = if_else(nonwear, NA, pmin(enmo, 150))) |>
+  ggplot(aes(min_of_day / 60, fct_rev(factor(date)), fill = shown)) +
+  geom_raster() +
+  facet_wrap(~id, ncol = 1, scales = "free_y") +
+  scale_fill_viridis_c(option = "magma", name = "ENMO (mg)", na.value = "grey70") +
+  scale_x_continuous(breaks = seq(0, 24, 3), expand = c(0, 0)) +
+  labs(x = "Time of day (h)", y = NULL)
+```
+
+::: {.callout-warning}
+## Our non-wear is unrealistically obvious
+In this simulation the device reads almost exactly zero when it is off, so the
+rule finds it perfectly. Real non-wear is messier: a watch on a table still
+picks up vibration, and the standard algorithms work on the *standard
+deviation* and *range* of the raw axes over a rolling window rather than on a
+single threshold. If you are working with real files, use an established
+implementation (`GGIR` for raw accelerometer data) rather than writing your
+own, and report which algorithm and which parameters you used.
+:::
+
+### Valid days and who is left
+
+With wear decided, two conventional rules follow: a day counts if it has enough
+wear, and a participant counts if they have enough days. The thresholds differ
+between studies and protocols — around 10 hours for a waking-wear protocol, and
+more like 16 hours for a 24-hour protocol like this one, which has to cover the
+night as well. State yours, and apply them in code rather than by hand.
+
+```{r}
+#| label: sensor-valid
+daily <- wear |>
+  summarise(
+    wear_minutes = sum(worn),
+    mvpa = sum(worn & enmo >= 100),
+    light = sum(worn & enmo >= 50 & enmo < 100),
+    inactive = sum(worn & enmo < 50),
+    mean_enmo = mean(enmo[worn]),
+    .by = c(id, date)
+  ) |>
+  mutate(
+    weekend = wday(date, week_start = 1) >= 6,
+    valid_day = wear_minutes >= 960 # 16 hours, for a 24-hour protocol
+  )
+
+daily |>
+  summarise(valid_days = sum(valid_day), .by = id) |>
+  count(valid_days, name = "participants")
+```
+
+```{r}
+#| label: sensor-flow
+# the participant flow, as a table you can paste into the methods
+included <- daily |>
+  summarise(valid_days = sum(valid_day), weekend_days = sum(valid_day & weekend), .by = id) |>
+  mutate(included = valid_days >= 4 & weekend_days >= 1)
+
+tibble(
+  step = c("Participants with data", "With >= 4 valid days",
+           "and >= 1 valid weekend day"),
+  n = c(
+    n_distinct(daily$id),
+    sum(included$valid_days >= 4),
+    sum(included$included)
+  )
+)
+```
+
+::: {.callout-important}
+## Wear time is a confounder, not an inconvenience
+People who wear the device longer accumulate more of everything. If wear time
+differs between the groups you are comparing — and it usually does, because
+healthier and more conscientious participants wear it longer — then any raw
+daily total is partly a measure of compliance.
+
+Three defences, in increasing order of strength: report wear time by group;
+adjust for it in the model; or use a measure that is already a proportion of
+wear time. None of them fixes the deeper issue, which is that the minutes you
+are missing are not missing at random. They are disproportionately showers,
+swimming, contact sports and nights — which is to say, not a random sample of
+the behaviour you are trying to measure.
+:::
+
+## From minutes to exposures
+
+### Cut-points, and how fragile they are
+
+Classifying each minute by a threshold is the standard move, and the thresholds
+used here — 50 mg for light, 100 mg for moderate-to-vigorous — are typical of
+published wrist ENMO values for adults. They are also a choice that changes
+your answer:
+
+```{r}
+#| label: sensor-cutpoint-sensitivity
+tibble(cutpoint = c(80, 90, 100, 110, 120, 150)) |>
+  mutate(mvpa_per_day = map_dbl(cutpoint, \(cp) {
+    wear |>
+      summarise(mvpa = sum(worn & enmo >= cp), .by = c(id, date)) |>
+      pull(mvpa) |>
+      mean()
+  })) |>
+  mutate(relative = round(mvpa_per_day / mvpa_per_day[cutpoint == 100], 2))
+```
+
+Twenty milli-gravity in either direction — well within the disagreement between
+published cut-points — adds nearly 30% to average MVPA or removes nearly 20% of
+it. That is not a reason to abandon cut-points, but it is a reason to:
+
+- **cite the source** of the ones you use, including the wear location, age
+  group and device they were derived in — a hip cut-point on wrist data is
+  simply wrong;
+- **report a sensitivity analysis** like the one above when the finding is
+  close to a threshold;
+- **be sceptical of comparisons** between studies that used different
+  cut-points, different wear locations or different devices. Much of the
+  variation in published activity levels is instrumentation, not populations.
+
+### Rolling windows
+
+Sensor signals are noisy at the epoch level, and most derived measures smooth
+before deciding anything. `slider` does rolling calculations with an explicit,
+readable window, and it keeps the output the same length as the input:
+
+```{r}
+#| label: sensor-rolling
+#| fig-cap: "A five-minute centred rolling mean over one morning."
+#| fig-height: 3
+sensor |>
+  filter(id == "P01", date == as.Date("2026-03-03"), between(min_of_day, 420, 600)) |>
+  mutate(smoothed = slide_dbl(enmo, mean, .before = 2, .after = 2)) |>
+  ggplot(aes(min_of_day / 60)) +
+  geom_line(aes(y = enmo), colour = "grey70") +
+  geom_line(aes(y = smoothed), linewidth = 0.7) +
+  labs(x = "Time of day (h)", y = "ENMO (mg)")
+```
+
+`.before` and `.after` are in *rows*, which is only the same as minutes if there
+are no gaps — one more reason to check the grid first. `slide_index_dbl()`
+windows by an index column instead, which is the safe choice with irregular
+data.
+
+### Bouts
+
+A bout is a run of minutes above a threshold, and the same `consecutive_id()`
+trick finds them. Bouts matter because ten minutes of walking is not
+physiologically the same thing as ten single minutes scattered through a day,
+and guidelines have historically been written in terms of bouts.
+
+```{r}
+#| label: sensor-bouts
+bouts_found <- wear |>
+  arrange(id, timestamp) |>
+  mutate(active = worn & enmo >= 100) |>
+  mutate(run = consecutive_id(active), .by = c(id, date)) |>
+  summarise(
+    active = first(active),
+    length = n(),
+    start = min(min_of_day),
+    .by = c(id, date, run)
+  ) |>
+  filter(active, length >= 10)
+
+bouts_found |>
+  summarise(bouts = n(), minutes_in_bouts = sum(length), .by = c(id, date)) |>
+  summarise(
+    mean_bouts_per_day = round(mean(bouts), 2),
+    mean_bout_minutes = round(mean(minutes_in_bouts), 1)
+  )
+```
+
+```{r}
+#| label: sensor-bout-vs-total
+# bouted minutes are a minority of total MVPA minutes
+left_join(
+  daily |> summarise(total_mvpa = sum(mvpa), .by = id),
+  bouts_found |> summarise(bouted_mvpa = sum(length), .by = id),
+  by = "id"
+) |>
+  mutate(bouted_share = bouted_mvpa / total_mvpa) |>
+  summarise(across(c(total_mvpa, bouted_mvpa), sum),
+    median_share = round(median(bouted_share), 2))
+```
+
+About seven in ten MVPA minutes here survive the strict bout rule. In real data
+the share is usually much lower, because real activity is far more fragmented
+than this simulation: incidental movement does not arrive in tidy ten-minute
+blocks. Either way the number depends entirely on the definition, so the
+definition belongs in the methods. Real ones usually allow a short dip below
+the threshold without ending the bout, which is the first exercise at the end
+of the chapter.
+
+### Deriving the sleep period
+
+Sleep is the clearest example of a construct built from the signal. A simple
+version of the published algorithms: within each night, find the longest run of
+smoothed inactivity.
+
+```{r}
+#| label: sensor-sleep
+sleep <- wear |>
+  arrange(id, timestamp) |>
+  mutate(smoothed = slide_dbl(enmo, mean, .before = 4, .after = 5), .by = id) |>
+  mutate(
+    # a "night" runs from noon to noon, so it is not split at midnight
+    night = as.Date(timestamp - hours(12), tz = "Europe/Stockholm"),
+    inactive = worn & smoothed < 10
+  ) |>
+  mutate(run = consecutive_id(inactive), .by = c(id, night)) |>
+  summarise(
+    inactive = first(inactive),
+    length = n(),
+    onset = min(timestamp),
+    offset = max(timestamp),
+    .by = c(id, night, run)
+  ) |>
+  filter(inactive, length >= 120) |>
+  slice_max(length, n = 1, by = c(id, night))
+
+sleep |>
+  summarise(
+    nights = n(),
+    median_hours = round(median(length) / 60, 2),
+    iqr = round(IQR(length) / 60, 2)
+  )
+```
+
+Two details carry most of the weight. The **noon-to-noon day** keeps a night
+together instead of splitting it at midnight, and is the standard convention.
+And `slice_max(..., by =)` picks the longest run per person-night, which is the
+whole algorithm in one line.
+
+This is a teaching version, not a validated one: real algorithms use the angle
+of the device rather than its magnitude, and are validated against
+polysomnography. Use `GGIR` on real data.
+
+## The two tables you end up with
+
+Almost every wearable analysis reduces to one or both of these, and it is worth
+building them deliberately and saving them (@sec-parquet):
+
+```{r}
+#| label: sensor-person-level
+person_level <- daily |>
+  filter(valid_day) |>
+  summarise(
+    valid_days = n(),
+    wear_hours = mean(wear_minutes) / 60,
+    mvpa = mean(mvpa),
+    light = mean(light),
+    inactive = mean(inactive),
+    .by = id
+  ) |>
+  semi_join(filter(included, included), by = "id") |>
+  left_join(select(people, id, age, sex), by = "id")
+
+person_level |>
+  summarise(across(c(wear_hours, mvpa, light, inactive),
+    list(mean = mean, sd = sd))) |>
+  mutate(across(everything(), \(x) round(x, 1))) |>
+  glimpse()
+```
+
+`daily` is the other one: one row per person-day, already built above. Keep
+both. The day-level table is what lets you ask within-person questions, and it
+is thrown away surprisingly often.
+
+## Analysing the result
+
+```{r}
+#| label: sensor-outcomes
+#| echo: false
+set.seed(11)
+# simulated outcomes, generated here so the models below have something to find
+person_level <- person_level |>
+  mutate(vo2max = round(48 - 0.2 * (age - 45) + 4 * (sex == "male") +
+    0.10 * (mvpa - mean(mvpa)) + rnorm(n(), 0, 4), 1))
+
+nights_data <- daily |>
+  filter(valid_day) |>
+  semi_join(person_level, by = "id") |>
+  left_join(summarise(person_level, mvpa_person = mvpa, .by = id), by = "id") |>
+  mutate(
+    u = rnorm(n_distinct(id), 0, 25)[as.integer(factor(id))],
+    sleep_minutes = round(400 + u + 0.6 * (mvpa_person - mean(mvpa_person)) -
+      0.3 * (mvpa - mvpa_person) + rnorm(n(), 0, 20))
+  )
+```
+
+To have something to model, each participant has been given a simulated
+`vo2max`, and each valid day a simulated `sleep_minutes` for the night that
+followed.
+
+### One number per person
+
+The commonest analysis in the field, and usually the right starting point:
+
+```{r}
+#| label: sensor-person-model
+model_person <- lm(vo2max ~ I(mvpa / 10) + age + sex + wear_hours,
+  data = person_level
+)
+
+broom::tidy(model_person, conf.int = TRUE) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+Ten more minutes of MVPA per day goes with a higher VO₂max, adjusting for age,
+sex and wear time. Everything in @sec-modelling about interpretation applies
+unchanged — this is an ordinary linear model that happens to have a device-derived
+exposure.
+
+### Days within people
+
+Now a question that only the day-level table can answer: do people sleep
+differently after a more active day? The naive approach stacks all the days and
+fits one line:
+
+```{r}
+#| label: sensor-naive
+broom::tidy(lm(sleep_minutes ~ mvpa, data = nights_data), conf.int = TRUE) |>
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
+```
+
+That estimate is a blend of two completely different comparisons: between
+people (do active people sleep longer?) and within a person (does this person
+sleep longer after their own more active days?). Separate them by splitting the
+exposure into a person mean and a deviation from it:
+
+```{r}
+#| label: sensor-within-between
+#| message: false
+library(lme4)
+
+nights_data <- nights_data |>
+  mutate(
+    mvpa_between = mean(mvpa),
+    mvpa_within = mvpa - mean(mvpa),
+    .by = id
+  )
+
+model_wb <- lmer(sleep_minutes ~ mvpa_within + mvpa_between + (1 | id),
+  data = nights_data
+)
+
+broom.mixed::tidy(model_wb, effects = "fixed", conf.int = TRUE) |>
+  mutate(across(where(is.numeric), \(x) round(x, 3)))
+```
+
+The two coefficients point in opposite directions. Between people, those who do
+more MVPA sleep longer. Within a person, days with more MVPA than usual are
+followed by slightly *shorter* sleep. The single pooled estimate was an average
+of the two and describes neither.
+
+::: {.callout-important}
+## Only the within-person estimate is protected from fixed confounders
+`mvpa_within` compares a person with themselves, so everything that does not
+change over the week — genetics, age, job, habitual bedtime, personality —
+cannot confound it. `mvpa_between` compares different people and is exposed to
+all of it.
+
+That makes the within estimate the more trustworthy of the two, but it is not a
+causal estimate either: anything that varies day to day (an illness, a holiday,
+the weather) can still confound it, and if sleep also affects next-day activity
+the arrow may point the other way (@sec-causal). This is the single most
+common place where intensive longitudinal data is over-interpreted.
+:::
+
+### When during the day?
+
+For the shape of the day rather than its total, fit a smooth curve over time of
+day. A **cyclic** spline makes midnight join up with midnight, which an
+ordinary spline will not do:
+
+```{r}
+#| label: fig-sensor-gam
+#| fig-cap: "Modelled time-of-day profile, weekdays versus weekend, from a cyclic spline."
+#| fig-height: 3.4
+#| message: false
+library(mgcv)
+
+profile_data <- wear |>
+  filter(worn) |>
+  mutate(bin = (min_of_day %/% 10) * 10, weekend = wday(date, week_start = 1) >= 6) |>
+  summarise(enmo = mean(enmo), .by = c(id, date, bin, weekend)) |>
+  summarise(enmo = mean(enmo), .by = c(id, bin, weekend)) |>
+  mutate(id = factor(id), weekend = factor(weekend))
+
+model_gam <- bam(
+  enmo ~ weekend + s(bin, bs = "cc", k = 20, by = weekend) + s(id, bs = "re"),
+  data = profile_data,
+  knots = list(bin = c(0, 1440))
+)
+
+newdata <- expand_grid(bin = seq(0, 1430, 10), weekend = factor(c(FALSE, TRUE))) |>
+  mutate(id = profile_data$id[1])
+
+predictions <- bind_cols(
+  newdata,
+  as_tibble(predict(model_gam, newdata, se.fit = TRUE, exclude = "s(id)"))
+)
+
+predictions |>
+  ggplot(aes(bin / 60, fit, colour = weekend, fill = weekend)) +
+  geom_ribbon(aes(ymin = fit - 1.96 * se.fit, ymax = fit + 1.96 * se.fit),
+    alpha = 0.2, colour = NA) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(0, 24, 3)) +
+  labs(x = "Time of day (h)", y = "Predicted ENMO (mg)", colour = "Weekend", fill = "Weekend")
+```
+
+`s(id, bs = "re")` is a random intercept per participant, so the curve is not
+dominated by whoever contributed most data, and `exclude = "s(id)"` drops that
+term when predicting so the figure shows the population curve.
+
+### The day is only 24 hours long
+
+This is the one statistical issue genuinely specific to this kind of data.
+Sleep, inactivity, light activity and MVPA must add up to the time the device
+was worn. They cannot vary independently, so a model that adjusts one for the
+others is not asking what it appears to ask.
+
+```{r}
+#| label: sensor-composition
+composition <- daily |>
+  filter(valid_day) |>
+  semi_join(person_level, by = "id") |>
+  summarise(across(c(inactive, light, mvpa, wear_minutes), mean), .by = id)
+
+composition |>
+  select(inactive, light, mvpa) |>
+  cor() |>
+  round(2)
+```
+
+The parts are strongly negatively correlated by construction — more of one is
+necessarily less of another. The classic practical answer is an **isotemporal
+substitution** model: include all the behaviours except one, plus total wear
+time. Each coefficient is then the effect of *replacing* the omitted behaviour
+with that one, minute for minute.
+
+```{r}
+#| label: sensor-substitution
+substitution <- person_level |>
+  left_join(select(composition, id, wear_minutes), by = "id")
+
+model_sub <- lm(
+  vo2max ~ I(mvpa / 10) + I(light / 10) + I(wear_minutes / 10) + age + sex,
+  data = substitution
+)
+
+broom::tidy(model_sub, conf.int = TRUE) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+Inactive time is left out and total wear time is in, so the `mvpa` coefficient
+now reads: *ten minutes of inactive time replaced by ten minutes of MVPA, with
+the day the same length as before*. That is a question a reader can act on,
+unlike "a ten-minute increase in MVPA holding all else constant", which is
+impossible by arithmetic.
+
+Compare it with the simpler model fitted earlier, though, and notice what
+happened. The estimate for MVPA fell from about 1.1 to about 0.3, and the
+confidence interval went from comfortably positive to spanning zero. Nothing
+was lost from the data; the question changed, and the new one is much harder to
+answer with 24 participants. Light and MVPA correlate at 0.94 in this sample,
+so asking the model to separate "replace inactive time with MVPA" from "replace
+inactive time with light activity" is asking it to use variation that barely
+exists.
+
+That is the honest position for substitution models in a small sample: they ask
+the right question and often cannot answer it precisely. Report the interval,
+resist reading a point estimate that the interval does not support, and treat
+a substitution analysis as something that needs to be powered for, not added at
+the end.
+
+::: {.callout-note}
+## Compositional data analysis
+The substitution model is a workable approximation. The fuller treatment is
+**compositional data analysis**, which transforms the parts into log-ratio
+coordinates that are free to vary, models those, and transforms back to answer
+substitution questions. It handles the constraint exactly rather than
+approximately.
+
+The practical catches are that log-ratios cannot cope with a zero — a
+participant with no MVPA at all needs imputation — and that the coefficients
+are uninterpretable until transformed back. Look at `compositions` and
+`robCompositions` for the machinery, and `deltacomp` for substitution estimates
+in this setting.
+:::
+
+## Heart rate
+
+Heart rate is the second channel in the example data and behaves differently
+from acceleration: it is a *response* rather than a movement count, so it
+reflects effort, stress, illness and caffeine as well as activity.
+
+```{r}
+#| label: fig-sensor-hr
+#| fig-cap: "Heart rate and acceleration for one participant over one day."
+#| fig-height: 3.2
+sensor |>
+  filter(id == "P01", date == as.Date("2026-03-03")) |>
+  ggplot(aes(min_of_day / 60)) +
+  geom_line(aes(y = enmo), colour = "grey75", linewidth = 0.25) +
+  geom_line(aes(y = hr), colour = "firebrick", linewidth = 0.4) +
+  scale_x_continuous(breaks = seq(0, 24, 3)) +
+  labs(x = "Time of day (h)", y = "ENMO (mg, grey) and heart rate (bpm, red)")
+```
+
+The most robust single number is **resting heart rate**, taken as the lowest
+sustained value overnight rather than a single minimum, which would just find
+the noisiest minute:
+
+```{r}
+#| label: sensor-resting-hr
+resting <- sensor |>
+  filter(!is.na(hr)) |>
+  arrange(id, timestamp) |>
+  mutate(rolling_hr = slide_dbl(hr, mean, .before = 29, .complete = TRUE), .by = id) |>
+  filter(!is.na(rolling_hr)) |>
+  mutate(night = as.Date(timestamp - hours(12), tz = "Europe/Stockholm")) |>
+  summarise(resting_hr = min(rolling_hr), .by = c(id, night))
+
+resting |>
+  summarise(
+    nights = n(),
+    mean_resting_hr = round(mean(resting_hr), 1),
+    within_person_sd = round(mean(tapply(resting_hr, id, sd)), 2)
+  )
+```
+
+Intensity from heart rate is usually expressed relative to a person's own
+range, because an absolute 130 bpm means different things in different people.
+**Heart rate reserve** is the standard device for this: the span between
+resting and maximum, with effort expressed as a percentage of it.
+
+```{r}
+#| label: sensor-hrr
+hr_reserve <- sensor |>
+  filter(!is.na(hr)) |>
+  summarise(hr_max_observed = quantile(hr, 0.999), .by = id) |>
+  left_join(summarise(resting, resting_hr = median(resting_hr), .by = id), by = "id")
+
+hrr <- sensor |>
+  filter(!is.na(hr)) |>
+  left_join(hr_reserve, by = "id") |>
+  mutate(pct_hrr = 100 * (hr - resting_hr) / (hr_max_observed - resting_hr))
+
+hrr |>
+  summarise(
+    minutes_over_40pct = sum(pct_hrr >= 40),
+    minutes_over_60pct = sum(pct_hrr >= 60),
+    .by = c(id, date)
+  ) |>
+  summarise(across(starts_with("minutes"), \(x) round(mean(x), 1)))
+```
+
+Two warnings about this. The maximum here is the **observed** maximum over one
+week, which depends on whether the person happened to exert themselves; age
+prediction equations are the usual alternative and carry an error of around ten
+beats per minute for an individual. And the percentage bands that define
+moderate and vigorous intensity come from exercise physiology guidelines, so
+take the current numbers from the guideline you are citing rather than from
+memory.
+
+::: {.callout-tip}
+## Heart rate variability needs beat-level data
+HRV measures such as RMSSD — the root mean square of successive differences
+between beats, in milliseconds — are computed from **inter-beat intervals**,
+not from heart rate averaged into epochs. A one-minute mean heart rate cannot
+give you HRV, however it is manipulated. If HRV is in your protocol, the device
+must export RR intervals, and the measure is sensitive to posture, breathing,
+recording length and artefact correction, so the processing choices need
+reporting in as much detail as the accelerometer ones.
+:::
+
+## Continuous glucose monitoring
+
+CGM data has the same shape — a value every five minutes for a fortnight — and
+a well-standardised set of summary measures, which makes it a good example of
+how much easier life is when a field agrees on definitions.
+
+```{r}
+#| label: sensor-cgm-simulate
+set.seed(7)
+meals <- tibble(hour = c(8, 12.5, 18.5), size = c(2.2, 2.8, 2.4))
+
+cgm <- expand_grid(
+  id = sprintf("C%02d", 1:12),
+  date = as.Date("2026-04-01") + 0:13,
+  min_of_day = seq(0, 1435, 5)
+) |>
+  mutate(
+    tod = min_of_day / 60,
+    baseline = 6.0 + rnorm(n_distinct(id), 0, 1.3)[as.integer(factor(id))],
+    response = rnorm(n_distinct(id), 1.2, 0.5)[as.integer(factor(id))]
+  ) |>
+  rowwise() |>
+  mutate(meal_effect = sum(meals$size * response * dnorm(tod, meals$hour + 0.6, 0.75) * 1.9)) |>
+  ungroup() |>
+  mutate(glucose = round(pmax(2.5, baseline + meal_effect + rnorm(n(), 0, 0.35)), 1))
+```
+
+The international consensus measures are all proportions of time in named
+ranges, plus two summaries [@battelino2019]:
+
+```{r}
+#| label: sensor-cgm-metrics
+cgm_metrics <- cgm |>
+  summarise(
+    days = n_distinct(date),
+    mean_glucose = mean(glucose),
+    cv = 100 * sd(glucose) / mean(glucose),
+    time_in_range = 100 * mean(glucose >= 3.9 & glucose <= 10.0),
+    time_below = 100 * mean(glucose < 3.9),
+    time_above = 100 * mean(glucose > 10.0),
+    .by = id
+  ) |>
+  # Glucose Management Indicator, an estimate of HbA1c (Bergenstal et al. 2018).
+  # The published formula takes mg/dL, so convert first.
+  mutate(gmi = 3.31 + 0.02392 * (mean_glucose * 18.018))
+
+cgm_metrics |>
+  mutate(across(where(is.numeric), \(x) round(x, 1))) |>
+  arrange(desc(mean_glucose)) |>
+  head(5)
+```
+
+The consensus targets for most adults with diabetes are time in range above
+70%, time below 3.9 mmol/L under 4%, time above 10.0 mmol/L under 25%, and a
+coefficient of variation at or below 36%, computed over at least 14 days with
+the sensor active at least 70% of the time [@battelino2019]. Checking data
+sufficiency before computing anything is the same `count()` habit as before:
+
+```{r}
+#| label: sensor-cgm-sufficiency
+cgm |>
+  summarise(readings = n(), .by = id) |>
+  mutate(
+    expected = 14 * 288, # 288 five-minute readings per day
+    completeness = round(100 * readings / expected, 1)
+  ) |>
+  summarise(min_completeness = min(completeness), n = n())
+```
+
+The standard figure is the **ambulatory glucose profile**: all days overlaid as
+a median with percentile bands, which shows when during the day the problems
+happen rather than just how often.
+
+```{r}
+#| label: fig-sensor-agp
+#| fig-cap: "Ambulatory glucose profile for one participant: median with 25th-75th and 5th-95th percentile bands across 14 days."
+#| fig-height: 3.4
+cgm |>
+  filter(id == "C01") |>
+  summarise(
+    median = median(glucose),
+    q25 = quantile(glucose, 0.25), q75 = quantile(glucose, 0.75),
+    q05 = quantile(glucose, 0.05), q95 = quantile(glucose, 0.95),
+    .by = min_of_day
+  ) |>
+  ggplot(aes(min_of_day / 60)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 3.9, ymax = 10,
+    alpha = 0.12, fill = "forestgreen") +
+  geom_ribbon(aes(ymin = q05, ymax = q95), alpha = 0.15) +
+  geom_ribbon(aes(ymin = q25, ymax = q75), alpha = 0.3) +
+  geom_line(aes(y = median), linewidth = 0.7) +
+  scale_x_continuous(breaks = seq(0, 24, 3)) +
+  labs(x = "Time of day (h)", y = "Glucose (mmol/L)")
+```
+
+The `iglu` package implements these metrics and several dozen more, and is
+worth using instead of writing your own once you move past the basics.
+
+## Pitfalls
+
+::: {.callout-warning}
+## The ones that cost people a paper
+- **Analysing minutes as if they were independent.** 250,000 rows is not
+  250,000 observations. Aggregate to the level of your question, or model the
+  structure.
+- **Letting non-wear become zeroes.** The single most common serious error, and
+  it biases activity downwards exactly in the least compliant participants.
+- **Comparing across devices, wear locations or cut-points.** Hip and wrist are
+  not interchangeable, and neither are counts and ENMO.
+- **Reverse causation.** Illness, pain and low mood reduce activity. A
+  cross-sectional association between activity and health status says little
+  about direction (@sec-causal).
+- **Reactivity.** People move more in the first day or two of wearing a device.
+  Some protocols discard day one; whatever you do, say so.
+- **Fishing across derived measures.** Totals, bouts, intensities, timing,
+  fragmentation, five cut-points: the number of outcomes you can derive from one
+  week of data is effectively unlimited. Pre-specify, and report what you tried.
+- **A stated precision the method cannot support.** "41.3 minutes of MVPA" from
+  a cut-point with a 30% uncertainty band is false precision.
+:::
+
+## Making it reproducible
+
+Sensor pipelines are long, slow and run many times, which is exactly the
+situation a pipeline tool is built for (@sec-pipelines). Three things pay off
+immediately:
+
+- **Keep the raw files read-only** and write every derived level to its own
+  file. You will re-run the epoch-to-day step many times and the raw-to-epoch
+  step rarely.
+- **Store intermediate tables as Parquet** (@sec-parquet). It keeps column types
+  and reads far faster than CSV at this size.
+- **Make the pipeline explicit** with `targets`, so that changing a cut-point
+  re-runs the classification and everything after it, and nothing else.
+
+```{r}
+#| eval: false
+# _targets.R, in outline
+list(
+  tar_target(raw_files, list.files("data-raw", full.names = TRUE), format = "file"),
+  tar_target(epochs, read_and_summarise(raw_files), pattern = map(raw_files)),
+  tar_target(wear, detect_nonwear(epochs, min_length = 60)),
+  tar_target(daily, summarise_days(wear, mvpa_cutpoint = 100)),
+  tar_target(person, summarise_people(daily, min_valid_days = 4)),
+  tar_target(report, tarchetypes::tar_quarto(report.qmd))
+)
+```
+
+Writing it this way also makes the sensitivity analysis trivial: a cut-point is
+an argument, so a second branch with a different value costs one line.
+
+## Packages worth knowing
+
+| Package | For |
+|---|---|
+| `GGIR` | The standard open pipeline for raw accelerometer files: reading, calibration, non-wear, sleep and activity metrics |
+| `read.gt3x`, `actilifecounts` | Reading ActiGraph `.gt3x` files and producing counts |
+| `iglu` | CGM metrics, including everything in the consensus list |
+| `slider`, `zoo` | Rolling windows |
+| `lubridate`, `hms`, `clock` | Timestamps, time zones, times of day |
+| `arrow`, `duckdb` | Data that no longer fits in memory (@sec-parquet) |
+| `mgcv` | Smooth time-of-day and dose-response curves |
+| `lme4`, `nlme` | Days within people |
+| `compositions`, `deltacomp` | 24-hour compositional analysis and substitution |
+| `targets` | Keeping the pipeline honest (@sec-pipelines) |
+
+::: {.webex-check .webex-box}
+**Check yourself**
+
+Why is non-wear detected from a *run* of low values rather than from single low
+minutes?
+`r longmcq(c(
+  "Because single minutes are never low",
+  answer = "Because sleep also produces low values, and only a long flat run distinguishes a removed device",
+  "Because devices only record once an hour",
+  "To reduce the file size"
+))`
+
+A participant's device is in a drawer for six hours. If you do not detect it,
+their daily MVPA will be
+`r mcq(c("too high", answer = "too low", "unchanged", "impossible to say"))`
+
+In the within/between model, which coefficient is protected from confounding by
+things that do not change over the study week, such as age and occupation?
+`r mcq(c("the between-person coefficient", answer = "the within-person coefficient", "both", "neither"))`
+
+You adjust a model for sedentary, light and MVPA time at the same time, without
+including total wear time. The problem is
+`r longmcq(c(
+  "the model will not converge",
+  answer = "the behaviours sum to the wear time, so the coefficients do not describe the substitution you think they do",
+  "sedentary time is always measured with error",
+  "nothing; this is the recommended approach"
+))`
+
+Mean heart rate per minute is enough to compute RMSSD. `r torf(FALSE)`
+
+Moving the MVPA cut-point from 100 to 120 mg changes average MVPA in this
+dataset by roughly
+`r mcq(c("less than 1%", "about 5%", answer = "a fifth, downwards", "it has no effect"))`
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 1: a bout definition with tolerance
+
+The bouts above end the moment a single minute drops below the threshold. Most
+published definitions are more forgiving: a short dip does not end the bout.
+Implement that, and see how much it matters.
+
+1. Start from `wear` and flag MVPA minutes as before.
+2. Find the runs with `consecutive_id()`, and record how long each run is.
+3. Treat an *inactive* run of at most two minutes as part of the bout, then
+   find the runs again on the revised flag.
+4. Keep the runs of at least 10 minutes and compare the total bouted minutes
+   per day with the strict definition.
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex1-sensor-sol
+bridged <- wear |>
+  arrange(id, timestamp) |>
+  mutate(active = worn & enmo >= 100) |>
+  mutate(run = consecutive_id(active), .by = c(id, date)) |>
+  mutate(run_length = n(), .by = c(id, date, run)) |>
+  # a gap of at most two minutes does not end a bout
+  mutate(active_tolerant = active | run_length <= 2) |>
+  mutate(run2 = consecutive_id(active_tolerant), .by = c(id, date)) |>
+  summarise(active_tolerant = first(active_tolerant), length = n(),
+    .by = c(id, date, run2)) |>
+  filter(active_tolerant, length >= 10)
+
+bind_rows(
+  strict = bouts_found |> summarise(minutes = sum(length), .by = c(id, date)),
+  tolerant = bridged |> summarise(minutes = sum(length), .by = c(id, date)),
+  .id = "definition"
+) |>
+  summarise(mean_bouted_minutes = round(mean(minutes), 1), .by = definition)
+```
+
+The tolerant definition finds about a third more bouted minutes, because single
+dips no longer split one bout into two short ones that then fail the ten-minute
+rule.
+
+Neither number is the truth. The point is that the gap between them is larger
+than most of the effects people report, and that it comes entirely from a
+decision taken in code. The same applies to the ten-minute minimum itself: the
+2018 US physical activity guidelines dropped the bout requirement altogether,
+so a paper reporting bouted MVPA and one reporting total MVPA are not measuring
+the same thing.
+:::
+:::
+
+::: {.callout-note collapse="true"}
+## Exercise 2: what does non-wear pretend to be?
+
+Non-wear is not a neutral gap. Find out what it turns into if you do not
+detect it.
+
+1. From `wear`, compute for each person-day the inactive minutes (ENMO below
+   50) two ways: counting every minute, and counting only worn minutes.
+2. How many minutes a day of false inactivity does the first version invent?
+3. Compute each participant's average MVPA and their average inflation, and
+   correlate the two. Who is most affected?
+4. Also correlate average wear time with average MVPA across participants.
+   What does that imply for a model that does not adjust for wear time?
+
+::: {.callout-tip collapse="true"}
+## Solution
+
+```{r}
+#| label: ex2-sensor-sol
+bias <- wear |>
+  summarise(
+    wear_minutes = sum(worn),
+    inactive_all = sum(enmo < 50), # non-wear counted as inactivity
+    inactive_worn = sum(worn & enmo < 50), # non-wear excluded
+    mvpa = sum(worn & enmo >= 100),
+    .by = c(id, date)
+  ) |>
+  summarise(
+    wear = mean(wear_minutes),
+    mvpa = mean(mvpa),
+    inflation = mean(inactive_all - inactive_worn),
+    .by = id
+  )
+
+bias |>
+  summarise(
+    mean_inflation = round(mean(inflation), 1),
+    max_inflation = round(max(inflation), 1)
+  )
+
+bias |>
+  summarise(
+    inflation_vs_mvpa = round(cor(inflation, mvpa), 2),
+    wear_vs_mvpa = round(cor(wear, mvpa), 2)
+  )
+```
+
+Undetected non-wear becomes **sedentary time**, not missing time: on average
+about 170 extra minutes a day of inactivity that nobody actually spent sitting.
+It barely touches MVPA, because a device in a drawer does not produce high
+values — which is why an analysis of MVPA can look fine while the sedentary
+analysis built from the same file is badly wrong.
+
+Worse, the inflation is not spread evenly. It correlates negatively with MVPA,
+so the least active participants gain the most fake sedentary time, which
+exaggerates the very contrast the study is about.
+
+The last correlation is the one to remember: wear time and MVPA are positively
+correlated across participants. People who wear the device more also move more.
+A model that does not account for wear time cannot tell those two things apart,
+which is why `wear_hours` is in the person-level model earlier in the chapter.
+:::
+:::
+
+## More information
+
+- [GGIR documentation](https://wadpac.github.io/GGIR/) — the reference pipeline
+  for raw accelerometer data, with a detailed account of each processing step
+- [iglu](https://irinagain.github.io/iglu/) — CGM metrics, with the consensus
+  definitions implemented
+- [slider](https://slider.r-lib.org/) — rolling windows, including index-aware
+  ones
+- @battelino2019 — the international consensus on CGM targets and reporting

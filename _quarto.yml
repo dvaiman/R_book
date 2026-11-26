@@ -49,6 +49,7 @@ book:
         - 10c_modelling.qmd
         - 10c2_causal.qmd
         - 10d_workflows.qmd
+        - 10e_sensor_data.qmd
         - 11_usefull_packages.qmd
     - references.qmd
 

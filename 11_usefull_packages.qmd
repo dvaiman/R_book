@@ -186,10 +186,20 @@ Extensions to `ggplot2` (@sec-visualisation):
   multiplicity adjustment. [Site](https://rvlenth.github.io/emmeans/)
 - **`modelsummary`** — regression and summary tables for many models side by
   side. [Site](https://modelsummary.com/)
-- **`easystats`** — a family of packages with a consistent interface:
+- **`easystats`** — a family of packages with one consistent interface:
   `parameters` (coefficients), `performance` (model checks and R²),
-  `effectsize` (standardised effects), `see` (diagnostic plots), `report`
-  (a written summary of a model). [Site](https://easystats.github.io/easystats/)
+  `modelbased` (marginal means, contrasts and slopes),
+  `effectsize` (standardised effects), `correlation`, `datawizard` (data
+  preparation), `see` (the plots) and `report` (a written summary of a model).
+  Installing `easystats` gets you all of them. They cover an unusually wide
+  range of model classes, which is what makes them worth knowing when you leave
+  `lm()` behind (@sec-modelling).
+  [Site](https://easystats.github.io/easystats/)
+- **`modelbased`** — `estimate_means()`, `estimate_contrasts()` and
+  `estimate_slopes()` over either `marginaleffects` or `emmeans`, with one
+  argument for whether you want a typical observation, your sample's average,
+  or a counterfactual population (@sec-averaging).
+  [Site](https://easystats.github.io/modelbased/)
 - **`sjPlot`** — plots and tables for regression models, popular in the social
   and health sciences. [Site](https://strengejacke.github.io/sjPlot/)
 - **`tidymodels`** — a tidyverse-consistent framework for predictive modelling:
