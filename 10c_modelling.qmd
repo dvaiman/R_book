@@ -1475,6 +1475,11 @@ tbl_merge(
 )
 ```
 
+This is the working version. Turning it into something a journal will accept —
+estimate and interval in one cell, reference levels shown, one p-value per
+variable, and only the exposure reported rather than every covariate — is
+covered in @sec-table2.
+
 ::: {.webex-check .webex-box}
 **Check yourself**
 

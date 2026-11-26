@@ -334,7 +334,7 @@ model |>
 `tbl_regression()` reads the model object directly, so the table cannot drift
 out of sync with the model — a real advantage over copying numbers by hand.
 
-### Turning it into a publication Table 2
+### Turning it into a publication Table 2 {#sec-table2}
 
 The default is a good working table and not yet a publishable one. A journal
 Table 2 has a few specific conventions, and gtsummary can produce all of them.
