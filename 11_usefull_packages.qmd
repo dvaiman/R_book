@@ -237,7 +237,14 @@ Packages that come up repeatedly in this field:
   [CRAN](https://cran.r-project.org/package=tableone)
 - **`GGIR`** — processes raw accelerometer files (ActiGraph, GENEActiv, Axivity)
   into physical activity and sleep outcomes. The standard tool in the field.
-  [Site](https://wadpac.github.io/GGIR/)
+  [Site](https://wadpac.github.io/GGIR/) **[see @sec-sensors]**
+- **`iglu`** — continuous glucose monitoring metrics: time in range, glucose
+  management indicator, variability, and the ambulatory glucose profile.
+  [Site](https://irinagain.github.io/iglu/)
+- **`compositions`**, **`robCompositions`**, **`zCompositions`** and
+  **`deltacomp`** — compositional data analysis for 24-hour movement
+  behaviours: log-ratio coordinates, zero handling, and time-reallocation
+  models (@sec-sensors).
 - **`slider`** and **`zoo`** — rolling windows and moving averages, which is
   what most wearable-data processing comes down to once the files are read.
   [slider](https://slider.r-lib.org/)

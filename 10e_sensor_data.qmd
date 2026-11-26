@@ -785,6 +785,127 @@ the arrow may point the other way (@sec-causal). This is the single most
 common place where intensive longitudinal data is over-interpreted.
 :::
 
+### Centring: which comparison do you get?
+
+The word "centring" covers two operations that do completely different things,
+and mixing them up is one of the most common errors in repeated-measures work.
+
+**Grand-mean centring** subtracts one number from everybody: `x - mean(x)`. It
+changes what the intercept means, and it makes interaction terms readable
+(@sec-modelling). It does **not** change any slope, and it does not separate
+anything:
+
+```{r}
+#| label: sensor-centring-grand
+nights_data <- nights_data |>
+  mutate(mvpa_grand = mvpa - mean(mvpa))
+
+c(
+  raw = coef(lm(sleep_minutes ~ mvpa, data = nights_data))[["mvpa"]],
+  grand_centred = coef(lm(sleep_minutes ~ mvpa_grand, data = nights_data))[["mvpa_grand"]]
+) |>
+  round(4)
+```
+
+Identical, as it must be: shifting a predictor sideways cannot change its
+slope.
+
+**Person-mean centring** subtracts a different number from each person: their
+own average. That is the operation that splits the exposure into a
+within-person part and a between-person part, and it is what the model above
+used. `datawizard::demean()` does both halves in one step and names the columns
+for you:
+
+```{r}
+#| label: sensor-demean
+nights_data |>
+  select(id, date, mvpa) |>
+  datawizard::demean(select = "mvpa", by = "id", verbose = FALSE) |>
+  head(3)
+```
+
+#### Five ways to fit it, and what each one gives you
+
+```{r}
+#| label: sensor-centring-compare
+#| message: false
+estimate_of <- function(model, term) {
+  tidied <- if (inherits(model, "lmerMod")) {
+    broom.mixed::tidy(model, effects = "fixed")
+  } else {
+    broom::tidy(model)
+  }
+  round(tidied$estimate[tidied$term == term], 3)
+}
+
+within_between <- lmer(sleep_minutes ~ mvpa_within + mvpa_between + (1 | id),
+  data = nights_data)
+mundlak <- lmer(sleep_minutes ~ mvpa + mvpa_between + (1 | id), data = nights_data)
+
+tibble(
+  model = c("pooled OLS", "random intercept, raw exposure",
+            "within-between", "within-between", "fixed effects for person",
+            "Mundlak: raw exposure", "Mundlak: contextual term"),
+  estimate = c(
+    estimate_of(lm(sleep_minutes ~ mvpa, data = nights_data), "mvpa"),
+    estimate_of(lmer(sleep_minutes ~ mvpa + (1 | id), data = nights_data), "mvpa"),
+    estimate_of(within_between, "mvpa_within"),
+    estimate_of(within_between, "mvpa_between"),
+    estimate_of(lm(sleep_minutes ~ mvpa + factor(id), data = nights_data), "mvpa"),
+    estimate_of(mundlak, "mvpa"),
+    estimate_of(mundlak, "mvpa_between")
+  ),
+  what_it_estimates = c(
+    "a blend of within and between",
+    "a partially pooled blend",
+    "within-person",
+    "between-person",
+    "within-person",
+    "within-person",
+    "between minus within"
+  )
+)
+```
+
+Four things in that table are worth committing to memory.
+
+- **Pooled OLS gives a blend** of two effects that here have opposite signs. It
+  is not a compromise between them; it is a number that describes neither.
+- **A random intercept on the raw exposure does not fix this.** This is the
+  one that catches people out: adding `(1 | id)` handles the *dependence*
+  between days, but the slope is still a blend, just a differently weighted
+  one.
+- **Person fixed effects and the within-between model give exactly the same
+  within estimate.** Fixed effects absorb everything stable about a person, at
+  the price of being unable to estimate any between-person effect at all.
+- **The Mundlak form estimates the same thing in a more testable way.** Its
+  second coefficient is the *difference* between the between and within
+  effects, so its p-value is a direct test of whether the two differ — which is
+  usually the interesting question.
+
+#### Which to use
+
+| Your question | Fit this |
+|---|---|
+| Do people who move more have better X? | Person-level summary, ordinary regression. You do not need the days. |
+| Does a person's X change when they move more than usual? | Within-person centring, or person fixed effects |
+| Both, and do they agree? | Within-between model, or the Mundlak form for a direct test |
+| Interaction between a day-level and a person-level variable | Within-between, with the interaction on the within part |
+| Two timepoints only | A change score; with two waves it is equivalent to fixed effects |
+
+::: {.callout-warning}
+## Person means from a handful of days are noisy
+`mvpa_between` is each person's average over the few valid days they happened
+to provide — here a week at most. That average is an estimate, not a known
+value, and a noisy predictor is biased towards zero. So the between-person
+estimate is systematically attenuated, and the gap between the within and
+between estimates is exaggerated.
+
+The more days per person, the smaller the problem. Seven days is few. If the
+within-between contrast is the point of the paper, a multilevel errors-in-
+variables model or a reliability-based correction is worth the trouble.
+:::
+
 ### When during the day?
 
 For the shape of the day rather than its total, fit a smooth curve over time of
@@ -835,77 +956,389 @@ term when predicting so the figure shows the population curve.
 ### The day is only 24 hours long
 
 This is the one statistical issue genuinely specific to this kind of data.
-Sleep, inactivity, light activity and MVPA must add up to the time the device
-was worn. They cannot vary independently, so a model that adjusts one for the
-others is not asking what it appears to ask.
+Sleep, sedentary time, light activity and MVPA must add up to the time the
+device was worn. They cannot vary independently, so a model that adjusts one
+for the others is not asking what it appears to ask.
+
+Having derived the sleep period, we can build the four-part day properly:
 
 ```{r}
 #| label: sensor-composition
-composition <- daily |>
-  filter(valid_day) |>
-  semi_join(person_level, by = "id") |>
-  summarise(across(c(inactive, light, mvpa, wear_minutes), mean), .by = id)
+composition <- wear |>
+  mutate(night = as.Date(timestamp - hours(12), tz = "Europe/Stockholm")) |>
+  left_join(select(sleep, id, night, onset, offset), by = c("id", "night")) |>
+  mutate(asleep = !is.na(onset) & timestamp >= onset & timestamp <= offset) |>
+  filter(worn) |>
+  summarise(
+    sleep = sum(asleep),
+    sedentary = sum(!asleep & enmo < 50),
+    light = sum(!asleep & enmo >= 50 & enmo < 100),
+    mvpa = sum(!asleep & enmo >= 100),
+    .by = c(id, date)
+  ) |>
+  semi_join(filter(daily, valid_day), by = c("id", "date")) |>
+  summarise(across(c(sleep, sedentary, light, mvpa), mean), .by = id) |>
+  left_join(select(person_level, id, vo2max, age, sex), by = "id") |>
+  filter(!is.na(vo2max))
 
 composition |>
-  select(inactive, light, mvpa) |>
+  summarise(across(c(sleep, sedentary, light, mvpa), \(x) round(mean(x))))
+
+composition |>
+  select(sleep, sedentary, light, mvpa) |>
   cor() |>
   round(2)
 ```
 
 The parts are strongly negatively correlated by construction — more of one is
-necessarily less of another. The classic practical answer is an **isotemporal
-substitution** model: include all the behaviours except one, plus total wear
-time. Each coefficient is then the effect of *replacing* the omitted behaviour
-with that one, minute for minute.
+necessarily less of another.
+
+#### Isotemporal substitution
+
+The classic practical answer is an **isotemporal substitution** model: include
+all the behaviours except one, plus the total. Each coefficient is then the
+effect of *replacing* the omitted behaviour with that one, minute for minute.
 
 ```{r}
 #| label: sensor-substitution
-substitution <- person_level |>
-  left_join(select(composition, id, wear_minutes), by = "id")
-
 model_sub <- lm(
-  vo2max ~ I(mvpa / 10) + I(light / 10) + I(wear_minutes / 10) + age + sex,
-  data = substitution
+  vo2max ~ I(mvpa / 10) + I(light / 10) + I(sleep / 10) +
+    I((sleep + sedentary + light + mvpa) / 10) + age + sex,
+  data = composition
 )
 
 broom::tidy(model_sub, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
   mutate(across(where(is.numeric), \(x) round(x, 2)))
 ```
 
-Inactive time is left out and total wear time is in, so the `mvpa` coefficient
-now reads: *ten minutes of inactive time replaced by ten minutes of MVPA, with
-the day the same length as before*. That is a question a reader can act on,
-unlike "a ten-minute increase in MVPA holding all else constant", which is
-impossible by arithmetic.
+Sedentary time is left out and the total is in, so the `mvpa` coefficient now
+reads: *ten minutes of sedentary time replaced by ten minutes of MVPA, with the
+day the same length as before*. That is a question a reader can act on, unlike
+"a ten-minute increase in MVPA holding all else constant", which is impossible
+by arithmetic.
 
-Compare it with the simpler model fitted earlier, though, and notice what
-happened. The estimate for MVPA fell from about 1.1 to about 0.3, and the
-confidence interval went from comfortably positive to spanning zero. Nothing
-was lost from the data; the question changed, and the new one is much harder to
-answer with 24 participants. Light and MVPA correlate at 0.94 in this sample,
-so asking the model to separate "replace inactive time with MVPA" from "replace
-inactive time with light activity" is asking it to use variation that barely
-exists.
+Compare it with the simple model fitted earlier, though, and notice what
+happened. The estimate for MVPA shrank and the confidence interval went from
+comfortably positive to spanning zero. Nothing was lost from the data; the
+question changed, and the new one is much harder to answer with 24
+participants. Light activity and MVPA correlate at 0.94 in this sample, so
+asking the model to separate "replace sitting with MVPA" from "replace sitting
+with light activity" is asking it to use variation that barely exists.
 
 That is the honest position for substitution models in a small sample: they ask
 the right question and often cannot answer it precisely. Report the interval,
-resist reading a point estimate that the interval does not support, and treat
-a substitution analysis as something that needs to be powered for, not added at
-the end.
+resist reading a point estimate the interval does not support, and treat a
+substitution analysis as something to power for rather than add at the end.
+
+#### Compositional data analysis
+
+The substitution model is a linear approximation to a problem that is not
+linear. Compositional data analysis handles the constraint exactly, and it has
+become the standard approach for 24-hour movement behaviours.
+
+**The idea.** A composition carries information only in the *ratios* between
+its parts. Doubling everybody's recording time changes all the minute counts
+but changes nothing about how the day is divided. So the analysis should depend
+on ratios, and because ratios are multiplicative and awkwardly asymmetric, on
+their **logarithms**. Four parts have only three independent pieces of
+information, so what you want is three log-ratio coordinates that are free to
+take any real value.
+
+Three constructions appear in the literature:
+
+| | Definition | Use |
+|---|---|---|
+| **alr**, additive log-ratio | $\log(x_i / x_D)$ against one chosen part | Simple, but distances are distorted and the choice of reference matters |
+| **clr**, centred log-ratio | $\log(x_i / g(\mathbf{x}))$, against the geometric mean | Symmetric and interpretable, but gives $D$ values that sum to zero, so they cannot all go into one regression |
+| **ilr**, isometric log-ratio | $D-1$ orthonormal coordinates | What you put in the model |
+
+An **ilr** coordinate is a *balance*: it contrasts the geometric mean of one
+group of parts against the geometric mean of another, scaled so the
+coordinates are orthonormal. For a split with $r$ parts on one side and $s$ on
+the other,
+
+$$
+z = \sqrt{\frac{rs}{r+s}} \; \log \frac{g(\text{parts on the } + \text{ side})}{g(\text{parts on the } - \text{ side})}
+$$
+
+where $g$ is the geometric mean. That scaling factor is what makes the set
+orthonormal, which in turn is what makes the coordinates usable as ordinary
+regression predictors.
+
+**Pivot coordinates** are the common default: peel off one part at a time, so
+the first coordinate contrasts part 1 against everything else, the second
+contrasts part 2 against everything after it, and so on. Put the part you care
+about first.
+
+```{r}
+#| label: sensor-ilr-function
+geomean <- function(x) exp(mean(log(x)))
+
+# ilr coordinates from a sequential binary partition: one row per coordinate,
+# one column per part, entries +1 (numerator), -1 (denominator) or 0 (ignored)
+ilr_from_sbp <- function(x, sbp) {
+  x <- as.matrix(x)
+  z <- matrix(NA_real_, nrow(x), nrow(sbp),
+    dimnames = list(NULL, rownames(sbp)))
+
+  for (k in seq_len(nrow(sbp))) {
+    plus <- which(sbp[k, ] == 1)
+    minus <- which(sbp[k, ] == -1)
+    r <- length(plus)
+    s <- length(minus)
+
+    z[, k] <- sqrt(r * s / (r + s)) *
+      log(apply(x[, plus, drop = FALSE], 1, geomean) /
+        apply(x[, minus, drop = FALSE], 1, geomean))
+  }
+  as_tibble(z)
+}
+```
+
+The partition for pivot coordinates on our four parts, with MVPA first:
+
+```{r}
+#| label: sensor-ilr-pivot
+parts <- c("mvpa", "light", "sedentary", "sleep")
+
+pivot <- rbind(
+  mvpa_vs_rest      = c(1, -1, -1, -1),
+  light_vs_rest     = c(0,  1, -1, -1),
+  sedentary_vs_sleep = c(0,  0,  1, -1)
+)
+colnames(pivot) <- parts
+
+coords <- ilr_from_sbp(composition[, parts], pivot)
+
+head(coords, 3) |> mutate(across(everything(), \(x) round(x, 3)))
+```
+
+Those three columns go into an ordinary linear model:
+
+```{r}
+#| label: sensor-coda-model
+coda_data <- bind_cols(composition, coords)
+
+model_coda <- lm(
+  vo2max ~ mvpa_vs_rest + light_vs_rest + sedentary_vs_sleep + age + sex,
+  data = coda_data
+)
+
+broom::tidy(model_coda, conf.int = TRUE) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+::: {.callout-important}
+## Do not interpret those coefficients directly
+A coefficient on a log-ratio coordinate is the change in the outcome per unit
+change in a scaled log-ratio, with the other coordinates held fixed. Nobody
+can act on that, and the value depends on which partition you chose. Report
+**reallocations** instead, and treat the coefficients as machinery.
+:::
+
+**Getting an answer back out.** Take the average day, move some minutes from
+one part to another, recompute the coordinates, and ask the model what changes.
+Because both predictions come from the same linear model, the difference and
+its standard error are exact:
+
+```{r}
+#| label: sensor-coda-reallocate
+mean_day <- composition |>
+  summarise(across(all_of(parts), mean))
+
+reallocate <- function(minutes, from, to, model, sbp, average_day) {
+  moved <- average_day
+  moved[[from]] <- moved[[from]] - minutes
+  moved[[to]] <- moved[[to]] + minutes
+
+  # only the coordinates change, so age and sex cancel in the difference
+  delta <- as.numeric(ilr_from_sbp(moved[, colnames(sbp)], sbp)) -
+    as.numeric(ilr_from_sbp(average_day[, colnames(sbp)], sbp))
+
+  terms <- rownames(sbp)
+  estimate <- sum(delta * coef(model)[terms])
+  se <- sqrt(drop(t(delta) %*% vcov(model)[terms, terms] %*% delta))
+
+  tibble(
+    change = glue::glue("{minutes} min {from} -> {to}"),
+    estimate = estimate,
+    conf.low = estimate - 1.96 * se,
+    conf.high = estimate + 1.96 * se
+  )
+}
+
+map(c(5, 10, 15, 30), \(m) {
+  reallocate(m, "sedentary", "mvpa", model_coda, pivot, mean_day)
+}) |>
+  list_rbind() |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+Two things to read off this. The estimates agree with the linear substitution
+model but with a narrower interval, because the compositional model is not
+wasting effort on an impossible parametrisation. And the effect is **not
+linear in minutes**: thirty minutes is worth less than six times five minutes,
+because the ratios change more slowly as you keep adding to an already larger
+part. The linear model cannot express that at all.
+
+::: {.callout-tip}
+## The choice of partition does not change the fit
+Any orthonormal set of coordinates spans the same space, so the model's fitted
+values, $R^2$ and every reallocation estimate are identical whichever partition
+you choose. Only the individual coefficients change. Pick the partition whose
+*structure* matches your question, and never worry that you have chosen the
+wrong one in a way that affects the answer.
+:::
+
+#### Two compositions, or one with structure
+
+A real question is often about more than one domain: the leisure day and the
+working day, or weekdays and weekends. There are three ways to handle that.
+
+**One composition with a structured partition.** This is usually the best
+option, and it is what the sequential binary partition was built for. Split the
+day into the parts you care about, then write a partition that asks your
+questions one at a time:
+
+```{r}
+#| label: sensor-domain-composition
+domains <- wear |>
+  mutate(night = as.Date(timestamp - hours(12), tz = "Europe/Stockholm")) |>
+  left_join(select(sleep, id, night, onset, offset), by = c("id", "night")) |>
+  filter(worn) |>
+  mutate(
+    asleep = !is.na(onset) & timestamp >= onset & timestamp <= offset,
+    # a crude working day: 08:00-17:00 on weekdays
+    at_work = wday(date, week_start = 1) <= 5 & between(min_of_day, 480, 1019),
+    part = case_when(
+      asleep ~ "sleep",
+      at_work & enmo < 50 ~ "work_sed",
+      at_work ~ "work_act",
+      enmo < 50 ~ "leisure_sed",
+      .default = "leisure_act"
+    )
+  ) |>
+  count(id, date, part) |>
+  pivot_wider(names_from = part, values_from = n, values_fill = 0) |>
+  semi_join(filter(daily, valid_day), by = c("id", "date")) |>
+  summarise(across(-date, mean), .by = id) |>
+  left_join(select(person_level, id, vo2max, age, sex), by = "id") |>
+  filter(!is.na(vo2max))
+
+domains |>
+  summarise(across(c(sleep, work_sed, work_act, leisure_sed, leisure_act),
+    \(x) round(mean(x))))
+```
+
+```{r}
+#| label: sensor-domain-sbp
+domain_parts <- c("sleep", "work_sed", "work_act", "leisure_sed", "leisure_act")
+
+domain_sbp <- rbind(
+  sleep_vs_wake      = c(1, -1, -1, -1, -1),
+  work_vs_leisure    = c(0,  1,  1, -1, -1),
+  work_sed_vs_act    = c(0,  1, -1,  0,  0),
+  leisure_sed_vs_act = c(0,  0,  0,  1, -1)
+)
+colnames(domain_sbp) <- domain_parts
+
+model_domain <- lm(
+  vo2max ~ sleep_vs_wake + work_vs_leisure + work_sed_vs_act +
+    leisure_sed_vs_act + age + sex,
+  data = bind_cols(domains, ilr_from_sbp(domains[, domain_parts], domain_sbp))
+)
+```
+
+Read the partition downwards and it is a set of nested questions: how is the
+day split between sleep and waking; within waking, between work and leisure;
+within work, between sitting and moving; and within leisure, the same. Each
+coordinate answers one of them, and the nesting means they do not compete for
+the same variation.
+
+Now reallocations can be asked *inside* a domain, which is what makes this
+worth the trouble — moving half an hour of sitting at work is a different
+intervention, with a different policy owner, from moving half an hour of
+sitting on the sofa:
+
+```{r}
+#| label: sensor-domain-reallocate
+mean_domain_day <- domains |>
+  summarise(across(all_of(domain_parts), mean))
+
+bind_rows(
+  reallocate(30, "leisure_sed", "leisure_act", model_domain, domain_sbp, mean_domain_day),
+  reallocate(30, "work_sed", "work_act", model_domain, domain_sbp, mean_domain_day),
+  reallocate(30, "leisure_sed", "sleep", model_domain, domain_sbp, mean_domain_day),
+  reallocate(60, "leisure_sed", "leisure_act", model_domain, domain_sbp, mean_domain_day)
+) |>
+  mutate(across(where(is.numeric), \(x) round(x, 2)))
+```
+
+**Two separate compositions.** If the domains genuinely are separate — a
+leisure composition and a work composition, each with its own parts — you can
+build coordinates for each and put both sets in the model, together with the
+*total* time in each domain. This is the natural choice when people spend very
+different amounts of time at work, because the composition of the working day
+and its length are then separate questions. The cost is more coefficients and
+more collinearity.
+
+**A subcomposition.** If only one domain matters, analyse it alone: take the
+leisure parts, renormalise them to sum to one, and build coordinates from those.
+This is clean, but subcompositional analysis discards the information in how
+large the domain is, and the ratios within a subcomposition behave differently
+from the same ratios in the whole — so say which you did.
+
+::: {.callout-warning}
+## Zeros, and where they come from
+A log-ratio of zero is undefined, so a single zero part stops the whole
+analysis. Our day-level data is full of them — every weekend day has no work
+time at all:
+
+```{r}
+#| label: sensor-coda-zeros
+#| echo: false
+cat("zero parts in the day-level composition: ",
+  sum(wear |>
+    mutate(night = as.Date(timestamp - hours(12), tz = "Europe/Stockholm")) |>
+    left_join(select(sleep, id, night, onset, offset), by = c("id", "night")) |>
+    filter(worn) |>
+    mutate(
+      asleep = !is.na(onset) & timestamp >= onset & timestamp <= offset,
+      at_work = wday(date, week_start = 1) <= 5 & between(min_of_day, 480, 1019),
+      part = case_when(
+        asleep ~ "sleep",
+        at_work & enmo < 50 ~ "work_sed",
+        at_work ~ "work_act",
+        enmo < 50 ~ "leisure_sed",
+        .default = "leisure_act"
+      )
+    ) |>
+    count(id, date, part) |>
+    pivot_wider(names_from = part, values_from = n, values_fill = 0) |>
+    select(-id, -date) |> as.matrix() == 0),
+  "\n")
+```
+
+Averaging over the week removes them here, which is one reason person-level
+compositions are more common than day-level ones. When they survive, the
+options are to merge parts until the zeros disappear, to treat a structural
+zero (no work on a Sunday) as genuinely different from a rounded zero (no MVPA
+recorded in a day that had some), or to impute the rounded ones with a
+dedicated method such as `zCompositions::lrEM()`. Replacing zeros with an
+arbitrary small number changes the answer and is not a solution.
+:::
 
 ::: {.callout-note}
-## Compositional data analysis
-The substitution model is a workable approximation. The fuller treatment is
-**compositional data analysis**, which transforms the parts into log-ratio
-coordinates that are free to vary, models those, and transforms back to answer
-substitution questions. It handles the constraint exactly rather than
-approximately.
-
-The practical catches are that log-ratios cannot cope with a zero — a
-participant with no MVPA at all needs imputation — and that the coefficients
-are uninterpretable until transformed back. Look at `compositions` and
-`robCompositions` for the machinery, and `deltacomp` for substitution estimates
-in this setting.
+## Packages
+`compositions` and `robCompositions` provide `ilr()`, `clr()`, balance
+construction and the matching back-transformations; `ilr_from_sbp()` above is
+a transparent version of what they do, and agrees with
+`compositions::ilr()` to machine precision when given the same basis.
+`zCompositions` handles zeros, and `deltacomp` fits exactly the reallocation
+models in this section with less code. For real work, use them. The point of
+building it by hand here is that the partition — not the package — is where
+your scientific question actually enters.
 :::
 
 ## Heart rate

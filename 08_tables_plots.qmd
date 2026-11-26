@@ -334,6 +334,226 @@ model |>
 `tbl_regression()` reads the model object directly, so the table cannot drift
 out of sync with the model — a real advantage over copying numbers by hand.
 
+### Turning it into a publication Table 2
+
+The default is a good working table and not yet a publishable one. A journal
+Table 2 has a few specific conventions, and gtsummary can produce all of them.
+
+What is usually missing from the default:
+
+- **The estimate and its interval belong together**, in one cell, because they
+  are one quantity. Separate columns invite the reader to scan the point
+  estimates and ignore the uncertainty.
+- **Reference categories must be visible.** A blank row next to "Adelie" is
+  ambiguous; `0 (reference)` is not.
+- **The number of observations per category**, so the reader can see what each
+  estimate rests on.
+- **One p-value per variable**, not only per level. For a three-level variable
+  the question "does species matter?" has a single answer, and two
+  level-specific p-values do not give it.
+- **What the model actually adjusted for**, named in a note. "Adjusted" on its
+  own is not reproducible.
+- **Abbreviations defined**, and a caption that stands alone.
+
+```{r}
+#| label: tbl-publication
+#| tbl-cap: "A regression table formatted for publication."
+model |>
+  tbl_regression(
+    label = list(
+      flipper_length_mm ~ "Flipper length (mm)",
+      species ~ "Species",
+      sex ~ "Sex"
+    ),
+    estimate_fun = \(x) style_number(x, digits = 1)
+  ) |>
+  add_n(location = "level") |>
+  add_global_p(keep = TRUE) |>
+  # the key step: one column holding "estimate (low to high)"
+  modify_column_merge(
+    pattern = "{estimate} ({conf.low} to {conf.high})",
+    rows = !is.na(estimate)
+  ) |>
+  modify_missing_symbol(
+    symbol = "0 (reference)",
+    columns = "estimate",
+    rows = reference_row %in% TRUE
+  ) |>
+  modify_header(
+    estimate = "**Difference in body mass, g (95% CI)**",
+    n = "**n**"
+  ) |>
+  modify_abbreviation("CI = confidence interval") |>
+  modify_source_note(
+    "Linear regression of body mass on flipper length, species and sex;
+     each estimate is adjusted for the other two."
+  ) |>
+  add_glance_source_note(include = c(r.squared, nobs)) |>
+  bold_labels()
+```
+
+`modify_column_merge()` is the function worth remembering. Its `pattern`
+argument names the columns of the underlying table in braces, so the same
+trick builds any combination you need — `"{estimate} ({std.error})"` for a
+standard error, or `"{estimate} ({conf.low}, {conf.high})"` for a journal that
+wants a comma.
+
+::: {.callout-tip}
+## Decide the decimals once, and apply them everywhere
+`estimate_fun` and `pvalue_fun` control rounding for the whole table.
+Body mass in grams does not need two decimals, and an odds ratio of 1.07
+should not be printed as 1.0745. Match the precision to the measurement
+(@sec-sensors), and use `style_pvalue()` rather than rounding p-values by
+hand — it prints `<0.001` instead of `0`, which is what journals want and what
+`round()` will not give you.
+:::
+
+::: {.callout-warning}
+## What to leave out
+- **Significance stars.** Most journals have dropped them, and they encourage
+  reading a table for asterisks rather than for sizes.
+- **A p-value for every row** when the estimate and interval are already there.
+  Some journals now ask for the interval alone.
+- **The intercept**, unless it means something. For most models it is the
+  predicted outcome for an impossible observation.
+- **More decimal places than the data supports.** False precision is the most
+  common cosmetic error in published tables.
+:::
+
+### Show the exposure, not every covariate
+
+The tables above report every term in the model. A published Table 2 usually
+reports only the **exposure**, because that is the only coefficient the model
+was designed to estimate. The covariates are there to make the exposure
+estimate interpretable, not to be interpreted themselves — reporting them as if
+each were an effect is the **Table 2 fallacy** (@sec-causal): every variable
+needs its own adjustment set, and one model cannot provide all of them at once.
+
+`include =` controls what appears in the table without touching the model:
+
+```{r}
+#| label: tbl-exposure-only
+#| tbl-cap: "Only the exposure is reported; species and sex remain in the model."
+lm(body_mass_g ~ flipper_length_mm + species + sex, data = penguins) |>
+  tbl_regression(
+    include = flipper_length_mm,
+    label = list(flipper_length_mm ~ "Flipper length (mm)"),
+    estimate_fun = \(x) style_number(x, digits = 1)
+  ) |>
+  modify_column_merge(
+    pattern = "{estimate} ({conf.low} to {conf.high})",
+    rows = !is.na(estimate)
+  ) |>
+  modify_header(estimate = "**Adjusted difference in body mass, g (95% CI)**") |>
+  modify_source_note("Adjusted for species and sex.")
+```
+
+When there are several exposures, the convention is one row each, every row
+from **its own** model with its own adjustment set. `tbl_stack()` assembles
+them:
+
+```{r}
+#| label: tbl-stacked-exposures
+#| tbl-cap: "One row per exposure, each from a separately adjusted model."
+penguins_complete <- penguins |>
+  drop_na(body_mass_g, flipper_length_mm, bill_length_mm, species, sex)
+
+exposures <- c(
+  flipper_length_mm = "Flipper length (mm)",
+  bill_length_mm = "Bill length (mm)"
+)
+
+exposure_tables <- imap(exposures, \(label, variable) {
+  formula <- reformulate(c(variable, "species", "sex"), response = "body_mass_g")
+
+  lm(formula, data = penguins_complete) |>
+    tbl_regression(
+      include = all_of(variable),
+      label = setNames(list(label), variable),
+      estimate_fun = \(x) style_number(x, digits = 1)
+    ) |>
+    modify_column_merge(
+      pattern = "{estimate} ({conf.low} to {conf.high})",
+      rows = !is.na(estimate)
+    )
+})
+
+tbl_stack(exposure_tables) |>
+  modify_header(estimate = "**Adjusted difference in body mass, g (95% CI)**") |>
+  modify_source_note("Each row is a separate model, adjusted for species and sex.")
+```
+
+Writing it this way makes the separate models visible in the code, which is the
+honest version of a layout that often hides them. It also scales: `exposures`
+is a vector, so adding one is adding one line, and @sec-functions covers the
+`imap()` pattern if it is unfamiliar.
+
+### `tbl_regression()`, or tidy up and build it yourself?
+
+Both routes appear in this book, and the choice follows one question: **are the
+numbers you want model coefficients?**
+
+`tbl_regression()` is built on `broom` (through `broom.helpers`), so this is
+not a question of one package against another — it is a question of how much of
+the work is already done for you.
+
+| | Use `tbl_regression()` | Use `tidy()` → `gt()` |
+|---|---|---|
+| The numbers are | coefficients from one model | anything else |
+| You get for free | labels, reference rows, n per level, global p-values, exponentiation, stacking and merging of models | nothing |
+| You control | the output, through `modify_*()` | everything, by writing it |
+| Best for | a conventional Table 2 | marginal means, contrasts, slopes, predictions, reallocations, or results combined from several sources |
+
+Use `tbl_regression()` for a regression table. It knows what a reference level
+is, which terms belong to the same variable, and how to label them, and
+reproducing that by hand is a surprising amount of fiddly code that you would
+then have to test.
+
+Reach for the second route as soon as the quantity is not a coefficient. The
+estimates that this book argues you should usually *report* — average
+contrasts, marginal means, slopes at values of a covariate (@sec-averaging) —
+are not coefficients, and `tbl_regression()` has nothing to do with them. They
+arrive as tidy data frames already, so the table is an ordinary `gt()` call:
+
+```{r}
+#| label: tbl-marginal-gt
+#| tbl-cap: "A table built from marginal contrasts rather than coefficients."
+#| message: false
+library(marginaleffects)
+
+avg_comparisons(model, variables = "species") |>
+  as_tibble() |>
+  transmute(
+    comparison = contrast,
+    estimate = sprintf("%.1f (%.1f to %.1f)", estimate, conf.low, conf.high),
+    p = if_else(p.value < 0.001, "<0.001", sprintf("%.3f", p.value))
+  ) |>
+  gt() |>
+  cols_label(
+    comparison = "Comparison",
+    estimate = "Difference in body mass, g (95% CI)",
+    p = "p"
+  ) |>
+  cols_align("left", columns = comparison) |>
+  tab_source_note(
+    "Average contrasts from a linear model adjusted for flipper length and sex."
+  )
+```
+
+`sprintf()` does the merging here, which is what `modify_column_merge()` does
+for you in the other route. One formatting decision, written once, in whichever
+place the numbers come from.
+
+::: {.callout-tip}
+## A third option for many models at once
+`modelsummary` takes a *list* of models and puts them side by side, with
+`estimate` and `statistic` arguments that accept a format string such as
+`"{estimate} [{conf.low}, {conf.high}]"`. It is the fastest route to a
+supplementary table of model specifications, and it handles the same tidy
+objects as the second route above.
+[Site](https://modelsummary.com/)
+:::
+
 ### Crude and adjusted estimates side by side
 
 A common table in epidemiology shows each exposure's **crude** association next
