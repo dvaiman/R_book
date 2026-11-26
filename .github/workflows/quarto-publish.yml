@@ -97,6 +97,10 @@ jobs:
             any::openxlsx2
             any::yaml
             any::modelbased
+            any::car
+            any::slider
+            any::datawizard
+            any::mgcv
 
       - name: Render Quarto project
         run: quarto render
