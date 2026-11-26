@@ -78,8 +78,8 @@ data: 25 participants, seven days, one-minute epochs, with an accelerometer
 value and a heart rate for each minute.
 
 The accelerometer value is **ENMO** (Euclidean Norm Minus One) in
-*milli-gravity* units, mg. It is the modern open-standard summary of raw
-acceleration — the length of the acceleration vector minus 1 *g* for gravity,
+*milli-gravity* units, mg [@vanhees2013]. It is the modern open-standard
+summary of raw acceleration — the length of the acceleration vector minus 1 *g* for gravity,
 averaged over the epoch and truncated at zero. A minute of sitting still is a
 few mg; a brisk walk is well over 100.
 
@@ -264,6 +264,164 @@ get that choice, so count the minutes you actually have per day rather than
 assuming 1,440 (@sec-import has more on reading files; the encoding and
 locale problems there are the same family of problem as this one).
 
+### What counts as a day?
+
+A "day" is a modelling decision, not a fact about the data, and three
+definitions are in common use.
+
+| Definition | Boundary | Suits |
+|---|---|---|
+| **Calendar day** | midnight to midnight | Daytime activity totals; anything reported per date |
+| **Noon to noon** | 12:00 to 12:00 | Anything involving sleep — it keeps a night in one piece |
+| **Shifted window** | e.g. 18:00 to 18:00 | Night-shift workers and day sleepers |
+
+The noon-to-noon convention is what sleep algorithms use, for the obvious
+reason that a night crosses midnight: @vanhees2015 take noon to noon as the
+default and switch to 18:00-to-18:00 for participants whose sleep log shows
+they fall asleep before noon. Analysed by calendar day, a night is split in
+two and neither piece is a night's sleep, which is why the sleep code later in
+this chapter shifts the clock by twelve hours before taking the date:
+
+```{r}
+#| eval: false
+night <- as.Date(timestamp - hours(12), tz = "Europe/Stockholm")
+```
+
+The choice also changes how many days you have, because the boundaries fall in
+different places:
+
+```{r}
+#| label: sensor-day-count
+sensor |>
+  filter(id == "P01") |>
+  summarise(
+    calendar_days = n_distinct(date),
+    noon_to_noon_days = n_distinct(as.Date(timestamp - hours(12), tz = "Europe/Stockholm"))
+  )
+```
+
+Seven calendar days become eight noon-to-noon days, because the first and last
+are only half there. **Partial days at the ends are the trap**: they look like
+days with very little activity, and if the wear-time rule does not remove them
+they drag every average down. Always apply the valid-day rule after choosing
+the boundary, never before.
+
+::: {.callout-tip}
+## State the definition, and keep one
+Say in the methods which boundary you used, and use the same one throughout.
+Mixing them — activity per calendar day, sleep per noon-to-noon day — is
+defensible and common, but then a "day" means two different things in the same
+table, and the day-level dataset cannot be joined on `date` without thought.
+If you need both, carry both columns and name them so the difference is
+visible.
+:::
+
+### Does the time axis have to be complete?
+
+Device files arrive in two shapes. Some have a row for every epoch whether or
+not anything was recorded; others simply stop writing when the device is idle,
+charging or off, so the gaps have no rows at all. Whether that matters depends
+entirely on what you do next.
+
+**Operations that do not care about gaps.** Anything that aggregates — sums,
+means, counts above a threshold, `summarise()` per day or per person — just
+works. A missing row contributes nothing, which is exactly right. The same goes
+for joins on a timestamp and for models fitted at day or person level.
+
+**Operations that silently break.** Anything that counts *rows* and means
+*minutes*:
+
+- rolling windows with `slide_dbl(.before = n)`, which counts rows;
+- run lengths from `consecutive_id()` or `rle()`, used for bouts and non-wear;
+- `lag()` and `lead()`, which step one row, not one minute.
+
+Here is the failure, in miniature. Two separate forty-minute still periods,
+with thirty active minutes between them, and a non-wear rule of "sixty
+consecutive still minutes":
+
+```{r}
+#| label: sensor-gap-demo
+start <- as.POSIXct("2026-03-02 09:00:00", tz = "Europe/Stockholm")
+
+complete_series <- tibble(
+  timestamp = start + (0:109) * 60,
+  enmo = c(rep(0.2, 40), rep(120, 30), rep(20, 40))
+)
+
+flag_nonwear <- function(d) {
+  d |>
+    mutate(still = enmo < 1) |>
+    mutate(block = consecutive_id(still)) |>
+    mutate(block_length = n(), .by = block) |>
+    mutate(nonwear = still & block_length >= 60)
+}
+
+# the device never wrote the active minutes to the file
+gappy_series <- filter(complete_series, enmo < 100)
+
+c(
+  complete = sum(flag_nonwear(complete_series)$nonwear),
+  gappy = sum(flag_nonwear(gappy_series)$nonwear)
+)
+```
+
+Neither still period is long enough to be non-wear, so the right answer is
+zero. With the rows missing, the two periods sit next to each other, the run
+counter sees eighty consecutive still rows, and eighty minutes of perfectly
+good wear are thrown away. Nothing errors, and nothing in the output hints at
+it.
+
+There are two fixes. Measure the run in **time** rather than rows:
+
+```{r}
+#| label: sensor-gap-fix-time
+gappy_series |>
+  mutate(still = enmo < 1) |>
+  mutate(block = consecutive_id(still)) |>
+  mutate(
+    rows = n(),
+    span = as.numeric(difftime(max(timestamp), min(timestamp), units = "mins")) + 1,
+    .by = block
+  ) |>
+  # a genuine run has as many rows as it has minutes
+  mutate(nonwear = still & rows >= 60 & span == rows) |>
+  summarise(nonwear_minutes = sum(nonwear))
+```
+
+Or complete the grid first, so that a missing minute is explicitly missing:
+
+```{r}
+#| label: sensor-gap-fix-complete
+gappy_series |>
+  complete(timestamp = seq(min(timestamp), max(timestamp), by = "1 min")) |>
+  summarise(rows = n(), missing_enmo = sum(is.na(enmo)))
+```
+
+For rolling windows the same choice appears as a choice of function.
+`slide_index_dbl()` takes a window in *index* units, so it cannot reach across
+a gap:
+
+```{r}
+#| label: sensor-gap-rolling
+gappy_series |>
+  mutate(
+    by_rows = slide_dbl(enmo, mean, .before = 4),
+    by_time = slide_index_dbl(enmo, timestamp, mean, .before = minutes(4))
+  ) |>
+  slice(39:42)
+```
+
+At 10:10 the row-based window is still averaging in values from before the
+half-hour gap; the index-based one is not.
+
+::: {.callout-important}
+## Fill with missing, never with zero
+When you complete a grid, the new rows must be `NA`. Filling them with zero
+turns "we do not know" into "the participant was perfectly still", which is the
+same error as counting non-wear as sedentary time — and it is harder to spot,
+because zeros look like data.
+:::
+
 ### Check for gaps before you trust a count
 
 A device can drop samples, and a file can start or end mid-day. Counting rows
@@ -277,11 +435,9 @@ sensor |>
   count(minutes, name = "person_days")
 ```
 
-Every person-day here has exactly 1,440 rows, so nothing is missing from the
-grid. If it did not, `tidyr::complete()` with an explicit sequence of
-timestamps would fill the holes with `NA` — which is what you want, because a
-missing minute and a minute of stillness are different things and must not be
-allowed to look alike.
+Every person-day here has exactly 1,440 rows, so the grid is complete and the
+row-counting operations later in the chapter are safe. If it were not, the two
+fixes above are the options.
 
 ## Look at it before you summarise it
 
@@ -433,8 +589,10 @@ wear |>
 In this simulation the device reads almost exactly zero when it is off, so the
 rule finds it perfectly. Real non-wear is messier: a watch on a table still
 picks up vibration, and the standard algorithms work on the *standard
-deviation* and *range* of the raw axes over a rolling window rather than on a
-single threshold. If you are working with real files, use an established
+deviation* of the raw axes over a rolling window rather than on a single
+threshold. The UK Biobank processing, for example, defines non-wear as
+stationary episodes of at least 60 minutes in which all three axes have a
+standard deviation below 13 mg [@doherty2017]. If you are working with real files, use an established
 implementation (`GGIR` for raw accelerometer data) rather than writing your
 own, and report which algorithm and which parameters you used.
 :::
@@ -442,10 +600,35 @@ own, and report which algorithm and which parameters you used.
 ### Valid days and who is left
 
 With wear decided, two conventional rules follow: a day counts if it has enough
-wear, and a participant counts if they have enough days. The thresholds differ
-between studies and protocols — around 10 hours for a waking-wear protocol, and
-more like 16 hours for a 24-hour protocol like this one, which has to cover the
-night as well. State yours, and apply them in code rather than by hand.
+wear, and a participant counts if they have enough days.
+
+**How many hours?** The usual figure for a waking-wear protocol is **at least
+10 hours** of wear in the waking period, which is what @migueles2017 report as
+the common criterion across the literature for every age group. A 24-hour
+protocol like this one has to cover the night as well, so the threshold rises:
+@vanhees2015 excluded nights with under 16 hours of wear. Large studies
+sometimes replace the per-day rule with a coverage rule instead — the UK
+Biobank analysis required at least 72 hours of wear in total *and* wear data in
+every one-hour period of the 24-hour cycle, so that no time of day is
+systematically missing [@doherty2017].
+
+**How many days?** Four is the usual minimum [@migueles2017]. The basis for it
+is reliability: @trost2005 concluded that "among adults, 3-5 d of monitoring is
+required to reliably estimate habitual physical activity", with children and
+adolescents needing more. Many protocols add "including at least one weekend
+day", because weekends differ systematically — as @fig-sensor-profile showed.
+
+Whatever you choose, apply it in code rather than by hand, and report it:
+
+::: {.callout-note}
+## These numbers are conventions, not findings
+@migueles2017 attach a warning to their own recommendation table, noting that
+the criteria "should be considered with caution" and that some of them need
+proper testing. They are a reasonable default and a reporting standard, not a
+validated threshold — which is the argument for checking whether your
+conclusion survives a different one, as the second exercise at the end of this
+chapter does.
+:::
 
 ```{r}
 #| label: sensor-valid
@@ -649,9 +832,12 @@ together instead of splitting it at midnight, and is the standard convention.
 And `slice_max(..., by =)` picks the longest run per person-night, which is the
 whole algorithm in one line.
 
-This is a teaching version, not a validated one: real algorithms use the angle
-of the device rather than its magnitude, and are validated against
-polysomnography. Use `GGIR` on real data.
+This is a teaching version, not a validated one. Real algorithms use the
+*angle* of the device rather than the magnitude of its acceleration:
+@vanhees2015 estimate arm angle in a rolling five-second window and treat a
+period with no change larger than 5° for at least five minutes as sustained
+inactivity, validated against polysomnography and against sleep diaries. Use
+`GGIR` on real data.
 
 ## The two tables you end up with
 
@@ -995,8 +1181,8 @@ necessarily less of another.
 
 #### Isotemporal substitution
 
-The classic practical answer is an **isotemporal substitution** model: include
-all the behaviours except one, plus the total. Each coefficient is then the
+The classic practical answer is an **isotemporal substitution** model
+[@mekary2009]: include all the behaviours except one, plus the total. Each coefficient is then the
 effect of *replacing* the omitted behaviour with that one, minute for minute.
 
 ```{r}
@@ -1034,8 +1220,10 @@ substitution analysis as something to power for rather than add at the end.
 #### Compositional data analysis
 
 The substitution model is a linear approximation to a problem that is not
-linear. Compositional data analysis handles the constraint exactly, and it has
-become the standard approach for 24-hour movement behaviours.
+linear. Compositional data analysis handles the constraint exactly, and since
+@chastin2015 first applied it to accelerometer data it has become the standard
+approach for 24-hour movement behaviours. @dumuid2018 is the methodological
+reference for this field.
 
 **The idea.** A composition carries information only in the *ratios* between
 its parts. Doubling everybody's recording time changes all the minute counts
@@ -1753,4 +1941,10 @@ which is why `wear_hours` is in the person-level model earlier in the chapter.
   definitions implemented
 - [slider](https://slider.r-lib.org/) — rolling windows, including index-aware
   ones
+- @migueles2017 — a systematic review of accelerometer collection and
+  processing criteria, and the usual source for valid-day conventions
+- @doherty2017 — how a very large study processes wrist accelerometer data
+- @vanhees2015 — the open sleep-detection method behind `GGIR`
+- @dumuid2018 — compositional data analysis for movement behaviours, and
+  @chastin2015 for the first application of it to this kind of data
 - @battelino2019 — the international consensus on CGM targets and reporting
